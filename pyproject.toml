@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "diogenes-lamp"
+version = "0.1.0"
+description = "Browse any Yupoo catalog locally as one fast, searchable page"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+dependencies = [
+    "requests",
+    "beautifulsoup4",
+    "lxml",
+]
+
+[project.optional-dependencies]
+dev = ["pytest", "ruff"]
+
+[project.scripts]
+lamp = "lamp.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+markers = ["manual: live-network tests, excluded from CI"]
+addopts = "-m 'not manual'"
+
+[tool.ruff]
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint.per-file-ignores]
+# Test modules may import a symbol only to prove it is part of the public
+# interface (e.g. Source from lamp.ingest), without using it in an assert.
+"tests/*.py" = ["F401"]

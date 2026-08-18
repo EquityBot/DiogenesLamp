@@ -1,0 +1,128 @@
+# DiogenesLamp
+
+Browse any Yupoo catalog locally as one fast, searchable, infinite-scroll page.
+
+Yupoo seller catalogs paginate every 20-ish albums and load slowly. DiogenesLamp
+scrapes the album covers, titles, and any taobao/tmall/weidian purchase links into
+a local index once, then serves a single page where the whole catalog - across all
+your sellers - scrolls, searches, and filters instantly. Clicking an item opens the
+original Yupoo album for the detail photos.
+
+## Install
+
+Requires Python 3.11+. Install from a clone, and keep the clone: the
+viewer is served straight out of the source tree, so the editable install
+(`-e`) is required, not a convenience.
+
+    git clone https://github.com/ryanduguid/DiogenesLamp
+    cd DiogenesLamp
+    pip install -e .
+
+## Use
+
+1. Put your Yupoo links in a text or CSV file, one URL per line (messy exports
+   are fine - duplicates, page URLs, and non-Yupoo links are handled). Rows
+   like `12,https://seller.x.yupoo.com` work too: the last comma- or
+   tab-separated field is taken as the URL, so keep the link last.
+
+       lamp import links.csv
+
+   This creates or updates `sources.toml`. Non-Yupoo shop links (taobao,
+   weidian, link aggregators) are kept as a link-out directory.
+
+   To leave a seller out of scrapes - a catalog too large to be worth the
+   hours, say - add `skip = true` to its entry. Commenting it out would not
+   last, since `lamp import` rewrites the file from your dump.
+
+2. Scrape (the first run is slow by design - it rate-limits itself to stay
+   polite; re-runs only fetch what changed):
+
+       lamp scrape
+
+   Big catalogs are mostly stale stock. To skip listings older than six
+   months - which typically removes about two thirds of the work:
+
+       lamp scrape --max-age-days 180
+
+   Ages come from the album page's publish date, or from the album id where
+   no date was captured (ids are sequential, so they date an album without
+   costing a request - which is what lets the scrape skip a listing before
+   fetching it). The flag decides what to fetch, not what to keep: albums
+   already scraped stay in `data/`, and the viewer's age filter hides them.
+
+   Other flags: `--seller <id>` for one seller, `--full` to re-fetch
+   everything, `--workers N` (default 8), `--rps N` (default 8.0, global
+   request rate cap). Raising `--rps` alone does little: each seller host is
+   held to 1 request/second, so more hosts have to be in flight for a higher
+   cap to matter. Raise `--workers` with it.
+
+3. Browse:
+
+       lamp serve
+
+   `--port N` changes the port and `--no-browser` stops it opening one.
+   Global options go *before* the subcommand: `lamp --data other-dir serve`
+   and `lamp --sources other.toml scrape`.
+
+   Search titles, filter by seller or category, show only new-since-last-scrape
+   items, star favorites (stored in your browser), and open purchase links or
+   the original album per item.
+
+   Two filters exist for large catalogs:
+
+   - **hide dups** collapses repeat postings to one card with a `×N` badge;
+     click the badge to see the group, Escape to leave it. Two albums are the
+     same posting when they share a taobao/tmall/weidian item id, or when one
+     seller posted the same title twice. Titles never group across sellers -
+     mirrored storefronts share album names, so that would merge distinct
+     products.
+   - **age** hides listings older than 30/90/180/365 days, whose stock is
+     usually long gone.
+
+## Data
+
+Everything lives in `data/` (gitignored): `index.json`, per-seller
+`catalog/*.json` shards, and cover thumbnails under `thumbs/`. Delete `data/`
+to start over. `sources.toml` is also gitignored - your seller list stays on
+your machine.
+
+## Politeness and scope
+
+- Global cap of 8 requests/second by default (tune with --rps), 1
+  request/second per seller host, honest User-Agent, backoff on errors, and a
+  hard stop per seller if Yupoo answers 429/403 repeatedly.
+- Covers and metadata only - detail photos are never downloaded; the viewer
+  links back to Yupoo for those.
+- Public pages only. No login, no paywall, no captcha handling.
+
+## Development
+
+    pip install -e '.[dev]'   # quotes matter in zsh
+    ruff check .
+    pytest              # fixture-based, no network
+    pytest -m manual    # canaries against saved live samples
+
+The `manual` tests check the parsers against real pages saved under
+`data/debug/`, so they only run after a scrape has put samples there - on a
+fresh clone they fail by design rather than pass vacuously.
+
+The viewer is dependency-free vanilla JS with no build step - edit
+`viewer/*.js` and reload. Its logic modules have their own tests, run by
+`pytest` through a wrapper (skipped when node is missing) and directly with:
+
+    node --test tests/viewer/*.test.cjs
+
+To work on the viewer without scraping anything, generate synthetic data:
+
+    python tests/make_demo_data.py demo-data
+    lamp --data demo-data serve
+
+Note that global options come before the subcommand: `lamp --data X serve`,
+not `lamp serve --data X`.
+
+Yupoo serves two different list-page templates and the parser handles both.
+When a seller fails, the page is saved to `data/debug/<seller>-page1.html`
+and the error distinguishes a page whose albums could not be read (a parser
+problem) from one with no albums at all (an empty or closed seller).
+
+MIT licensed.

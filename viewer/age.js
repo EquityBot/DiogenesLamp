@@ -1,0 +1,69 @@
+"use strict";
+
+// Posting-age estimation. Yupoo assigns album ids from a global sequence,
+// so an album's id dates it even when the record carries no date. Anchors
+// are (album id, datePublished) pairs measured live on 2026-08-18 from
+// album pages spread across the corpus id range. Piecewise-linear
+// interpolation between them is accurate to days - plenty for coarse
+// "older than N days" filtering. Records scraped after 2026-08 carry a
+// real date_published, which always wins over the estimate.
+const AGE_ANCHORS = [
+  [8348553, Date.UTC(2017, 10, 7)],
+  [70347667, Date.UTC(2019, 6, 24)],
+  [71628395, Date.UTC(2019, 7, 24)],
+  [119598315, Date.UTC(2022, 7, 7)],
+  [130174962, Date.UTC(2023, 2, 2)],
+  [160926298, Date.UTC(2024, 3, 18)],
+  [190225975, Date.UTC(2025, 2, 27)],
+  [220478978, Date.UTC(2025, 11, 18)],
+  [250756373, Date.UTC(2026, 7, 17)],
+];
+
+// Timestamp (ms) an album with this id was most likely published.
+// Clamps below the first anchor; extrapolates past the last one at the
+// final segment's rate so brand-new albums keep working.
+function estimatePublishedMs(id) {
+  const a = AGE_ANCHORS;
+  if (id <= a[0][0]) return a[0][1];
+  let i = a.findIndex(([anchorId]) => anchorId >= id);
+  if (i === -1) i = a.length - 1; // past the last anchor: extrapolate
+  const [id0, t0] = a[i - 1];
+  const [id1, t1] = a[i];
+  return t0 + ((id - id0) * (t1 - t0)) / (id1 - id0);
+}
+
+// Publication timestamp (ms) for an album record: the scraped
+// date_published when present, the id estimate otherwise.
+function publishedMs(album) {
+  if (album.date_published) {
+    const ts = Date.parse(album.date_published);
+    if (!Number.isNaN(ts)) return ts;
+  }
+  return estimatePublishedMs(parseInt(album.id, 10) || 0);
+}
+
+// Whole calendar days between the publish date and today, mirroring
+// src/lamp/age.py's `(today - published).days`. Both sides must count the
+// same way: measuring in milliseconds instead would make an album estimated
+// exactly N days old pass --max-age-days N at scrape time and then vanish
+// from the N-day filter. `today` is the viewer's local date, matching the
+// local timestamp the scraper stamps its runs with.
+const DAY_MS = 86400000;
+function ageInDays(publishedTs, nowTs) {
+  const now = new Date(nowTs);
+  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const publishedDay = Math.floor(publishedTs / DAY_MS) * DAY_MS;
+  return Math.round((today - publishedDay) / DAY_MS);
+}
+
+// True when the album is within the window, matching is_stale's rule that
+// an album exactly max_age_days old is still kept.
+function withinAgeWindow(album, maxDays, nowTs) {
+  if (!maxDays) return true;
+  return ageInDays(publishedMs(album), nowTs) <= maxDays;
+}
+
+if (typeof module !== "undefined") {
+  module.exports = { AGE_ANCHORS, estimatePublishedMs, publishedMs,
+    ageInDays, withinAgeWindow };
+}

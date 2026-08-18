@@ -1,0 +1,29 @@
+data/
+demo-data/
+sources.toml
+sources.toml.*
+*.bak
+__pycache__/
+*.egg-info/
+.venv/
+# Internal build-process scaffolding and design docs: they describe a
+# private catalog and the author's environment, and are of no use to
+# anyone reading the published repo. Kept locally, never published.
+.superpowers/
+docs/superpowers/
+dist/
+build/
+.pytest_cache/
+.ruff_cache/
+# Private inputs and local noise. The link dump that seeds sources.toml is a
+# CSV, and nothing here is meant to carry one: without these rules a stray
+# `git add -A` would commit it.
+*.csv
+*.log
+*.tmp
+.env
+.env.*
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

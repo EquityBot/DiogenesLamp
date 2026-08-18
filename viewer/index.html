@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DiogenesLamp</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header id="topbar">
+  <span id="brand">&#129684; DiogenesLamp</span>
+  <input id="search" type="search" placeholder="search titles..." autocomplete="off">
+  <select id="seller-filter"><option value="">all sellers</option></select>
+  <select id="category-filter"><option value="">all categories</option></select>
+  <select id="age-filter">
+    <option value="">any age</option>
+    <option value="30">&#8804; 30 days</option>
+    <option value="90">&#8804; 90 days</option>
+    <option value="180">&#8804; 180 days</option>
+    <option value="365">&#8804; 1 year</option>
+  </select>
+  <label><input type="checkbox" id="new-only"> new</label>
+  <label><input type="checkbox" id="favs-only"> &#9733; favorites</label>
+  <label><input type="checkbox" id="hide-dups"> hide dups</label>
+  <button id="group-clear" type="button" hidden></button>
+  <button id="shops-toggle" type="button">shops</button>
+  <span id="status" aria-live="polite"></span>
+</header>
+<aside id="shops-panel" hidden></aside>
+<main id="grid-container">
+  <div id="grid-spacer"><div id="grid"></div></div>
+</main>
+<script src="dedup.js"></script>
+<script src="age.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

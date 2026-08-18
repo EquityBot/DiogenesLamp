@@ -1,0 +1,98 @@
+import json
+from pathlib import Path
+
+import pytest
+
+from lamp.storage import (
+    atomic_write_json,
+    load_shard,
+    merge_album,
+    write_index,
+    write_shard,
+)
+
+RECORD = {
+    "id": "111",
+    "seller": "sellerx",
+    "title": "Item A",
+    "list_title": "Item A",
+    "thumb": "thumbs/sellerx/111.jpg",
+    "album_url": "https://sellerx.x.yupoo.com/albums/111",
+    "links": [{"platform": "weidian", "url": "https://weidian.com/item.html?itemID=9"}],
+    "category": "hoodies",
+    "photo_count": 23,
+    "first_seen": "2026-08-01T00:00:00+10:00",
+    "updated_at": "2026-08-01T00:00:00+10:00",
+}
+
+
+def test_merge_album_new_gets_run_ts():
+    fresh = dict(RECORD, first_seen="", updated_at="")
+    merged = merge_album(None, fresh, "2026-08-17T12:00:00+10:00")
+    assert merged["first_seen"] == "2026-08-17T12:00:00+10:00"
+    assert merged["updated_at"] == "2026-08-17T12:00:00+10:00"
+
+
+def test_merge_album_existing_keeps_first_seen():
+    fresh = dict(RECORD, title="Item A v2", first_seen="", updated_at="")
+    merged = merge_album(RECORD, fresh, "2026-08-17T12:00:00+10:00")
+    assert merged["first_seen"] == "2026-08-01T00:00:00+10:00"
+    assert merged["updated_at"] == "2026-08-17T12:00:00+10:00"
+    assert merged["title"] == "Item A v2"
+
+
+def test_merge_album_keeps_known_dates_when_rescrape_finds_none():
+    """A layout variant that yields no JSON-LD must not erase a captured date."""
+    known = dict(RECORD, date_published="2025-11-24", date_modified="2026-08-16")
+    fresh = dict(RECORD, date_published="", date_modified="", first_seen="", updated_at="")
+    merged = merge_album(known, fresh, "2026-08-17T12:00:00+10:00")
+    assert merged["date_published"] == "2025-11-24"
+    assert merged["date_modified"] == "2026-08-16"
+
+
+def test_merge_album_fresh_dates_win_over_old():
+    known = dict(RECORD, date_published="2025-11-24", date_modified="2025-11-24")
+    fresh = dict(RECORD, date_published="2025-11-24", date_modified="2026-08-17",
+                 first_seen="", updated_at="")
+    merged = merge_album(known, fresh, "2026-08-17T12:00:00+10:00")
+    assert merged["date_modified"] == "2026-08-17"
+
+
+def test_shard_roundtrip_sorted(tmp_path: Path):
+    albums = {"5": dict(RECORD, id="5"), "10": dict(RECORD, id="10")}
+    write_shard(tmp_path, "sellerx", albums)
+    loaded = load_shard(tmp_path, "sellerx")
+    assert list(loaded) == ["10", "5"]  # descending id order
+    assert loaded == {"10": dict(RECORD, id="10"), "5": dict(RECORD, id="5")}
+
+
+def test_load_missing_shard_empty(tmp_path: Path):
+    assert load_shard(tmp_path, "ghost") == {}
+
+
+def test_atomic_write_leaves_no_tmp(tmp_path: Path):
+    target = tmp_path / "x.json"
+    atomic_write_json(target, {"ok": 1})
+    assert json.loads(target.read_text(encoding="utf-8")) == {"ok": 1}
+    assert list(tmp_path.iterdir()) == [target]
+
+
+def test_atomic_write_failure_preserves_original(tmp_path: Path):
+    target = tmp_path / "x.json"
+    atomic_write_json(target, {"ok": 1})
+    with pytest.raises(TypeError):
+        atomic_write_json(target, {"bad": {1, 2}})  # sets are not JSON-serializable
+    assert json.loads(target.read_text(encoding="utf-8")) == {"ok": 1}
+    assert list(tmp_path.iterdir()) == [target]
+
+
+def test_write_index(tmp_path: Path):
+    sellers = [{"id": "sellerx", "name": "sellerx", "url": "https://sellerx.x.yupoo.com",
+                "album_count": 2, "shard": "catalog/sellerx.json"}]
+    shops = [{"id": "weidian-7", "platform": "weidian", "name": "weidian 7",
+              "url": "https://weidian.com/?userid=7"}]
+    write_index(tmp_path, sellers, shops, "2026-08-17T12:00:00+10:00")
+    index = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    assert index["generated_at"] == "2026-08-17T12:00:00+10:00"
+    assert index["sellers"] == sellers
+    assert index["shops"] == shops
