@@ -65,8 +65,14 @@ viewer is served straight out of the source tree, so the editable install
    and `lamp --sources other.toml scrape`.
 
    Search titles, filter by seller or category, show only new-since-last-scrape
-   items, star favorites (stored in your browser), and open purchase links or
-   the original album per item.
+   items, star favourites, and open purchase links or the original album per
+   item. Favourites, your filter selection and the colour theme are all
+   remembered in your browser, so a reload puts you back where you were.
+   **Clear filters** resets them in one go.
+
+   The theme button cycles system, light and dark. Every control is labelled
+   and keyboard reachable, Escape closes the shops panel or a duplicate group,
+   and a skip link jumps past the toolbar to the grid.
 
    Two filters exist for large catalogs:
 

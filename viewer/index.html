@@ -3,35 +3,69 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="dark light">
 <title>DiogenesLamp</title>
+<!-- Inline so the page needs no extra request and the server never has to
+     answer a favicon 404 on every load. -->
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23121316'/%3E%3Cpath d='M9 21h14l-3-4H12z' fill='%23e8b13a'/%3E%3Ccircle cx='16' cy='12' r='4' fill='%23e8b13a'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<a class="skip-link" href="#grid">Skip to albums</a>
 <header id="topbar">
-  <span id="brand">&#129684; DiogenesLamp</span>
-  <input id="search" type="search" placeholder="search titles..." autocomplete="off">
-  <select id="seller-filter"><option value="">all sellers</option></select>
-  <select id="category-filter"><option value="">all categories</option></select>
-  <select id="age-filter">
-    <option value="">any age</option>
-    <option value="30">&#8804; 30 days</option>
-    <option value="90">&#8804; 90 days</option>
-    <option value="180">&#8804; 180 days</option>
-    <option value="365">&#8804; 1 year</option>
-  </select>
-  <label><input type="checkbox" id="new-only"> new</label>
-  <label><input type="checkbox" id="favs-only"> &#9733; favorites</label>
-  <label><input type="checkbox" id="hide-dups"> hide dups</label>
-  <button id="group-clear" type="button" hidden></button>
-  <button id="shops-toggle" type="button">shops</button>
-  <span id="status" aria-live="polite"></span>
+  <div class="topbar-row">
+    <span id="brand">&#129684; DiogenesLamp</span>
+    <div class="field field-grow">
+      <label class="sr-only" for="search">Search album titles</label>
+      <input id="search" type="search" placeholder="Search titles..." autocomplete="off">
+    </div>
+    <button id="theme-toggle" type="button" aria-label="Colour theme: follow system">
+      <span aria-hidden="true" id="theme-icon">&#9681;</span>
+    </button>
+    <button id="shops-toggle" type="button" aria-expanded="false" aria-controls="shops-panel">
+      Shops
+    </button>
+  </div>
+  <div class="topbar-row" role="group" aria-label="Filters">
+    <div class="field">
+      <label class="sr-only" for="seller-filter">Seller</label>
+      <select id="seller-filter"><option value="">All sellers</option></select>
+    </div>
+    <div class="field">
+      <label class="sr-only" for="category-filter">Category</label>
+      <select id="category-filter"><option value="">All categories</option></select>
+    </div>
+    <div class="field">
+      <label class="sr-only" for="age-filter">Posting age</label>
+      <select id="age-filter">
+        <option value="">Any age</option>
+        <option value="30">Last 30 days</option>
+        <option value="90">Last 90 days</option>
+        <option value="180">Last 180 days</option>
+        <option value="365">Last year</option>
+      </select>
+    </div>
+    <label class="toggle"><input type="checkbox" id="new-only"> New</label>
+    <label class="toggle"><input type="checkbox" id="favs-only"> &#9733; Favourites</label>
+    <label class="toggle"><input type="checkbox" id="hide-dups"> Hide duplicates</label>
+    <button id="filters-clear" type="button" hidden>Clear filters</button>
+    <button id="group-clear" type="button" hidden></button>
+    <p id="status" role="status"></p>
+  </div>
+  <div id="load-progress" role="presentation"><div id="load-progress-bar"></div></div>
 </header>
-<aside id="shops-panel" hidden></aside>
+<aside id="shops-panel" aria-label="Shops" hidden></aside>
 <main id="grid-container">
-  <div id="grid-spacer"><div id="grid"></div></div>
+  <div id="load-note" hidden>
+    <p id="load-note-text"></p>
+    <button id="load-note-dismiss" type="button">Dismiss</button>
+  </div>
+  <p id="grid-message" hidden></p>
+  <div id="grid-spacer"><div id="grid" role="list" aria-label="Albums" aria-busy="true" tabindex="-1"></div></div>
 </main>
 <script src="dedup.js"></script>
 <script src="age.js"></script>
+<script src="filters.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
