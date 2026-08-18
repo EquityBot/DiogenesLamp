@@ -1,78 +1,319 @@
+/* Card geometry is the contract with app.js, which reads these values back
+   out of the computed style rather than duplicating the numbers. Anything
+   that changes them (including the media queries at the end of this file)
+   must leave them readable from :root, and app.js re-reads them on resize. */
 :root {
+  color-scheme: light dark;
   --card-w: 220px;
   --card-h: 300px;
+  --cover-h: 200px;
   --gap: 12px;
-  --bg: #111;
-  --panel: #1c1c1c;
-  --text: #eee;
-  --muted: #999;
-  --accent: #e0a82e;
+  --radius: 10px;
+
+  --bg: #121316;
+  --panel: #1b1d21;
+  --raised: #24272d;
+  --text: #edeef1;
+  --muted: #a2a9b6;
+  --border: #32363e;
+  --accent: #e8b13a;
+  --accent-ink: #1a1200;
+  --accent-text: #f0c563;
+  --focus: #7fb6ff;
+  --danger: #ff9a8a;
+  --cover-s: 38%;
+  --cover-l: 24%;
+  --cover-ink: #f2eee7;
+  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 12px rgb(0 0 0 / 0.3);
+  /* Fixed in both themes: these sit on a dark scrim painted over the
+     cover photo, not on a themed surface. */
+  --scrim-accent: #f0c04f;
 }
+
+/* Light theme: same tokens, different values, so nothing below this block
+   needs to know which theme is active. The media query covers the system
+   setting; the attribute wins over it, which is what makes the toggle able
+   to force light while the OS says dark. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    color-scheme: light;
+    --bg: #f4f5f7;
+    --panel: #ffffff;
+    --raised: #eef0f4;
+    --text: #16181d;
+    --muted: #5b6270;
+    --border: #d3d7de;
+    --accent: #8a5a00;
+    --accent-ink: #ffffff;
+    --accent-text: #7a4f00;
+    --focus: #0b5bd3;
+    --danger: #a3231a;
+    --cover-s: 42%;
+    --cover-l: 72%;
+    --cover-ink: #241d10;
+    --shadow: 0 1px 2px rgb(16 20 30 / 0.08), 0 4px 12px rgb(16 20 30 / 0.08);
+  }
+}
+:root[data-theme="light"] {
+  color-scheme: light;
+  --bg: #f4f5f7;
+  --panel: #ffffff;
+  --raised: #eef0f4;
+  --text: #16181d;
+  --muted: #5b6270;
+  --border: #d3d7de;
+  --accent: #8a5a00;
+  --accent-ink: #ffffff;
+  --accent-text: #7a4f00;
+  --focus: #0b5bd3;
+  --danger: #a3231a;
+  --cover-s: 42%;
+  --cover-l: 72%;
+  --cover-ink: #241d10;
+  --shadow: 0 1px 2px rgb(16 20 30 / 0.08), 0 4px 12px rgb(16 20 30 / 0.08);
+}
+
+:root[data-theme="dark"] { color-scheme: dark; }
+
 * { box-sizing: border-box; }
+
+/* An id selector setting `display` outranks the user agent's rule for the
+   hidden attribute, which silently un-hides anything this file styles by id.
+   Restate it so `hidden` keeps meaning hidden. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font: 14px/1.4 system-ui, sans-serif;
+  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
 }
+
+/* Visible only to assistive technology. Used for the control labels, which
+   would otherwise be carried by the placeholder text alone - a placeholder
+   disappears on input and is not a label. */
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+.skip-link {
+  position: absolute; left: 8px; top: -60px; z-index: 30;
+  background: var(--accent); color: var(--accent-ink);
+  padding: 8px 14px; border-radius: 0 0 var(--radius) var(--radius);
+  font-weight: 600; text-decoration: none;
+  transition: top 120ms ease;
+}
+.skip-link:focus { top: 0; }
+
+/* One visible focus treatment for everything. The default outline is nearly
+   invisible against a dark panel, and keyboard users need to see where they
+   are. :focus-visible rather than :focus so a mouse click does not ring. */
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
 #topbar {
   position: sticky; top: 0; z-index: 10;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+}
+.topbar-row {
   display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
-  padding: 10px 14px; background: var(--panel);
-  border-bottom: 1px solid #000;
+  padding: 8px 14px;
 }
-#brand { font-weight: 700; color: var(--accent); }
-#search { flex: 1 1 220px; min-width: 160px; padding: 6px 10px;
-  background: var(--bg); color: var(--text); border: 1px solid #333; border-radius: 6px; }
-select { background: var(--bg); color: var(--text); border: 1px solid #333;
-  border-radius: 6px; padding: 6px; }
-#status { color: var(--muted); margin-left: auto; }
+.topbar-row + .topbar-row { padding-top: 0; }
+#brand { font-weight: 700; color: var(--accent-text); white-space: nowrap; }
+.field { display: flex; }
+.field-grow { flex: 1 1 240px; min-width: 160px; }
+
+input[type="search"], select {
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: var(--radius);
+  padding: 7px 10px; font: inherit; width: 100%;
+}
+select { min-width: 8rem; }
+input[type="search"]::placeholder { color: var(--muted); }
+
+button {
+  font: inherit; cursor: pointer; border-radius: var(--radius);
+  border: 1px solid var(--border); background: var(--raised); color: var(--text);
+  padding: 7px 12px;
+}
+button:hover { border-color: var(--accent); color: var(--accent-text); }
+
+#theme-toggle { padding: 7px 10px; line-height: 1; }
+#shops-toggle[aria-expanded="true"] {
+  background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+}
+
+/* Checkbox and its text are one target, so the label is clickable and the
+   hit area clears the 24px minimum rather than being a 13px box. */
+.toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 10px; border: 1px solid var(--border);
+  border-radius: var(--radius); background: var(--raised);
+  cursor: pointer; user-select: none; white-space: nowrap;
+}
+.toggle:hover { border-color: var(--accent); }
+.toggle:has(input:checked) {
+  background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+}
+.toggle input { accent-color: var(--accent); margin: 0; width: 15px; height: 15px; }
+/* :has is recent enough to be worth a fallback: without it the checked state
+   still reads correctly from the checkbox itself. */
+.toggle:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+#filters-clear, #group-clear {
+  background: var(--accent); color: var(--accent-ink);
+  border-color: var(--accent); font-weight: 600;
+}
+#filters-clear:hover, #group-clear:hover {
+  filter: brightness(1.08); color: var(--accent-ink);
+}
+
+#status { margin: 0 0 0 auto; color: var(--muted); text-align: right; }
+
+/* Load progress. A bar rather than <progress> because it spans the header's
+   full width as a hairline, and it is hidden from assistive tech: the status
+   line already announces loaded-seller counts through its live region. */
+#load-progress { height: 2px; background: transparent; }
+#load-progress-bar {
+  height: 100%; width: 0; background: var(--accent);
+  transition: width 200ms ease;
+}
+
 #shops-panel {
-  position: fixed; right: 0; top: 52px; bottom: 0; width: 300px; overflow-y: auto;
-  background: var(--panel); border-left: 1px solid #000; padding: 12px; z-index: 9;
+  position: fixed; right: 0; top: 0; bottom: 0; width: min(320px, 85vw);
+  overflow-y: auto; background: var(--panel);
+  border-left: 1px solid var(--border); padding: 16px; z-index: 20;
+  box-shadow: var(--shadow);
 }
-#shops-panel h3 { margin: 10px 0 4px; color: var(--accent); font-size: 13px;
-  text-transform: uppercase; }
-#shops-panel a { display: block; color: var(--text); padding: 3px 0;
-  text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-#shops-panel a:hover { color: var(--accent); }
+#shops-panel h3 {
+  margin: 14px 0 4px; color: var(--accent-text); font-size: 12px;
+  text-transform: uppercase; letter-spacing: 0.06em;
+}
+#shops-panel h3:first-child { margin-top: 0; }
+#shops-panel a {
+  display: block; color: var(--text); padding: 6px 8px; border-radius: 6px;
+  text-decoration: none; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap;
+}
+#shops-panel a:hover { background: var(--raised); color: var(--accent-text); }
+#shops-close { margin-bottom: 12px; width: 100%; }
+
 #grid-container { padding: var(--gap); }
 #grid-spacer { position: relative; }
-#grid { position: absolute; inset: 0 auto auto 0; width: 100%; }
+#grid {
+  position: absolute; inset: 0 auto auto 0; width: 100%;
+  scroll-margin-top: calc(var(--topbar-h, 96px) + var(--gap));
+}
+#grid:focus { outline: none; }
+#grid:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+
+#grid-message {
+  margin: 40px auto; max-width: 40rem; text-align: center; color: var(--muted);
+}
+
+#load-note {
+  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
+  margin: 0 0 var(--gap); padding: 10px 14px;
+  border: 1px solid var(--border); border-left: 3px solid var(--danger);
+  border-radius: var(--radius); background: var(--panel);
+}
+#load-note p { margin: 0; flex: 1 1 20rem; }
+#load-note-dismiss { margin-left: auto; }
+
 .card {
   position: absolute; width: var(--card-w); height: var(--card-h);
-  background: var(--panel); border-radius: 8px; overflow: hidden;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: var(--radius); overflow: hidden;
   display: flex; flex-direction: column;
 }
-.card-cover { position: relative; height: 200px; overflow: hidden;
-  background: hsl(var(--cover-hue, 40) 38% 24%); }
+.card:hover { border-color: var(--accent); box-shadow: var(--shadow); }
+/* The card is a positioned element in a virtualized grid, so it must not
+   grow or move on hover: a transform here would fight the transform that
+   places it. */
+.card:focus-within { border-color: var(--focus); }
+
+.card-cover {
+  position: relative; height: var(--cover-h); overflow: hidden; flex: none;
+  background: hsl(var(--cover-hue, 40) var(--cover-s) var(--cover-l));
+}
 .card-cover-title {
   position: absolute; inset: 0; display: flex; align-items: center;
   justify-content: center; padding: 10px; text-align: center;
-  font-size: 12px; line-height: 1.35; color: #f0ece6; overflow: hidden;
+  font-size: 12px; line-height: 1.35; color: var(--cover-ink); overflow: hidden;
 }
-.card-thumb { position: absolute; inset: 0; width: 100%; height: 100%;
-  object-fit: cover; display: block; }
-.card-title { padding: 6px 8px 0; font-size: 12px; height: 48px; overflow: hidden; }
-.card-meta { display: flex; gap: 6px; align-items: center; padding: 4px 8px 8px;
-  margin-top: auto; }
-.card-links { display: flex; gap: 6px; flex: 1; }
+.card-thumb {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; display: block;
+}
+
+.card-title {
+  padding: 8px 10px 0; font-size: 12px; line-height: 1.35;
+  flex: 1 1 auto; overflow: hidden;
+}
+.card-meta {
+  display: flex; gap: 6px; align-items: center; padding: 6px 10px 10px;
+  margin-top: auto; flex: none;
+}
+.card-links { display: flex; gap: 6px; flex: 1; min-width: 0; }
 .card-links a, .card-meta .album-link {
-  font-size: 11px; padding: 2px 7px; border-radius: 4px; text-decoration: none;
-  background: #2c2c2c; color: var(--text); border: 1px solid #3c3c3c;
+  font-size: 11px; padding: 3px 8px; border-radius: 6px; text-decoration: none;
+  background: var(--raised); color: var(--text); border: 1px solid var(--border);
+  white-space: nowrap;
 }
+.card-links a:hover, .card-meta .album-link:hover { border-color: var(--accent); }
 .card-links a.taobao { border-color: #b35a00; }
-.card-links a.tmall { border-color: #a00; }
-.card-links a.weidian { border-color: #0a7; }
-.badge-new { position: absolute; top: 6px; left: 6px; background: var(--accent);
-  color: #000; font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 4px; }
-.badge-dup { position: absolute; top: 176px; left: 6px; background: #2c2c2c;
-  color: var(--text); font-size: 10px; font-weight: 700; padding: 1px 6px;
-  border-radius: 4px; border: 1px solid #555; cursor: pointer; }
-.badge-dup:hover { border-color: var(--accent); color: var(--accent); }
-#group-clear { background: var(--accent); color: #000; border: none;
-  border-radius: 6px; padding: 6px 10px; font-weight: 700; cursor: pointer; }
-.fav-btn { position: absolute; top: 4px; right: 6px; background: none; border: none;
-  color: #666; font-size: 18px; cursor: pointer; }
-.fav-btn.active { color: var(--accent); }
-.seller-tag { font-size: 10px; color: var(--muted); }
+.card-links a.tmall { border-color: #c02626; }
+.card-links a.weidian { border-color: #00916f; }
+.seller-tag {
+  font-size: 11px; color: var(--muted); overflow: hidden;
+  text-overflow: ellipsis; white-space: nowrap; max-width: 40%;
+}
+
+.badge-new {
+  position: absolute; top: 8px; left: 8px; background: var(--accent);
+  color: var(--accent-ink); font-size: 10px; font-weight: 700;
+  padding: 2px 7px; border-radius: 6px; letter-spacing: 0.04em;
+}
+/* Anchored to the bottom of the cover it sits in, not to a pixel offset that
+   has to be recalculated whenever the cover height changes. */
+.badge-dup {
+  position: absolute; bottom: 8px; left: 8px; background: rgb(0 0 0 / 0.66);
+  color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px;
+  border-radius: 6px; border: 1px solid rgb(255 255 255 / 0.35);
+}
+.badge-dup:hover { border-color: var(--scrim-accent); color: var(--scrim-accent); }
+
+.fav-btn {
+  position: absolute; top: 4px; right: 4px; background: rgb(0 0 0 / 0.45);
+  border: 1px solid transparent; color: #d8d8d8; font-size: 17px;
+  line-height: 1; padding: 5px 7px; border-radius: 8px;
+}
+.fav-btn:hover { color: var(--scrim-accent); border-color: var(--scrim-accent); }
+.fav-btn[aria-pressed="true"] { color: var(--scrim-accent); }
+
+/* Narrow screens: smaller cards fit more than one column on a phone, and the
+   filter row becomes a horizontal strip rather than five stacked rows. */
+@media (max-width: 720px) {
+  :root { --card-w: 158px; --card-h: 232px; --cover-h: 148px; --gap: 8px; }
+  .topbar-row { padding: 8px 10px; }
+  #status { margin-left: 0; width: 100%; text-align: left; }
+  select { min-width: 0; }
+  .card-title { font-size: 11px; }
+  /* The filter controls wrap to three rows on a phone, where a sticky
+     toolbar would hold 40% of the viewport permanently. It scrolls away
+     instead, which also makes the grid's scroll-margin unnecessary. */
+  #topbar { position: static; }
+  #grid { scroll-margin-top: var(--gap); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}

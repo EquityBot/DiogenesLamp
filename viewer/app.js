@@ -47,18 +47,65 @@ const els = {
   hideDups: document.getElementById("hide-dups"),
   age: document.getElementById("age-filter"),
   groupClear: document.getElementById("group-clear"),
+  filtersClear: document.getElementById("filters-clear"),
   status: document.getElementById("status"),
   grid: document.getElementById("grid"),
   spacer: document.getElementById("grid-spacer"),
   container: document.getElementById("grid-container"),
+  message: document.getElementById("grid-message"),
+  progress: document.getElementById("load-progress-bar"),
+  note: document.getElementById("load-note"),
+  noteText: document.getElementById("load-note-text"),
+  noteDismiss: document.getElementById("load-note-dismiss"),
   shopsPanel: document.getElementById("shops-panel"),
   shopsToggle: document.getElementById("shops-toggle"),
+  themeToggle: document.getElementById("theme-toggle"),
+  themeIcon: document.getElementById("theme-icon"),
 };
+
+// Current control values in the shape filters.js persists.
+function currentFilters() {
+  return {
+    search: els.search.value,
+    seller: els.seller.value,
+    category: els.category.value,
+    age: els.age.value,
+    newOnly: els.newOnly.checked,
+    favsOnly: els.favsOnly.checked,
+    hideDups: els.hideDups.checked,
+  };
+}
+
+// Restoring a seller or category that the index no longer offers would leave
+// the control blank while the filter still applied, so only values the
+// dropdown actually holds are written back. The options for both arrive
+// later than this runs, which is why applyStoredFilters is called again as
+// they are added.
+function setSelectIfPresent(select, value) {
+  if (!value) return;
+  if ([...select.options].some((option) => option.value === value)) {
+    select.value = value;
+  }
+}
+
+const storedFilters = readFilters(localStorage);
+
+function applyStoredFilters() {
+  els.search.value = storedFilters.search;
+  els.age.value = storedFilters.age;
+  els.newOnly.checked = storedFilters.newOnly;
+  els.favsOnly.checked = storedFilters.favsOnly;
+  els.hideDups.checked = storedFilters.hideDups;
+  setSelectIfPresent(els.seller, storedFilters.seller);
+  setSelectIfPresent(els.category, storedFilters.category);
+}
+applyStoredFilters();
 
 function setStatus() {
   const total = state.index ? state.index.sellers.length : 0;
+  const loading = !state.index || state.loadedSellers < total;
   const dups = state.dupHidden
-    ? ` | ${state.dupHidden.toLocaleString()} dups hidden` : "";
+    ? ` | ${state.dupHidden.toLocaleString()} duplicates hidden` : "";
   // A seller whose scrape errored has no shard on disk, so its fetch 404s.
   // Counting those as loaded would report a full catalog while part of it is
   // missing - say so instead.
@@ -68,8 +115,55 @@ function setStatus() {
     `${state.filtered.length.toLocaleString()} albums | ` +
     `loaded ${state.loadedSellers - state.failedShards.length}/${total} ` +
     `sellers${missing}${dups}`;
-  els.status.title = state.failedShards.length
-    ? `no data for: ${state.failedShards.join(", ")}` : "";
+
+  els.progress.style.width = total ? `${(state.loadedSellers / total) * 100}%` : "0";
+  els.progress.parentElement.hidden = !loading;
+  // Announcing an incomplete grid as ready would tell a screen reader to
+  // read a list that is still growing under it.
+  els.grid.setAttribute("aria-busy", String(loading));
+  els.filtersClear.hidden = !anyFilterActive(currentFilters()) || Boolean(state.dupGroup);
+  setGridMessage(loading);
+  setLoadNote(loading);
+}
+
+// The blank grid is the single most confusing state in the viewer: it looks
+// identical whether nothing has loaded yet, nothing matched, or every match
+// was collapsed as a duplicate. Name which one it is.
+function setGridMessage(loading) {
+  if (state.filtered.length) {
+    els.message.hidden = true;
+    return;
+  }
+  let text;
+  if (loading) {
+    text = "Loading the catalog...";
+  } else if (!state.albums.length) {
+    // Distinguishing "collapsed as duplicates" here would be dead code:
+    // collapseDups keeps one card per group, so an empty result can only
+    // come from an empty input, which means dupHidden is zero too.
+    text = "No albums in this catalog yet. Run `lamp scrape` to fill it.";
+  } else {
+    text = "No albums match these filters.";
+  }
+  els.message.textContent = text;
+  els.message.hidden = false;
+}
+
+// Failed shards used to live in a title attribute, which a keyboard or touch
+// user never sees. Surface them once the load settles, and let them be
+// dismissed rather than sitting there for the session.
+let noteDismissed = false;
+function setLoadNote(loading) {
+  const failed = state.failedShards.length;
+  if (loading || !failed || noteDismissed) {
+    els.note.hidden = true;
+    return;
+  }
+  const names = state.failedShards.join(", ");
+  els.noteText.textContent =
+    `${failed} ${failed === 1 ? "seller has" : "sellers have"} no data on disk ` +
+    `and ${failed === 1 ? "was" : "were"} left out: ${names}.`;
+  els.note.hidden = false;
 }
 
 const SHARD_CONCURRENCY = 6;
@@ -85,6 +179,9 @@ async function loadAll() {
     els.seller.appendChild(opt);
   }
   renderShops(index.shops);
+  // The seller list only exists now, so a stored seller filter can finally
+  // be put back on the control.
+  restoreLateFilters();
   state.pendingShards = [...index.sellers];
   await Promise.all(
     Array.from({ length: SHARD_CONCURRENCY }, () => shardWorker())
@@ -169,13 +266,18 @@ function refreshUI() {
 
 function refreshCategoryOptions() {
   const known = new Set([...els.category.options].map((option) => option.value));
+  let added = false;
   for (const category of state.categories) {
     if (known.has(category)) continue;
     known.add(category);
+    added = true;
     const opt = document.createElement("option");
     opt.value = opt.textContent = category;
     els.category.appendChild(opt);
   }
+  // A stored category filter can only be restored once its option exists,
+  // which is whenever the shard carrying that category lands.
+  if (added) restoreLateFilters();
 }
 
 function applyFilters() {
@@ -276,6 +378,7 @@ function makeCard(album) {
   // Remember what the badge was built from: a later pass can reuse this
   // node only while that count still holds.
   card.dataset.dupCount = String(dupCount);
+  card.setAttribute("role", "listitem");
   card.innerHTML =
     // The titled colour block sits behind the cover and shows through when
     // the image fails or is absent - some albums have no cover on Yupoo at
@@ -290,19 +393,31 @@ function makeCard(album) {
     // re-fetch, so keying on it would re-download every thumb after a
     // scrape that changed nothing.
     `<img class="card-thumb" loading="lazy" alt="" ` +
-    `src="data/${escapeAttr(album.thumb)}?v=${thumbVersion(album)}" ` +
-    `onerror="this.style.display='none'"></div>` +
+    `src="data/${escapeAttr(album.thumb)}?v=${thumbVersion(album)}">` +
+    // The badges live inside the cover so they are positioned against it
+    // rather than against a hard-coded offset that has to be kept in step
+    // with the cover height at every breakpoint.
     (isNew ? `<span class="badge-new">NEW</span>` : "") +
     (dupCount > 1
-      ? `<button class="badge-dup" aria-label="show all ${dupCount} copies" ` +
-        `title="show all copies">&times;${dupCount}</button>`
+      ? `<button class="badge-dup" type="button" ` +
+        `aria-label="Show all ${dupCount} copies of this posting">` +
+        `&times;${dupCount}</button>`
       : "") +
-    `<button class="fav-btn${isFav ? " active" : ""}" title="favorite">&#9733;</button>` +
+    `<button class="fav-btn" type="button" aria-pressed="${isFav}" ` +
+    `aria-label="${favLabel(isFav)}">` +
+    `<span aria-hidden="true">${favGlyph(isFav)}</span></button>` +
+    `</div>` +
     `<div class="card-title">${escapeHtml(album.title)}</div>` +
     `<div class="card-meta"><span class="seller-tag">${escapeHtml(album.seller)}</span>` +
     `<span class="card-links">${links}</span>` +
     `<a class="album-link" href="${escapeAttr(album.album_url)}" target="_blank" ` +
-    `rel="noreferrer">album</a></div>`;
+    `rel="noreferrer">Album</a></div>`;
+  // An inline onerror attribute did this before. Binding it here keeps the
+  // markup free of executable attributes, which is what lets a strict
+  // script-src policy apply to this page unchanged.
+  card.querySelector(".card-thumb").addEventListener("error", (event) => {
+    event.currentTarget.style.display = "none";
+  });
   card.querySelector(".fav-btn").addEventListener("click", (event) => {
     toggleFavorite(album.id, event.currentTarget);
   });
@@ -320,14 +435,33 @@ function makeCard(album) {
   return card;
 }
 
+// The star alone carries no state for a screen reader, so the button owns
+// both a pressed state and a name that says what pressing it will do.
+function favLabel(isFav) {
+  return isFav ? "Remove from favourites" : "Add to favourites";
+}
+
+// Filled versus hollow star. aria-pressed covers screen readers, but the two
+// states used to differ by colour alone, which is invisible to a colour-blind
+// user and measured 1.19:1 between them - well under the 3:1 a state
+// indicator needs.
+function favGlyph(isFav) {
+  return isFav ? "★" : "☆";
+}
+
 function toggleFavorite(albumId, button) {
   if (state.favorites.has(albumId)) {
     state.favorites.delete(albumId);
-    button.classList.remove("active");
   } else {
     state.favorites.add(albumId);
-    button.classList.add("active");
   }
+  const isFav = state.favorites.has(albumId);
+  button.setAttribute("aria-pressed", String(isFav));
+  button.setAttribute("aria-label", favLabel(isFav));
+  // The click path mutates this node in place; the scroll path rebuilds it
+  // from state.favorites. Both have to paint the same glyph or a card
+  // recycled after a scroll disagrees with the one the user just clicked.
+  button.firstElementChild.textContent = favGlyph(isFav);
   localStorage.setItem("lamp.favorites", JSON.stringify([...state.favorites]));
   if (els.favsOnly.checked) applyFilters();
 }
@@ -335,12 +469,16 @@ function toggleFavorite(albumId, button) {
 // Card geometry lives in style.css and is read from there. Duplicating the
 // numbers here would let a CSS tweak silently desynchronise the absolute
 // positions this file computes, leaving overlapping or gapped rows.
-const geometry = (() => {
+// Re-read rather than cached once: the card size changes at the narrow
+// breakpoint, and a stale copy would place every card on the old pitch,
+// leaving overlapping rows on a phone or after a window resize.
+function readGeometry() {
   const css = getComputedStyle(document.documentElement);
   const px = (name, fallback) => parseInt(css.getPropertyValue(name), 10) || fallback;
   const gap = px("--gap", 12);
   return { w: px("--card-w", 220) + gap, h: px("--card-h", 300) + gap, gap };
-})();
+}
+let geometry = readGeometry();
 
 function columns() {
   const width = els.container.clientWidth - geometry.gap * 2;
@@ -373,7 +511,10 @@ function renderGrid(force = false) {
   const totalRows = rowsFor(state.filtered.length);
   els.spacer.style.height = `${totalRows * rowH}px`;
 
-  const viewTop = window.scrollY - els.container.offsetTop;
+  // Measured from the spacer, not its container: the load note and the empty
+  // message sit above it inside the same container, so anchoring on the
+  // container would offset every card by whatever those occupy.
+  const viewTop = window.scrollY - els.spacer.offsetTop;
   const firstRow = Math.max(0, Math.floor(viewTop / rowH) - OVERSCAN_ROWS);
   const lastRow = Math.min(
     totalRows,
@@ -420,10 +561,64 @@ function renderGrid(force = false) {
     }
     const transform = placeCard(i);
     if (card.style.transform !== transform) card.style.transform = transform;
+    // Only a window of rows exists in the DOM, so role=list would otherwise
+    // advertise a set the size of that window: "item 1 of 30" against a
+    // catalog of six figures. Stamped here rather than in makeCard because a
+    // cached card is reused at a different index when the filter changes,
+    // and only this loop knows the new one.
+    setIfChanged(card, "aria-setsize", String(state.filtered.length));
+    setIfChanged(card, "aria-posinset", String(i + 1));
     next.set(key, card);
   }
-  for (const departed of cardCache.values()) departed.remove();
+
+  // Remove departed cards before reordering, so the order pass never sees a
+  // node that is on its way out. A card holding focus is not simply dropped:
+  // that leaves the keyboard user on <body> with their place lost, which
+  // happens both when they scroll a focused card out of the window and when
+  // un-favouriting a card removes it from a favourites-only view.
+  const departed = [...cardCache.values()];
+  rescueFocus(departed, next);
+  for (const node of departed) node.remove();
+
+  // DOM order has to match visual order or Tab walks the grid in the order
+  // rows happened to be appended. Scrolling up appends the entering rows
+  // after the surviving ones, so tabbing threw the viewport backwards by
+  // whole screens. Surviving cards are already in relative order, so this
+  // moves only the cards that actually entered.
+  let previous = null;
+  for (const card of next.values()) {
+    if (card.previousElementSibling !== previous) {
+      els.grid.insertBefore(card, previous ? previous.nextSibling : els.grid.firstChild);
+    }
+    previous = card;
+  }
   cardCache = next;
+}
+
+function setIfChanged(el, name, value) {
+  if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+}
+
+// Focus follows the user, so hand it to the same control on the card that
+// took the removed one's place; failing that, park it on the grid itself,
+// which is focusable for the skip link anyway. preventScroll throughout:
+// this runs mid-render and must not fight the scroll that triggered it.
+function rescueFocus(departed, survivors) {
+  const active = document.activeElement;
+  if (!active || !departed.some((node) => node.contains(active))) return;
+  const selector = active.classList.contains("fav-btn") ? ".fav-btn"
+    : active.classList.contains("badge-dup") ? ".badge-dup"
+      : active.classList.contains("album-link") ? ".album-link" : null;
+  if (selector) {
+    for (const card of survivors.values()) {
+      const target = card.querySelector(selector);
+      if (target) {
+        target.focus({ preventScroll: true });
+        return;
+      }
+    }
+  }
+  els.grid.focus({ preventScroll: true });
 }
 
 let scrollScheduled = false;
@@ -436,7 +631,10 @@ window.addEventListener("scroll", () => {
   });
 }, { passive: true });
 
-window.addEventListener("resize", () => renderGrid(true));
+window.addEventListener("resize", () => {
+  geometry = readGeometry();
+  renderGrid(true);
+});
 
 function renderShops(shops) {
   const groups = new Map();
@@ -445,6 +643,14 @@ function renderShops(shops) {
     groups.get(shop.platform).push(shop);
   }
   els.shopsPanel.replaceChildren();
+  // A slide-over that covers the grid needs a way out that is not the
+  // toggle behind it, for touch users and for anyone tabbing into the panel.
+  const close = document.createElement("button");
+  close.type = "button";
+  close.id = "shops-close";
+  close.textContent = "Close shops";
+  close.addEventListener("click", () => setShopsOpen(false));
+  els.shopsPanel.appendChild(close);
   for (const [platform, entries] of [...groups.entries()].sort()) {
     const heading = document.createElement("h3");
     heading.textContent = platform;
@@ -463,11 +669,46 @@ function renderShops(shops) {
 // User-initiated filter changes route through this wrapper; background shard
 // loads call applyFilters directly, so only user actions snap the viewport
 // to the top.
+// Once the user has touched a control, a late-arriving option must not
+// re-impose the stored value over their choice.
+let userTouchedFilters = false;
+
 function userFilterChange() {
+  userTouchedFilters = true;
   state.dupGroup = null;
+  writeFilters(localStorage, currentFilters());
   window.scrollTo(0, 0);
   applyFilters();
 }
+
+// Seller and category options are added as the index and shards arrive, so a
+// stored value for either cannot be restored at start-up - the option does
+// not exist yet. Retry as they appear, until the user takes over.
+function restoreLateFilters() {
+  if (userTouchedFilters) return;
+  const before = `${els.seller.value}|${els.category.value}`;
+  setSelectIfPresent(els.seller, storedFilters.seller);
+  setSelectIfPresent(els.category, storedFilters.category);
+  return before !== `${els.seller.value}|${els.category.value}`;
+}
+
+function clearFilters() {
+  userTouchedFilters = true;
+  const defaults = defaultFilters();
+  els.search.value = defaults.search;
+  els.seller.value = defaults.seller;
+  els.category.value = defaults.category;
+  els.age.value = defaults.age;
+  els.newOnly.checked = defaults.newOnly;
+  els.favsOnly.checked = defaults.favsOnly;
+  els.hideDups.checked = defaults.hideDups;
+  writeFilters(localStorage, defaults);
+  state.dupGroup = null;
+  window.scrollTo(0, 0);
+  applyFilters();
+  els.search.focus();
+}
+els.filtersClear.addEventListener("click", clearFilters);
 
 let searchTimer = 0;
 els.search.addEventListener("input", () => {
@@ -495,11 +736,83 @@ function exitGroupView() {
   els.search.focus({ preventScroll: true });
 }
 els.groupClear.addEventListener("click", exitGroupView);
+
+// The shops panel is a slide-over: it covers content, so it owns focus while
+// open, says so on its toggle, and closes on Escape like any other overlay.
+function setShopsOpen(open) {
+  els.shopsPanel.hidden = !open;
+  els.shopsToggle.setAttribute("aria-expanded", String(open));
+  if (open) {
+    const first = els.shopsPanel.querySelector("button, a");
+    if (first) first.focus();
+  } else {
+    els.shopsToggle.focus();
+  }
+}
+els.shopsToggle.addEventListener("click", () => setShopsOpen(els.shopsPanel.hidden));
+
 window.addEventListener("keydown", (event) => {
-  if (event.key === "Escape" && state.dupGroup) exitGroupView();
-});
-els.shopsToggle.addEventListener("click", () => {
-  els.shopsPanel.hidden = !els.shopsPanel.hidden;
+  if (event.key !== "Escape") return;
+  // Innermost overlay first: a group view opened from inside the panel
+  // should not close both at once.
+  if (!els.shopsPanel.hidden) setShopsOpen(false);
+  else if (state.dupGroup) exitGroupView();
 });
 
+els.noteDismiss.addEventListener("click", () => {
+  noteDismissed = true;
+  els.note.hidden = true;
+  els.search.focus();
+});
+
+// Theme: system, then an explicit light or dark that overrides it. Stored so
+// the choice survives a reload, and reflected on <html> where the stylesheet
+// reads it.
+const THEME_CYCLE = ["system", "light", "dark"];
+const THEME_ICON = { system: "◑", light: "☀", dark: "☽" };
+const THEME_LABEL = {
+  system: "Colour theme: follow system",
+  light: "Colour theme: light",
+  dark: "Colour theme: dark",
+};
+
+function applyTheme(theme) {
+  if (theme === "system") document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", theme);
+  els.themeIcon.textContent = THEME_ICON[theme];
+  els.themeToggle.setAttribute("aria-label", THEME_LABEL[theme]);
+  els.themeToggle.title = THEME_LABEL[theme];
+}
+
+let theme = THEME_CYCLE.includes(localStorage.getItem("lamp.theme"))
+  ? localStorage.getItem("lamp.theme") : "system";
+applyTheme(theme);
+els.themeToggle.addEventListener("click", () => {
+  theme = THEME_CYCLE[(THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length];
+  try {
+    localStorage.setItem("lamp.theme", theme);
+  } catch {
+    // Persistence is a convenience; the session still honours the choice.
+  }
+  applyTheme(theme);
+});
+
+// The toolbar is sticky and wraps, so its height varies with viewport width.
+// The grid uses it as scroll-margin: without it the skip link jumps the first
+// row of cards to the top of the viewport, directly behind the toolbar it was
+// meant to skip. Measured rather than hard-coded for that reason.
+const topbar = document.getElementById("topbar");
+function measureTopbar() {
+  document.documentElement.style.setProperty("--topbar-h", `${topbar.offsetHeight}px`);
+}
+measureTopbar();
+if (typeof ResizeObserver !== "undefined") {
+  new ResizeObserver(measureTopbar).observe(topbar);
+} else {
+  window.addEventListener("resize", measureTopbar);
+}
+
+// Paint the loading state before the first fetch resolves, so the grid is
+// never a blank rectangle with no explanation.
+setStatus();
 loadAll();
