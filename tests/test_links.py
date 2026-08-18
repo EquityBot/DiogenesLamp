@@ -1,0 +1,82 @@
+import re
+from pathlib import Path
+
+import pytest
+
+from lamp.links import _SHORTLINK_HOSTS, Link, extract_links
+
+CASES = [
+    (
+        "buy here https://item.taobao.com/item.htm?id=123&spm=track.me",
+        [Link("taobao", "https://item.taobao.com/item.htm?id=123")],
+    ),
+    (
+        "TMALL: https://detail.tmall.com/item.htm?id=456&scm=zzz",
+        [Link("tmall", "https://detail.tmall.com/item.htm?id=456")],
+    ),
+    (
+        "wd https://weidian.com/item.html?itemID=789&spider_token=aa",
+        [Link("weidian", "https://weidian.com/item.html?itemID=789")],
+    ),
+    (
+        "shop https://weidian.com/?userid=555&tabType=all",
+        [Link("weidian", "https://weidian.com/?userid=555")],
+    ),
+    (
+        "shop https://shop123.v.weidian.com/?x=1",
+        [Link("weidian", "https://shop123.v.weidian.com/")],
+    ),
+    ("short https://m.tb.cn/h.ABCdef", [Link("other", "https://m.tb.cn/h.ABCdef")]),
+    ("short https://k.youshop10.com/AbCd1234", [Link("other", "https://k.youshop10.com/AbCd1234")]),
+    ("no links in this title at all", []),
+    ("bare host weidian.com/item.html?itemID=42", [Link("weidian", "https://weidian.com/item.html?itemID=42")]),
+    # Garbage / near-miss URLs must not match.
+    ("nothing notataobao.com/item here", []),
+    ("brand taobao.company store", []),
+    # Trailing prose punctuation must not be absorbed into the URL.
+    (
+        "buy https://item.taobao.com/item.htm?id=1.",
+        [Link("taobao", "https://item.taobao.com/item.htm?id=1")],
+    ),
+    (
+        "(https://weidian.com/item.html?itemID=2)",
+        [Link("weidian", "https://weidian.com/item.html?itemID=2")],
+    ),
+]
+
+
+@pytest.mark.parametrize("text,expected", CASES)
+def test_extract_links(text, expected):
+    assert extract_links(text) == expected
+
+
+def test_dedupes_and_preserves_order():
+    text = (
+        "https://item.taobao.com/item.htm?id=1 then "
+        "https://weidian.com/item.html?itemID=2 and again "
+        "https://item.taobao.com/item.htm?id=1"
+    )
+    assert extract_links(text) == [
+        Link("taobao", "https://item.taobao.com/item.htm?id=1"),
+        Link("weidian", "https://weidian.com/item.html?itemID=2"),
+    ]
+
+
+def test_fragments_are_stripped_so_the_same_item_matches_itself():
+    """A '#detail' swallowed from surrounding prose must not enter the item id."""
+    with_fragment = extract_links("buy https://item.taobao.com/item.htm?id=695#detail now")
+    clean = extract_links("buy https://item.taobao.com/item.htm?id=695 now")
+    assert with_fragment == clean
+    assert with_fragment[0].url == "https://item.taobao.com/item.htm?id=695"
+    # shortlinks take the same treatment
+    assert extract_links("https://m.tb.cn/h.ABC#x")[0].url == "https://m.tb.cn/h.ABC"
+
+
+def test_shortlink_hosts_match_the_viewer_dedup_list():
+    """A shortlink host the scraper stores but the viewer cannot key on would
+    silently stop those albums from deduplicating."""
+    dedup_js = (Path(__file__).resolve().parents[1] / "viewer" / "dedup.js").read_text(
+        encoding="utf-8"
+    )
+    viewer_hosts = set(re.findall(r'url\.hostname === "([^"]+)"', dedup_js))
+    assert viewer_hosts == set(_SHORTLINK_HOSTS)

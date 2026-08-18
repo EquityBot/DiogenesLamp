@@ -1,0 +1,29 @@
+name: ci
+on:
+  push:
+  pull_request:
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # Oldest and newest supported, so the README's "Python 3.11+" claim
+        # is actually tested rather than assumed.
+        python-version: ["3.11", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      # The viewer's logic modules have node tests. pytest runs them
+      # through a wrapper that skips when node is missing, so installing it
+      # explicitly is what keeps that suite from silently disappearing on a
+      # runner image change - and is why there is no separate node step:
+      # it would run the same tests a second time.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - run: pip install -e '.[dev]'
+      - run: ruff check .
+      - run: pytest
