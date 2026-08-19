@@ -80,3 +80,19 @@ def test_shortlink_hosts_match_the_viewer_dedup_list():
     )
     viewer_hosts = set(re.findall(r'url\.hostname === "([^"]+)"', dedup_js))
     assert viewer_hosts == set(_SHORTLINK_HOSTS)
+
+
+def test_control_and_invisible_characters_never_reach_a_url():
+    """Album text is remote markup: NULs, zero-width spaces and BOMs must be
+    scrubbed, not stored. A NUL in a link poisons dedup keys and any
+    downstream consumer that validates URLs."""
+    for text in (
+        "taobao.com/item.htm?id=123\x00evil",
+        "taobao.com/item.htm?id=123\u200b\u200d",
+        "\ufefftaobao.com/x.htm?id=5",
+        "k.youshop10.com/abc\x00def",
+        "m.tb.cn/h.Xyz\u200b12",
+    ):
+        for link in extract_links(text):
+            assert link.url == link.url.strip()
+            assert all(ord(ch) > 0x7E or 0x20 < ord(ch) for ch in link.url), link.url
