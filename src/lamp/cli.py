@@ -10,6 +10,29 @@ from pathlib import Path
 from lamp.ingest import load_sources, merge_sources, parse_dump, write_sources
 
 
+def _positive_int(text: str) -> int:
+    value = int(text)  # argparse's type= surfaces ValueError as a usage error
+    if value < 1:
+        raise argparse.ArgumentTypeError("must be 1 or greater")
+    return value
+
+
+def _positive_float(text: str) -> float:
+    value = float(text)
+    # 0 would divide-by-zero deep inside the rate limiter; -h would make
+    # every wait() negative, unthrottling the scrape entirely.
+    if value <= 0:
+        raise argparse.ArgumentTypeError("must be greater than 0")
+    return value
+
+
+def _port(text: str) -> int:
+    value = int(text)
+    if not 1 <= value <= 65535:
+        raise argparse.ArgumentTypeError("port must be between 1 and 65535")
+    return value
+
+
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="lamp", description=__doc__)
     parser.add_argument("--sources", type=Path, default=Path("sources.toml"))
@@ -22,14 +45,15 @@ def _build_parser() -> argparse.ArgumentParser:
     p_scrape = sub.add_parser("scrape", help="scrape Yupoo sellers into data/")
     p_scrape.add_argument("--seller", help="scrape only this seller id")
     p_scrape.add_argument("--full", action="store_true", help="re-fetch unchanged albums")
-    p_scrape.add_argument("--workers", type=int, default=8)
-    p_scrape.add_argument("--rps", type=float, default=8.0, help="global request rate cap")
+    p_scrape.add_argument("--workers", type=_positive_int, default=8)
+    p_scrape.add_argument("--rps", type=_positive_float, default=8.0,
+                          help="global request rate cap")
     p_scrape.add_argument("--max-age-days", type=int, default=0, metavar="N",
                           help="skip albums posted more than N days ago "
                                "(0 = no age limit); stock that old is usually gone")
 
     p_serve = sub.add_parser("serve", help="serve the local viewer")
-    p_serve.add_argument("--port", type=int, default=8000)
+    p_serve.add_argument("--port", type=_port, default=8000)
     p_serve.add_argument("--no-browser", action="store_true")
     return parser
 

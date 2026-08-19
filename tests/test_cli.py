@@ -98,3 +98,24 @@ def test_serve_warns_when_no_index_json(tmp_path: Path, capsys, monkeypatch):
     rc = main(["--data", str(tmp_path), "serve", "--no-browser"])
     assert rc == 0
     assert "no index.json" in capsys.readouterr().err
+
+
+def test_nonsense_numeric_args_are_usage_errors_not_tracebacks(capsys):
+    """--workers 0, --rps 0 and --port 99999 used to crash deep inside the
+    run (ZeroDivisionError, ValueError) with a raw traceback. argparse must
+    reject them up front with a usage error (exit 2) instead."""
+    import pytest
+
+    for argv in (
+        ["scrape", "--workers", "0"],
+        ["scrape", "--rps", "0"],
+        ["scrape", "--rps", "-4"],
+        ["serve", "--port", "0"],
+        ["serve", "--port", "99999"],
+    ):
+        with pytest.raises(SystemExit) as err:
+            main(argv)
+        assert err.value.code == 2
+    # none of them got as far as touching the network or disk: every
+    # rejection was printed as usage text on stderr.
+    assert "error" in capsys.readouterr().err

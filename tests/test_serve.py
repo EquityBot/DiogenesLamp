@@ -190,3 +190,33 @@ def test_null_byte_path_gets_404_not_a_dead_handler(tmp_path: Path):
         assert _get(port, "/")[0] == 200
     finally:
         server.shutdown()
+
+
+def test_security_headers_on_every_response(tmp_path: Path):
+    """Scraped HTML feeds card markup, so the viewer is one escaping
+    mistake away from XSS. The CSP is the seatbelt behind the escaping, and
+    it must be present on data files and errors too, not just the page."""
+    viewer = tmp_path / "viewer"
+    data = tmp_path / "data"
+    viewer.mkdir()
+    data.mkdir()
+    (viewer / "index.html").write_text("<h1>lamp</h1>", encoding="utf-8")
+    (data / "index.json").write_text("{}", encoding="utf-8")
+
+    server = make_server(viewer, data, port=0)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        for path in ("/", "/data/index.json", "/missing"):
+            try:
+                with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}") as resp:
+                    headers = resp.headers
+            except urllib.error.HTTPError as err:
+                headers = err.headers
+            csp = headers.get("Content-Security-Policy", "")
+            assert "default-src 'none'" in csp, f"{path}: no CSP ({csp})"
+            assert "script-src 'self'" in csp, f"{path}: scripts not self-only"
+            assert headers.get("X-Content-Type-Options") == "nosniff"
+    finally:
+        server.shutdown()
