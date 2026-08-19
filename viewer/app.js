@@ -287,20 +287,18 @@ function refreshUI() {
 
 // The album at the top of the viewport before a background rebuild, with
 // its position. null when nothing is on screen yet (still loading the
-// first shards, or the list is empty).
+// first shards, or the list is empty). The arithmetic lives in anchor.js
+// so it can be tested without a DOM; this only measures.
 function topVisibleAlbum() {
-  if (!state.filtered.length) return null;
-  const cols = columns();
-  const rowH = rowHeight();
-  // Clamp at 0: scrolled above the grid's first row (toolbar visible), a
-  // negative viewTop would floor to row -1 and the restore would push the
-  // user a full row DOWN on every background refresh.
-  const viewTop = Math.max(0, window.scrollY - els.spacer.offsetTop);
-  const idx = Math.max(0, Math.floor(viewTop / rowH)) * cols;
-  const album = state.filtered[idx];
-  return album
-    ? { key: cardKey(album), offset: viewTop - Math.floor(viewTop / rowH) * rowH }
-    : null;
+  const spot = anchorAt(
+    window.scrollY - els.spacer.offsetTop,
+    rowHeight(),
+    columns(),
+    state.filtered.length,
+  );
+  if (!spot) return null;
+  const album = state.filtered[spot.index];
+  return album ? { key: cardKey(album), offset: spot.offset } : null;
 }
 
 // Put the anchored album back at its pixel offset. No-op when the album is
@@ -309,9 +307,8 @@ function restoreAnchor(anchor) {
   if (!anchor) return;
   const idx = state.filtered.findIndex((a) => cardKey(a) === anchor.key);
   if (idx < 0) return;
-  const rowH = rowHeight();
-  const newViewTop = Math.floor(idx / columns()) * rowH + anchor.offset;
-  window.scrollTo(0, newViewTop + els.spacer.offsetTop);
+  const viewTop = restoredViewTop(idx, anchor.offset, rowHeight(), columns());
+  window.scrollTo(0, viewTop + els.spacer.offsetTop);
 }
 
 function refreshCategoryOptions() {
