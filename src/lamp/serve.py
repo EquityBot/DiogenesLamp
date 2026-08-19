@@ -10,6 +10,13 @@ from urllib.parse import unquote
 
 
 class _Handler(SimpleHTTPRequestHandler):
+    # A name the scraper never writes, under the data directory, used as the
+    # target for any request we refuse: the handler answers 404 for it
+    # because it does not exist. Returning the data directory itself would
+    # have been served as a listing instead. Nothing may ever create a file
+    # by this name under data/.
+    REFUSED = ".refused-traversal"
+
     def __init__(self, *args, viewer_dir: Path, data_dir: Path, **kwargs):
         self._viewer_dir = viewer_dir
         self._data_dir = data_dir
@@ -22,7 +29,7 @@ class _Handler(SimpleHTTPRequestHandler):
             # ValueError (not OSError), which stdlib send_head does not
             # catch, and the handler thread dies with no reply. Route every
             # spelling of it at the refused name for a 404.
-            return str(self._data_dir / ".refused-traversal")
+            return str(self._data_dir / self.REFUSED)
         if clean.startswith("/data/"):
             relative = clean[len("/data/"):]
             # Anything else resolve() rejects must not escape
@@ -33,11 +40,7 @@ class _Handler(SimpleHTTPRequestHandler):
                     return str(candidate)
             except (OSError, ValueError):
                 pass
-            # Point a refused traversal at a name the scraper never writes,
-            # so it answers 404. Returning the data directory instead would
-            # have been served as a directory listing, and a path carrying a
-            # null byte crashes the handler before it can reply.
-            return str(self._data_dir / ".refused-traversal")
+            return str(self._data_dir / self.REFUSED)
         return super().translate_path(path)
 
     def send_response(self, code: int, message: str | None = None) -> None:

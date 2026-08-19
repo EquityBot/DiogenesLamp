@@ -220,3 +220,20 @@ def test_security_headers_on_every_response(tmp_path: Path):
             assert headers.get("X-Content-Type-Options") == "nosniff"
     finally:
         server.shutdown()
+
+
+def test_the_refusal_sentinel_is_a_name_nothing_ever_writes():
+    """Refused requests are pointed at data/<REFUSED> so they 404 by not
+    existing. A scraper that ever wrote that name would turn every refused
+    traversal into a served file, so no writer may produce it."""
+    from lamp import scrape, storage
+    from lamp.serve import _Handler
+
+    sentinel = _Handler.REFUSED
+    for module in (scrape, storage):
+        source = Path(module.__file__).read_text(encoding="utf-8")
+        assert sentinel not in source, f"{module.__name__} references {sentinel}"
+    # and the names the scraper does write cannot collide with it: shards
+    # are <seller>.json under catalog/, thumbs are <album id>.jpg
+    assert not sentinel.endswith(".json")
+    assert not sentinel.endswith(".jpg")
