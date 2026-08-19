@@ -133,6 +133,7 @@ def test_atomic_write_retries_a_transient_windows_lock(tmp_path: Path, monkeypat
     with pytest.raises(PermissionError):
         atomic_write_json(target, {"ok": 3})
     assert json.loads(target.read_text(encoding="utf-8")) == {"ok": 2}
+    assert list(tmp_path.iterdir()) == [target]  # no orphaned .tmp
 
 
 def test_write_index(tmp_path: Path):

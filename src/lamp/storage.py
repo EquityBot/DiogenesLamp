@@ -31,6 +31,9 @@ def atomic_write_json(path: Path, obj: object) -> None:
             return
         except PermissionError:
             if attempt == 4:
+                # The original is untouched; the orphaned temp would
+                # otherwise linger until the next write overwrites it.
+                tmp.unlink(missing_ok=True)
                 raise
             time.sleep(0.1 * 2 ** attempt)
 
