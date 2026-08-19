@@ -81,13 +81,15 @@ class Client:
                 response = self._session.get(url, headers=headers, timeout=_TIMEOUT)
             except requests.RequestException as exc:
                 last_error = exc
-                self._sleep(_BACKOFF[attempt])
+                if attempt + 1 < _RETRIES:
+                    self._sleep(_BACKOFF[attempt])
                 continue
             if response.status_code in (429, 403):
                 raise BlockedError(response.status_code)
             if 500 <= response.status_code < 600:
                 last_error = FetchError(f"HTTP {response.status_code} for {url}")
-                self._sleep(_BACKOFF[attempt])
+                if attempt + 1 < _RETRIES:
+                    self._sleep(_BACKOFF[attempt])
                 continue
             if response.status_code != 200:
                 raise FetchError(f"HTTP {response.status_code} for {url}")
@@ -95,21 +97,28 @@ class Client:
         raise FetchError(f"gave up on {url}: {last_error}")
 
     def download(self, url: str, dest: Path, referer: str | None = None) -> bool:
-        try:
-            response = self.get(url, referer=referer)
-        except BlockedError:
-            raise
-        except FetchError:
-            return False
-        dest.parent.mkdir(parents=True, exist_ok=True)
-        tmp = dest.with_name(dest.name + ".tmp")
-        try:
-            with open(tmp, "wb") as fh:
-                fh.writelines(response.iter_content(chunk_size=65536))
-        except requests.RequestException:
-            # The stream broke mid-body: get() already spent its retries,
-            # and a partial .tmp must never be renamed over a good file.
-            tmp.unlink(missing_ok=True)
-            return False
-        os.replace(tmp, dest)
-        return True
+        # Retry the whole GET on a mid-stream break: thumbs are idempotent,
+        # and a flaky hop losing one image per seller run would otherwise
+        # leave permanent gaps in covers until the next full scrape.
+        for attempt in range(_RETRIES):
+            try:
+                response = self.get(url, referer=referer)
+            except BlockedError:
+                raise
+            except FetchError:
+                return False
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            tmp = dest.with_name(dest.name + ".tmp")
+            try:
+                with open(tmp, "wb") as fh:
+                    fh.writelines(response.iter_content(chunk_size=65536))
+            except requests.RequestException:
+                # A partial temp file must never be renamed over a good one.
+                tmp.unlink(missing_ok=True)
+                if attempt + 1 < _RETRIES:
+                    self._sleep(_BACKOFF[attempt])
+                    continue
+                return False
+            os.replace(tmp, dest)
+            return True
+        return False
