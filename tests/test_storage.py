@@ -100,6 +100,41 @@ def test_atomic_write_failure_preserves_original(tmp_path: Path):
     assert list(tmp_path.iterdir()) == [target]
 
 
+def test_atomic_write_retries_a_transient_windows_lock(tmp_path: Path, monkeypatch):
+    """Windows denies a rename over a destination a reader holds open (the
+    viewer serving the shard being re-written) or while AV/indexer holds a
+    lock. Those clear in moments, so the replace retries; a permanent lock
+    still raises."""
+    target = tmp_path / "x.json"
+    atomic_write_json(target, {"ok": 1})
+
+    from lamp import storage
+
+    real_replace = storage.os.replace
+    calls = 0
+
+    def flaky_replace(src, dst):
+        nonlocal calls
+        calls += 1
+        if calls < 3:
+            raise PermissionError("WinError 5")
+        real_replace(src, dst)
+
+    monkeypatch.setattr(storage.os, "replace", flaky_replace)
+    monkeypatch.setattr(storage.time, "sleep", lambda _s: None)  # no real delay
+    atomic_write_json(target, {"ok": 2})
+    assert calls == 3
+    assert json.loads(target.read_text(encoding="utf-8")) == {"ok": 2}
+
+    def always_locked(src, dst):
+        raise PermissionError("WinError 5")
+
+    monkeypatch.setattr(storage.os, "replace", always_locked)
+    with pytest.raises(PermissionError):
+        atomic_write_json(target, {"ok": 3})
+    assert json.loads(target.read_text(encoding="utf-8")) == {"ok": 2}
+
+
 def test_write_index(tmp_path: Path):
     sellers = [{"id": "sellerx", "name": "sellerx", "url": "https://sellerx.x.yupoo.com",
                 "album_count": 2, "shard": "catalog/sellerx.json"}]

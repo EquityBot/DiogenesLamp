@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import time
 from pathlib import Path
 
 
@@ -11,7 +12,11 @@ def atomic_write_json(path: Path, obj: object) -> None:
     """Write JSON via a temp file + os.replace so readers never see a partial file.
 
     If serialization fails, the original file (if any) is left untouched - the
-    temp file never gets created before json.dumps succeeds.
+    temp file never gets created before json.dumps succeeds. On Windows the
+    rename step can lose against a reader holding the destination open (the
+    viewer serving the very shard being rewritten) or against antivirus and
+    indexer locks; those clear in moments, so the replace is retried a few
+    times before giving up.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
@@ -20,7 +25,14 @@ def atomic_write_json(path: Path, obj: object) -> None:
     tmp.write_text(
         json.dumps(obj, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
     )
-    os.replace(tmp, path)
+    for attempt in range(5):
+        try:
+            os.replace(tmp, path)
+            return
+        except PermissionError:
+            if attempt == 4:
+                raise
+            time.sleep(0.1 * 2 ** attempt)
 
 
 def _shard_path(data_dir: Path, seller: str) -> Path:
