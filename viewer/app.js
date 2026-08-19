@@ -392,8 +392,13 @@ function makeCard(album) {
     // Prefer Yupoo's own dateModified: our updated_at is stamped on every
     // re-fetch, so keying on it would re-download every thumb after a
     // scrape that changed nothing.
-    `<img class="card-thumb" loading="lazy" alt="" ` +
-    `src="data/${escapeAttr(album.thumb)}?v=${thumbVersion(album)}">` +
+    // No thumb means Yupoo had no cover for the album. Emitting an img with
+    // an empty path would request the data directory itself and take a 404
+    // per card; the colour block behind it is already the intended fallback.
+    (album.thumb
+      ? `<img class="card-thumb" loading="lazy" alt="" ` +
+        `src="data/${escapeAttr(album.thumb)}?v=${thumbVersion(album)}">`
+      : "") +
     // The badges live inside the cover so they are positioned against it
     // rather than against a hard-coded offset that has to be kept in step
     // with the cover height at every breakpoint.
@@ -415,9 +420,12 @@ function makeCard(album) {
   // An inline onerror attribute did this before. Binding it here keeps the
   // markup free of executable attributes, which is what lets a strict
   // script-src policy apply to this page unchanged.
-  card.querySelector(".card-thumb").addEventListener("error", (event) => {
-    event.currentTarget.style.display = "none";
-  });
+  const thumb = card.querySelector(".card-thumb");
+  if (thumb) {
+    thumb.addEventListener("error", (event) => {
+      event.currentTarget.style.display = "none";
+    });
+  }
   card.querySelector(".fav-btn").addEventListener("click", (event) => {
     toggleFavorite(album.id, event.currentTarget);
   });

@@ -2,16 +2,73 @@
 
 Usage: python tests/make_demo_data.py [data_dir] [sellers] [albums_per_seller]
 Then:  lamp --data <data_dir> serve --no-browser
+
+Covers are generated for the first COVERS_PER_SELLER albums of each seller.
+The rest are left cover-less deliberately: Yupoo has no cover image for some
+albums, and the viewer draws its titled colour block for those, so a demo
+where every card carried an image would never exercise that path.
 """
 
 import json
 import random
+import struct
 import sys
+import zlib
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 WORDS = ("alpha", "bravo", "canvas", "denim", "echo", "fleece", "grid", "hood",
          "indigo", "jacket", "knit", "lunar", "mesh", "nylon", "orbit", "polo")
+
+COVERS_PER_SELLER = 300
+COVER_PX = 240
+
+
+def _png(width: int, height: int, rows: list[bytes]) -> bytes:
+    """Minimal 8-bit RGB PNG encoder.
+
+    Written by hand rather than with Pillow: this is a development helper,
+    and the package deliberately carries no image dependency.
+    """
+    raw = b"".join(b"\x00" + row for row in rows)
+
+    def chunk(tag: bytes, data: bytes) -> bytes:
+        body = tag + data
+        return (struct.pack(">I", len(data)) + body
+                + struct.pack(">I", zlib.crc32(body) & 0xFFFFFFFF))
+
+    return (b"\x89PNG\r\n\x1a\n"
+            + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0))
+            + chunk(b"IDAT", zlib.compress(raw, 6))
+            + chunk(b"IEND", b""))
+
+
+def _hsv_to_rgb(hue: float, sat: float, val: float) -> tuple[int, int, int]:
+    sector = int(hue * 6) % 6
+    offset = hue * 6 - int(hue * 6)
+    p, q, t = val * (1 - sat), val * (1 - sat * offset), val * (1 - sat * (1 - offset))
+    r, g, b = ((val, t, p), (q, val, p), (p, val, t),
+               (p, q, val), (t, p, val), (val, p, q))[sector]
+    return int(r * 255), int(g * 255), int(b * 255)
+
+
+def cover_bytes(seed: int) -> bytes:
+    """A diagonal two-tone gradient, hue keyed on the album id.
+
+    Stands in for a product photo well enough to lay out and eyeball the
+    grid, while staying obviously synthetic to anyone reading a screenshot.
+    """
+    hue = (seed * 0.61803398875) % 1.0
+    top = _hsv_to_rgb(hue, 0.45, 0.85)
+    bottom = _hsv_to_rgb((hue + 0.08) % 1.0, 0.60, 0.45)
+    rows = []
+    for y in range(COVER_PX):
+        row = bytearray()
+        for x in range(COVER_PX):
+            ratio = (y + x * 0.35) / (COVER_PX * 1.35)
+            row += bytes(int(a + (b - a) * ratio) for a, b in zip(top, bottom))
+        rows.append(bytes(row))
+    return _png(COVER_PX, COVER_PX, rows)
 
 
 def main() -> None:
@@ -28,6 +85,8 @@ def main() -> None:
     (data_dir / "catalog").mkdir(parents=True, exist_ok=True)
     for i in range(n_sellers):
         seller = f"demoseller{i}"
+        thumb_dir = data_dir / "thumbs" / seller
+        thumb_dir.mkdir(parents=True, exist_ok=True)
         albums = []
         for j in range(n_albums):
             # Offset per seller: favorites key on album id, so ids must be
@@ -42,10 +101,13 @@ def main() -> None:
             if j % 4 == 0:
                 links.append({"platform": "taobao",
                               "url": f"https://item.taobao.com/item.htm?id={j}"})
+            if j < COVERS_PER_SELLER:
+                (thumb_dir / f"{aid}.png").write_bytes(cover_bytes(int(aid)))
             age_days = rng.randint(0, 1095)
             albums.append({
                 "id": aid, "seller": seller, "title": title, "list_title": title,
-                "thumb": f"thumbs/{seller}/{aid}.jpg",
+                "thumb": (f"thumbs/{seller}/{aid}.png"
+                          if j < COVERS_PER_SELLER else ""),
                 "album_url": f"https://{seller}.x.yupoo.com/albums/{aid}?uid=1",
                 "links": links,
                 "category": rng.choice(("hoodies", "tees", "shoes", "")),
@@ -67,7 +129,9 @@ def main() -> None:
         json.dumps({"generated_at": run_ts, "sellers": sellers, "shops": shops}),
         encoding="utf-8",
     )
-    print(f"wrote {n_sellers} sellers x {n_albums} albums to {data_dir}/")
+    covers = n_sellers * min(n_albums, COVERS_PER_SELLER)
+    print(f"wrote {n_sellers} sellers x {n_albums} albums "
+          f"({covers} covers) to {data_dir}/")
 
 
 if __name__ == "__main__":

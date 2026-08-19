@@ -257,9 +257,13 @@ button:hover { border-color: var(--accent); color: var(--accent-text); }
 }
 .card-meta {
   display: flex; gap: 6px; align-items: center; padding: 6px 10px 10px;
-  margin-top: auto; flex: none;
+  margin-top: auto; flex: none; overflow: hidden;
 }
-.card-links { display: flex; gap: 6px; flex: 1; min-width: 0; }
+/* The purchase chips take their natural width and the seller name gives way,
+   because a truncated seller name is readable while a chip clipped mid-word
+   is not - and with two chips the row used to overrun the Album button
+   rather than shrink. */
+.card-links { display: flex; gap: 6px; flex: 0 0 auto; }
 .card-links a, .card-meta .album-link {
   font-size: 11px; padding: 3px 8px; border-radius: 6px; text-decoration: none;
   background: var(--raised); color: var(--text); border: 1px solid var(--border);
@@ -271,7 +275,8 @@ button:hover { border-color: var(--accent); color: var(--accent-text); }
 .card-links a.weidian { border-color: #00916f; }
 .seller-tag {
   font-size: 11px; color: var(--muted); overflow: hidden;
-  text-overflow: ellipsis; white-space: nowrap; max-width: 40%;
+  text-overflow: ellipsis; white-space: nowrap;
+  flex: 0 1 auto; min-width: 0; margin-right: auto;
 }
 
 .badge-new {
