@@ -16,7 +16,10 @@ def atomic_write_json(path: Path, obj: object) -> None:
     rename step can lose against a reader holding the destination open (the
     viewer serving the very shard being rewritten) or against antivirus and
     indexer locks; those clear in moments, so the replace is retried a few
-    times before giving up.
+    times before giving up. Any OSError qualifies: a sharing violation
+    arrives as PermissionError (WinError 5 or 32) but a rename can also fail
+    transiently for other OS reasons, and none of them should leave the temp
+    file behind.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
@@ -29,7 +32,7 @@ def atomic_write_json(path: Path, obj: object) -> None:
         try:
             os.replace(tmp, path)
             return
-        except PermissionError:
+        except OSError:
             if attempt == 4:
                 # The original is untouched; the orphaned temp would
                 # otherwise linger until the next write overwrites it.

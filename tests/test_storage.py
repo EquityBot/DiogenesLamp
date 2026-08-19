@@ -103,8 +103,9 @@ def test_atomic_write_failure_preserves_original(tmp_path: Path):
 def test_atomic_write_retries_a_transient_windows_lock(tmp_path: Path, monkeypatch):
     """Windows denies a rename over a destination a reader holds open (the
     viewer serving the shard being re-written) or while AV/indexer holds a
-    lock. Those clear in moments, so the replace retries; a permanent lock
-    still raises."""
+    lock. Those clear in moments, so the replace retries; a permanent
+    failure still raises, and any OSError counts - a sharing violation is
+    not always spelled PermissionError."""
     target = tmp_path / "x.json"
     atomic_write_json(target, {"ok": 1})
 
@@ -117,7 +118,7 @@ def test_atomic_write_retries_a_transient_windows_lock(tmp_path: Path, monkeypat
         nonlocal calls
         calls += 1
         if calls < 3:
-            raise PermissionError("WinError 5")
+            raise PermissionError("WinError 32 sharing violation")
         real_replace(src, dst)
 
     monkeypatch.setattr(storage.os, "replace", flaky_replace)
@@ -127,10 +128,10 @@ def test_atomic_write_retries_a_transient_windows_lock(tmp_path: Path, monkeypat
     assert json.loads(target.read_text(encoding="utf-8")) == {"ok": 2}
 
     def always_locked(src, dst):
-        raise PermissionError("WinError 5")
+        raise OSError("rename refused for some other OS reason")
 
     monkeypatch.setattr(storage.os, "replace", always_locked)
-    with pytest.raises(PermissionError):
+    with pytest.raises(OSError):
         atomic_write_json(target, {"ok": 3})
     assert json.loads(target.read_text(encoding="utf-8")) == {"ok": 2}
     assert list(tmp_path.iterdir()) == [target]  # no orphaned .tmp
