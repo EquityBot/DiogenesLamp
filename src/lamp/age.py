@@ -32,7 +32,10 @@ def estimate_published(album_id: int) -> date:
 
     Clamps below the first anchor; past the last anchor it extrapolates at the
     final segment's rate, so ids minted after the table was measured still
-    date sensibly.
+    date sensibly. The extrapolation is capped at today's date: ids far past
+    the last anchor would otherwise overflow date's range entirely (a
+    trillion-scale junk id reached year 23904), and an id whose implied date
+    is in the future is simply "newer than the table knows".
     """
     if album_id <= ANCHORS[0][0]:
         return ANCHORS[0][1]
@@ -49,7 +52,15 @@ def estimate_published(album_id: int) -> date:
     # segment, so a 180-day scrape and a 180-day filter would disagree about
     # the same album. tests/test_age.py checks they still match.
     offset = (album_id - id0) * span_days // (id1 - id0)
-    return date0.fromordinal(date0.toordinal() + offset)
+    try:
+        return date0.fromordinal(date0.toordinal() + offset)
+    except ValueError:
+        # Junk ids (trillion scale) overflow date's range entirely: an id
+        # whose implied date lands past year 9999 is just "newer than the
+        # table can express", so the newest representable date is the right
+        # answer - is_stale then keeps the album (today - MAX is negative,
+        # never stale) and nothing crashes mid-scrape.
+        return date.max
 
 
 def published_date(album_id: int, known: str = "") -> date:
