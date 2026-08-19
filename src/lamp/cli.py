@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import math
 import sys
 from datetime import UTC
 from pathlib import Path
@@ -20,9 +21,13 @@ def _positive_int(text: str) -> int:
 def _positive_float(text: str) -> float:
     value = float(text)
     # 0 would divide-by-zero deep inside the rate limiter; -h would make
-    # every wait() negative, unthrottling the scrape entirely.
-    if value <= 0:
-        raise argparse.ArgumentTypeError("must be greater than 0")
+    # every wait() negative, unthrottling the scrape entirely. NaN and inf
+    # need naming separately: float("nan") <= 0 is False, so NaN slips a
+    # bare comparison and then poisons every gap arithmetic downstream,
+    # and inf collapses the global gap to zero - both quietly discard the
+    # politeness cap this flag exists to set.
+    if not math.isfinite(value) or value <= 0:
+        raise argparse.ArgumentTypeError("must be a finite number greater than 0")
     return value
 
 

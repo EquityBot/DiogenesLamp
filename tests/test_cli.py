@@ -135,6 +135,10 @@ def test_nonsense_numeric_args_are_usage_errors_not_tracebacks(capsys):
         ["scrape", "--workers", "0"],
         ["scrape", "--rps", "0"],
         ["scrape", "--rps", "-4"],
+        # NaN and inf are not caught by a bare `> 0` check; see
+        # _positive_float for what they do to the limiter.
+        ["scrape", "--rps", "nan"],
+        ["scrape", "--rps", "inf"],
         ["serve", "--port", "0"],
         ["serve", "--port", "99999"],
     ):
