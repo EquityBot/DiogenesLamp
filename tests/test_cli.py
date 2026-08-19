@@ -28,6 +28,17 @@ def test_import_missing_file_errors(tmp_path: Path, capsys):
     assert "not found" in capsys.readouterr().err
 
 
+def test_import_accepts_utf16_excel_exports(tmp_path: Path):
+    """Excel's default CSV export is UTF-16 with a BOM on many locales;
+    importing one used to die on a raw UnicodeDecodeError."""
+    dump = tmp_path / "dump.csv"
+    dump.write_bytes("1\thttps://sellerx.x.yupoo.com/\n".encode("utf-16"))
+    rc = main(["--sources", str(tmp_path / "s.toml"), "import", str(dump)])
+    assert rc == 0
+    text = (tmp_path / "s.toml").read_text(encoding="utf-8")
+    assert "[yupoo.sellerx]" in text
+
+
 def test_scrape_requires_sources(tmp_path: Path, capsys):
     rc = main(["--sources", str(tmp_path / "none.toml"), "--data", str(tmp_path / "d"), "scrape"])
     assert rc == 1

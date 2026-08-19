@@ -62,7 +62,17 @@ def _cmd_import(args: argparse.Namespace) -> int:
     if not args.dump.exists():
         print(f"error: dump file not found: {args.dump}", file=sys.stderr)
         return 1
-    raws = parse_dump(args.dump.read_text(encoding="utf-8"))
+    # Excel exports CSVs as UTF-16 with a BOM on many locales; sniff the BOM
+    # before assuming UTF-8 or the import dies on a raw UnicodeDecodeError.
+    blob = args.dump.read_bytes()
+    for bom, encoding in ((b"\xff\xfe", "utf-16-le"), (b"\xfe\xff", "utf-16-be"),
+                          (b"\xef\xbb\xbf", "utf-8-sig")):
+        if blob.startswith(bom):
+            text = blob.decode(encoding)
+            break
+    else:
+        text = blob.decode("utf-8")
+    raws = parse_dump(text)
     existing = load_sources(args.sources)
     merged, report = merge_sources(existing, raws)
     write_sources(args.sources, merged)
