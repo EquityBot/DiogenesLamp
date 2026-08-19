@@ -29,6 +29,19 @@ def test_parse_dump_strips_indexes_blanks():
     ]
 
 
+def test_parse_dump_keeps_urls_that_contain_commas():
+    """Splitting on every comma and keeping the last field used to reduce a
+    comma-carrying URL to its last fragment - 'itemID=1,2' became '2' and
+    classified to nothing. Only a pure numeric index prefix is stripped."""
+    assert parse_dump("https://weidian.com/item.html?itemID=1,2\n") == [
+        "https://weidian.com/item.html?itemID=1,2"
+    ]
+    assert parse_dump("123,https://seller.x.yupoo.com/\n") == [
+        "https://seller.x.yupoo.com/"
+    ]
+    assert parse_dump("12, https://spaced.example/\n") == ["https://spaced.example/"]
+
+
 def test_merge_dedupes_and_counts():
     merged, report = merge_sources({}, parse_dump(DUMP))
     assert set(merged) == {
