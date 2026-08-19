@@ -23,6 +23,10 @@ class _Handler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(viewer_dir), **kwargs)
 
     def translate_path(self, path: str) -> str:
+        # Unquoted here so the NUL check sees a %00 for what it is. Viewer
+        # paths get unquoted again by stdlib translate_path, which is safe
+        # because it drops "..", "." and any component carrying a separator;
+        # the /data/ route resolves and checks containment itself.
         clean = unquote(path.split("?", 1)[0].split("#", 1)[0])
         if "\x00" in clean:
             # unquote leaves a %00 as a literal NUL; open() then raises

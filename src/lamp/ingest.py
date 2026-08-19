@@ -105,11 +105,12 @@ def parse_dump(text: str) -> list[str]:
         line = line.strip().lstrip("\ufeff")
         if not line:
             continue
-        # Tolerate "123<TAB>url" and "123,url" index prefixes. Splitting on
-        # every comma and keeping the last field would silently mangle any
-        # URL that itself contains a comma (weidian search links do), so
-        # only strip a prefix that is purely a numeric index.
-        match = re.match(r"^[0-9]+[\t,]\s*(?P<url>.+)$", line)
+        # Tolerate "123<TAB>url" and "123,url" index prefixes, including
+        # several of them ("12,34,url" from a two-index export). Splitting
+        # on every comma and keeping the last field would silently mangle
+        # any URL that itself contains a comma (weidian search links do),
+        # so only a run of purely numeric fields is stripped.
+        match = re.match(r"^(?:[0-9]+[\t,]\s*)+(?P<url>.+)$", line)
         rows.append((match.group("url") if match else line).strip())
     return rows
 

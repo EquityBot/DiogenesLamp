@@ -62,6 +62,11 @@ def test_data_path_traversal_is_refused(tmp_path: Path):
             "/data/%2e%2e/outside.txt",
             "/data/sub/../../outside.txt",
             "/data/....//outside.txt",
+            # Double-encoded: this handler unquotes once, stdlib unquotes
+            # again on the viewer route, so a payload that only becomes ".."
+            # after the second pass must still be refused.
+            "/data/%252e%252e/outside.txt",
+            "/%252e%252e/outside.txt",
         ):
             status, body = 0, b""
             try:

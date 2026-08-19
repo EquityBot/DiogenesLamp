@@ -32,7 +32,7 @@ def test_parse_dump_strips_indexes_blanks():
 def test_parse_dump_keeps_urls_that_contain_commas():
     """Splitting on every comma and keeping the last field used to reduce a
     comma-carrying URL to its last fragment - 'itemID=1,2' became '2' and
-    classified to nothing. Only a pure numeric index prefix is stripped."""
+    classified to nothing. Only a run of numeric index fields is stripped."""
     assert parse_dump("https://weidian.com/item.html?itemID=1,2\n") == [
         "https://weidian.com/item.html?itemID=1,2"
     ]
@@ -40,6 +40,15 @@ def test_parse_dump_keeps_urls_that_contain_commas():
         "https://seller.x.yupoo.com/"
     ]
     assert parse_dump("12, https://spaced.example/\n") == ["https://spaced.example/"]
+    # a two-index export ("row,subrow,url") strips both, and a comma inside
+    # the URL still survives behind them
+    assert parse_dump("1,2,https://seller.x.yupoo.com/\n") == [
+        "https://seller.x.yupoo.com/"
+    ]
+    assert parse_dump("12\t34\thttps://s.x.yupoo.com/\n") == ["https://s.x.yupoo.com/"]
+    assert parse_dump("1,https://weidian.com/i.html?itemID=1,2\n") == [
+        "https://weidian.com/i.html?itemID=1,2"
+    ]
 
 
 def test_merge_dedupes_and_counts():
