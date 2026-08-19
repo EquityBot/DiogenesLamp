@@ -119,3 +119,12 @@ def test_classify_strips_control_and_invisible_characters():
     # a row that is only invisible junk classifies as nothing, not as a
     # garbage source
     assert classify_url("\x00\x00") is None
+
+
+def test_load_sources_strips_a_hand_edited_trailing_slash(tmp_path: Path):
+    """url = "...yupoo.com/" would make every request '//albums?page=N' -
+    Yupoo 302s it, and the run pays a redirect round-trip per page."""
+    path = tmp_path / "sources.toml"
+    path.write_text('[yupoo.s]\nurl = "https://s.x.yupoo.com/"\nname = "s"\n',
+                    encoding="utf-8")
+    assert load_sources(path)["yupoo:s"].url == "https://s.x.yupoo.com"
