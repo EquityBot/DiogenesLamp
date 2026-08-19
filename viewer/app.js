@@ -292,7 +292,10 @@ function topVisibleAlbum() {
   if (!state.filtered.length) return null;
   const cols = columns();
   const rowH = rowHeight();
-  const viewTop = window.scrollY - els.spacer.offsetTop;
+  // Clamp at 0: scrolled above the grid's first row (toolbar visible), a
+  // negative viewTop would floor to row -1 and the restore would push the
+  // user a full row DOWN on every background refresh.
+  const viewTop = Math.max(0, window.scrollY - els.spacer.offsetTop);
   const idx = Math.max(0, Math.floor(viewTop / rowH)) * cols;
   const album = state.filtered[idx];
   return album
