@@ -47,6 +47,17 @@ def _strip_fragment(rest: str) -> str:
     return rest.partition("#")[0]
 
 
+# The URL regex stops at ASCII whitespace but not at control or invisible
+# characters (NUL, zero-width spaces, BOMs), which would otherwise flow
+# straight into the stored URL: a NUL in a link breaks nothing in JSON but
+# poisons dedup keys and any downstream consumer that validates URLs.
+# (Characters written as escapes: a literal zero-width char in a source
+# file is invisible to the next reader and to most linters.)
+_INVISIBLE = re.compile(
+    "[\\x00-\\x1f\\x7f\ufeff\u200b\u200c\u200d\u2060]+"
+)
+
+
 def _normalize(host: str, rest: str) -> str:
     path, _, query = _strip_fragment(rest or "/").partition("?")
     kept = [
@@ -64,7 +75,7 @@ def extract_links(text: str) -> list[Link]:
     links: list[Link] = []
     for match in _URL_RE.finditer(text):
         host = match.group("host").lower()
-        rest = (match.group("rest") or "").rstrip(_TRAILING_PUNCT)
+        rest = _INVISIBLE.sub("", (match.group("rest") or "").rstrip(_TRAILING_PUNCT))
         platform = _platform(host)
         if platform == "other":
             if host not in _SHORTLINK_HOSTS:
