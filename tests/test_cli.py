@@ -87,3 +87,14 @@ def test_scrape_passes_max_age_days_through(tmp_path: Path, monkeypatch):
     assert seen["max_age_days"] == 180
     assert seen["rps"] == 20.0
     assert seen["workers"] == 16
+
+
+def test_serve_warns_when_no_index_json(tmp_path: Path, capsys, monkeypatch):
+    """`lamp serve` over a data dir with no index.json must say so on the
+    terminal, not leave the operator guessing why the viewer is empty."""
+    def fake_serve(viewer_dir, data_dir, port=8000, open_browser=True):
+        pass
+    monkeypatch.setattr("lamp.serve.serve", fake_serve)
+    rc = main(["--data", str(tmp_path), "serve", "--no-browser"])
+    assert rc == 0
+    assert "no index.json" in capsys.readouterr().err

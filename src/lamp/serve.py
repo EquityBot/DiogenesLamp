@@ -6,6 +6,7 @@ import webbrowser
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.parse import unquote
 
 
 class _Handler(SimpleHTTPRequestHandler):
@@ -15,12 +16,23 @@ class _Handler(SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(viewer_dir), **kwargs)
 
     def translate_path(self, path: str) -> str:
-        clean = path.split("?", 1)[0].split("#", 1)[0]
+        clean = unquote(path.split("?", 1)[0].split("#", 1)[0])
+        if "\x00" in clean:
+            # unquote leaves a %00 as a literal NUL; open() then raises
+            # ValueError (not OSError), which stdlib send_head does not
+            # catch, and the handler thread dies with no reply. Route every
+            # spelling of it at the refused name for a 404.
+            return str(self._data_dir / ".refused-traversal")
         if clean.startswith("/data/"):
             relative = clean[len("/data/"):]
-            candidate = (self._data_dir / relative).resolve()
-            if candidate.is_relative_to(self._data_dir.resolve()):
-                return str(candidate)
+            # Anything else resolve() rejects must not escape
+            # translate_path either: same 404, handler stays alive.
+            try:
+                candidate = (self._data_dir / relative).resolve()
+                if candidate.is_relative_to(self._data_dir.resolve()):
+                    return str(candidate)
+            except (OSError, ValueError):
+                pass
             # Point a refused traversal at a name the scraper never writes,
             # so it answers 404. Returning the data directory instead would
             # have been served as a directory listing, and a path carrying a

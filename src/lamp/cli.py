@@ -114,6 +114,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.command == "serve":
         from lamp.serve import serve
 
+        if not (args.data / "index.json").exists():
+            # The viewer will load but sit on an error message: say why on
+            # the terminal, where the operator actually is.
+            print(
+                f"note: no index.json under {args.data} - the viewer will show "
+                f"an empty catalog until 'lamp scrape' writes one",
+                file=sys.stderr,
+            )
         viewer_dir = Path(__file__).resolve().parents[2] / "viewer"
         serve(viewer_dir, args.data, port=args.port, open_browser=not args.no_browser)
         return 0

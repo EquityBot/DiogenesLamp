@@ -107,14 +107,13 @@ function setStatus() {
   const dups = state.dupHidden
     ? ` | ${state.dupHidden.toLocaleString()} duplicates hidden` : "";
   // A seller whose scrape errored has no shard on disk, so its fetch 404s.
-  // Counting those as loaded would report a full catalog while part of it is
-  // missing - say so instead.
+  // Those still count in loadedSellers (the attempt finished), so name the
+  // missing part rather than silently reporting a full catalog.
   const missing = state.failedShards.length
     ? ` | ${state.failedShards.length} unavailable` : "";
   els.status.textContent =
     `${state.filtered.length.toLocaleString()} albums | ` +
-    `loaded ${state.loadedSellers - state.failedShards.length}/${total} ` +
-    `sellers${missing}${dups}`;
+    `${state.loadedSellers}/${total} sellers loaded${missing}${dups}`;
 
   els.progress.style.width = total ? `${(state.loadedSellers / total) * 100}%` : "0";
   els.progress.parentElement.hidden = !loading;
@@ -169,7 +168,23 @@ function setLoadNote(loading) {
 const SHARD_CONCURRENCY = 6;
 
 async function loadAll() {
-  const index = await (await fetch("data/index.json")).json();
+  let index;
+  try {
+    const response = await fetch("data/index.json");
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    index = await response.json();
+  } catch (err) {
+    // Without the manifest nothing below can run; name the cause on screen
+    // instead of leaving the "Loading the catalog..." message up forever.
+    console.error("index.json failed to load", err);
+    els.message.textContent =
+      "Could not load data/index.json - run `lamp scrape` first, and serve " +
+      "the viewer from the directory that holds data/.";
+    els.message.hidden = false;
+    els.progress.parentElement.hidden = true;
+    els.grid.setAttribute("aria-busy", "false");
+    return;
+  }
   state.index = index;
   state.generatedAt = index.generated_at;
   for (const seller of index.sellers) {
