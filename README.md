@@ -21,6 +21,9 @@ Requires Python 3.11+. Install from a clone, and keep the clone: the
 viewer is served straight out of the source tree, so the editable install
 (`-e`) is required, not a convenience.
 
+There are no tagged releases and none are planned: the clone is the
+install, and the ci badge above is the release gate.
+
     git clone https://github.com/ryanduguid/DiogenesLamp
     cd DiogenesLamp
     pip install -e .
