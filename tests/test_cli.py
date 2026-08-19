@@ -39,6 +39,20 @@ def test_import_accepts_utf16_excel_exports(tmp_path: Path):
     assert "[yupoo.sellerx]" in text
 
 
+def test_import_reports_an_undecodable_dump_instead_of_crashing(tmp_path: Path, capsys):
+    """A dump saved in a legacy code page has no BOM to sniff and is not
+    UTF-8 either; say so and name the fix rather than showing the decoder's
+    traceback."""
+    dump = tmp_path / "dump.csv"
+    dump.write_bytes(b"https://ok.x.yupoo.com/\n\x81\x9d not utf-8")
+    rc = main(["--sources", str(tmp_path / "s.toml"), "import", str(dump)])
+    assert rc == 1
+    err = capsys.readouterr().err
+    assert "could not read" in err and "utf-8" in err
+    assert "re-save it as UTF-8" in err
+    assert not (tmp_path / "s.toml").exists()  # nothing half-written
+
+
 def test_scrape_requires_sources(tmp_path: Path, capsys):
     rc = main(["--sources", str(tmp_path / "none.toml"), "--data", str(tmp_path / "d"), "scrape"])
     assert rc == 1

@@ -97,6 +97,13 @@ class Client:
         raise FetchError(f"gave up on {url}: {last_error}")
 
     def download(self, url: str, dest: Path, referer: str | None = None) -> bool:
+        """Fetch url into dest atomically. True when dest was just written.
+
+        False means this attempt failed, NOT that dest is absent: a thumb
+        an earlier scrape stored stays in place, so the viewer keeps showing
+        the older cover rather than losing it to one bad fetch. Callers that
+        need to know whether a file exists must stat it.
+        """
         # Retry the whole GET on a mid-stream break: thumbs are idempotent,
         # and a flaky hop losing one image per seller run would otherwise
         # leave permanent gaps in covers until the next full scrape.

@@ -58,20 +58,37 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _sniff_encoding(blob: bytes) -> str:
+    """Text encoding of a raw dump, by byte order mark.
+
+    Excel exports CSVs as UTF-16 with a BOM on many locales, so assuming
+    UTF-8 outright kills the import on a file the user considers ordinary.
+    """
+    for bom, encoding in ((b"\xff\xfe", "utf-16-le"), (b"\xfe\xff", "utf-16-be"),
+                          (b"\xef\xbb\xbf", "utf-8-sig")):
+        if blob.startswith(bom):
+            return encoding
+    return "utf-8"
+
+
 def _cmd_import(args: argparse.Namespace) -> int:
     if not args.dump.exists():
         print(f"error: dump file not found: {args.dump}", file=sys.stderr)
         return 1
-    # Excel exports CSVs as UTF-16 with a BOM on many locales; sniff the BOM
-    # before assuming UTF-8 or the import dies on a raw UnicodeDecodeError.
     blob = args.dump.read_bytes()
-    for bom, encoding in ((b"\xff\xfe", "utf-16-le"), (b"\xfe\xff", "utf-16-be"),
-                          (b"\xef\xbb\xbf", "utf-8-sig")):
-        if blob.startswith(bom):
-            text = blob.decode(encoding)
-            break
-    else:
-        text = blob.decode("utf-8")
+    encoding = _sniff_encoding(blob)
+    try:
+        text = blob.decode(encoding)
+    except UnicodeDecodeError as exc:
+        # A dump saved in a legacy code page, or a UTF-16 file with a stray
+        # byte, reaches here. Name the encoding tried and what to do rather
+        # than showing the raw decoder traceback.
+        print(
+            f"error: could not read {args.dump} as {encoding} ({exc.reason} at "
+            f"byte {exc.start}); re-save it as UTF-8 and try again",
+            file=sys.stderr
+        )
+        return 1
     raws = parse_dump(text)
     existing = load_sources(args.sources)
     merged, report = merge_sources(existing, raws)
@@ -154,7 +171,7 @@ def main(argv: list[str] | None = None) -> int:
             print(
                 f"note: no index.json under {args.data} - the viewer will show "
                 f"an empty catalog until 'lamp scrape' writes one",
-                file=sys.stderr,
+                file=sys.stderr
             )
         viewer_dir = Path(__file__).resolve().parents[2] / "viewer"
         serve(viewer_dir, args.data, port=args.port, open_browser=not args.no_browser)
