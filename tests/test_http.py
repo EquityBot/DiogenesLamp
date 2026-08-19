@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from lamp.http import BlockedError, Client, FetchError, RateLimiter
+from lamp.http import _BACKOFF, _RETRIES, BlockedError, Client, FetchError, RateLimiter
 
 
 class FakeClock:
@@ -164,8 +164,8 @@ def test_download_failure_returns_false(tmp_path: Path):
 
 
 def test_download_stream_break_returns_false_and_cleans_tmp(tmp_path: Path):
-    """A connection that dies mid-body used to escape download() as an
-    uncaught ChunkedEncodingError and leave the partial .tmp behind."""
+    """A connection that dies mid-body is retried as a fresh GET; after all
+    retries the partial .tmp must not be left behind."""
     import requests
 
     class BrokenStream:
@@ -175,8 +175,40 @@ def test_download_stream_break_returns_false_and_cleans_tmp(tmp_path: Path):
             yield b"partial"
             raise requests.exceptions.ChunkedEncodingError("died mid-body")
 
-    client, _ = _client([BrokenStream()])
+    client, session = _client([BrokenStream(), BrokenStream(), BrokenStream()])
     dest = tmp_path / "thumbs" / "1.jpg"
     assert client.download("https://photo.yupoo.com/x.jpg", dest) is False
     assert not dest.exists()
     assert list(dest.parent.iterdir()) == []  # no .tmp left behind
+    assert len(session.calls) == 3  # retried the whole GET, not just the stream
+
+
+def test_download_stream_break_then_success(tmp_path: Path):
+    """A flaky first attempt must not cost the thumb: the retry succeeds."""
+    import requests
+
+    class BrokenStream:
+        status_code = 200
+
+        def iter_content(self, chunk_size):
+            yield b"partial"
+            raise requests.exceptions.ChunkedEncodingError("died mid-body")
+
+    client, _ = _client([BrokenStream(), FakeResponse(200, b"full-bytes")])
+    dest = tmp_path / "1.jpg"
+    assert client.download("https://photo.yupoo.com/x.jpg", dest) is True
+    assert dest.read_bytes() == b"full-bytes"
+
+
+def test_get_does_not_sleep_before_giving_up():
+    """The last failed attempt used to sleep the full backoff (4s) before
+    raising anyway - dead time per permanently failed fetch."""
+    import requests
+
+    clock = FakeClock()
+    session = FakeSession([requests.ConnectionError()] * _RETRIES)
+    client = Client(RateLimiter(time_fn=clock.time, sleep_fn=clock.sleep),
+                    session=session, sleep_fn=clock.sleep)
+    with pytest.raises(FetchError):
+        client.get("https://x.example/")
+    assert clock.sleeps == _BACKOFF[:-1]  # no sleep after the final attempt
