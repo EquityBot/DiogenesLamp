@@ -103,7 +103,13 @@ class Client:
             return False
         dest.parent.mkdir(parents=True, exist_ok=True)
         tmp = dest.with_name(dest.name + ".tmp")
-        with open(tmp, "wb") as fh:
-            fh.writelines(response.iter_content(chunk_size=65536))
+        try:
+            with open(tmp, "wb") as fh:
+                fh.writelines(response.iter_content(chunk_size=65536))
+        except requests.RequestException:
+            # The stream broke mid-body: get() already spent its retries,
+            # and a partial .tmp must never be renamed over a good file.
+            tmp.unlink(missing_ok=True)
+            return False
         os.replace(tmp, dest)
         return True
