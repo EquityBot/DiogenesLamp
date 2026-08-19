@@ -96,7 +96,11 @@ def scrape_seller(client, source: Source, data_dir: Path,
                   run_ts: str, full: bool = False,
                   max_age_days: int = 0) -> SellerSummary:
     summary = SellerSummary(source.id)
-    shard = load_shard(data_dir, source.id)
+    try:
+        shard = load_shard(data_dir, source.id)
+    except ValueError as exc:
+        summary.error = str(exc)
+        return summary
     today = date.fromisoformat(run_ts[:10])
     blocked_streak = 0
     # Independent of blocked_streak above: a run of album-page successes must
@@ -258,7 +262,15 @@ def scrape_all(sources: dict[str, Source], data_dir: Path, run_ts: str,
     # exclusion as an unavailable seller on every load.
     seller_meta = []
     for source in sellers:
-        shard = load_shard(data_dir, source.id)
+        try:
+            shard = load_shard(data_dir, source.id)
+        except ValueError:
+            # A corrupt shard belongs in the per-seller error summary, not
+            # in the index: counting it here would crash every other
+            # seller's manifest write. The viewer already reports the
+            # seller as unavailable when the fetch of a listed shard fails;
+            # for an unreadable shard, that IS the honest report.
+            continue
         if source.skip and not shard:
             continue
         seller_meta.append({
