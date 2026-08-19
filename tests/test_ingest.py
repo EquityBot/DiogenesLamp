@@ -92,3 +92,17 @@ def test_skip_flag_round_trips_and_survives_reimport(tmp_path):
     write_sources(path, merged)
     assert load_sources(path)["yupoo:huge"].skip is True
     assert "skip" not in path.read_text(encoding="utf-8").split("[yupoo.new]")[1]
+
+
+def test_classify_strips_control_and_invisible_characters():
+    """The dump is hand-exported text. A NUL or zero-width character must be
+    scrubbed, not carried into sources.toml and every later request URL."""
+    from lamp.ingest import classify_url
+
+    src = classify_url("seller.x.yupoo.com\x00.evil.com")
+    assert "\x00" not in src.url and "\x00" not in src.name
+    src = classify_url("https://sell\u200ber.x.yupoo.com/")
+    assert "\u200b" not in src.url
+    # a row that is only invisible junk classifies as nothing, not as a
+    # garbage source
+    assert classify_url("\x00\x00") is None
