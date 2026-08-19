@@ -114,6 +114,13 @@ def scrape_seller(client, source: Source, data_dir: Path,
         summary.error = str(exc)
         return summary
 
+    # Flushing the shard every so often bounds what an interrupt costs: a
+    # big seller at the 1 req/s politeness floor takes tens of minutes, and
+    # writing only at the end means Ctrl+C or a crash throws away the whole
+    # run. The write is atomic (temp + replace), so a flush can never leave
+    # a torn shard for the viewer.
+    _FLUSH_EVERY = 100
+    scraped_since_flush = 0
     for stub in stubs:
         old = shard.get(stub.id)
         # Age gate first: a stale listing costs nothing to skip here, but an
@@ -189,6 +196,10 @@ def scrape_seller(client, source: Source, data_dir: Path,
         summary.scraped += 1
         if detail.date_published or detail.date_modified:
             summary.dated += 1
+        scraped_since_flush += 1
+        if scraped_since_flush >= _FLUSH_EVERY:
+            write_shard(data_dir, source.id, shard)
+            scraped_since_flush = 0
 
     # A seller whose list pages parse fine but whose album-page fetches all
     # fail must not report clean - each failure alone just increments

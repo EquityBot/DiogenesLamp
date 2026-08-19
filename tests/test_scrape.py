@@ -490,3 +490,49 @@ def test_index_keeps_a_skipped_seller_that_was_scraped_before(tmp_path: Path):
     index = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
     assert [s["id"] for s in index["sellers"]] == ["sellerx"]
     assert index["sellers"][0]["album_count"] == 2
+
+
+def test_index_loads_each_shard_once(tmp_path: Path, monkeypatch):
+    """The index build must not double-read shards: at tens of MB per shard
+    the second parse per seller is the slowest part of a scrape's tail."""
+    loads = []
+    from lamp import scrape as scrape_module
+
+    real_load_shard = scrape_module.load_shard
+
+    def spy(data_dir, seller):
+        loads.append(seller)
+        return real_load_shard(data_dir, seller)
+
+    monkeypatch.setattr(scrape_module, "load_shard", spy)
+    scrape_all({"yupoo:sellerx": SELLER}, tmp_path, "2026-08-17T12:00:00+10:00",
+               client_factory=make_client)
+    # one load during scrape_seller + one during the index build, not two
+    assert loads.count("sellerx") == 2
+
+
+def test_scrape_flushes_the_shard_periodically(tmp_path: Path, monkeypatch):
+    """An interrupt mid-run must not cost every album scraped so far: the
+    shard is rewritten after every 100 scraped albums, atomically."""
+    from lamp import scrape as scrape_module
+
+    pages = {"albums?page=1": "".join(
+        LIST_ITEM.format(aid=str(aid), title=f"Item {aid}") for aid in range(101, 251)
+    ), "albums?page=2": EMPTY_PAGE}
+    for aid in range(101, 251):
+        pages[f"/albums/{aid}"] = ALBUM_PAGE.format(title=f"Item {aid}", desc="")
+
+    writes = 0
+    real_write_shard = scrape_module.write_shard
+
+    def spy(data_dir, seller, shard):
+        nonlocal writes
+        writes += 1
+        real_write_shard(data_dir, seller, shard)
+
+    monkeypatch.setattr(scrape_module, "write_shard", spy)
+    summary = scrape_seller(FakeClient(pages), SELLER, tmp_path, "2026-08-17T12:00:00+10:00")
+    assert summary.scraped == 150
+    # 150 scraped = one mid-run flush at 100 plus the end-of-run write.
+    assert writes == 2
+    assert len(load_shard(tmp_path, "sellerx")) == 150

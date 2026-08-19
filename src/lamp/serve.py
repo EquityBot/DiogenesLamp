@@ -59,6 +59,20 @@ class _Handler(SimpleHTTPRequestHandler):
             self.send_header("Cache-Control", "public, max-age=86400")
         else:
             self.send_header("Cache-Control", "no-store")
+        # Everything the page needs, nothing else: scraped HTML feeds card
+        # content, so the viewer is one escaping mistake away from XSS -
+        # this policy is the seatbelt behind the escaping. The favicon is
+        # an inline data: SVG; thumbs come from this origin; scripts and
+        # styles are same-origin files with no inline blocks.
+        self.send_header(
+            "Content-Security-Policy",
+            "default-src 'none'; img-src 'self' data:; script-src 'self'; "
+            "style-src 'self'; connect-src 'self'; base-uri 'none'; "
+            "form-action 'none'",
+        )
+        # Stops a browser from sniffing a JSON shard or an HTML error page
+        # into something executable.
+        self.send_header("X-Content-Type-Options", "nosniff")
         super().end_headers()
 
     def list_directory(self, path):
