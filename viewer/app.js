@@ -274,9 +274,41 @@ function scheduleRefresh() {
 function refreshUI() {
   clearTimeout(refreshTimer);
   refreshTimer = 0;
+  // Streaming loads call this several times a second while the user may be
+  // deep in the grid. Inserting a shard above the viewport would otherwise
+  // yank every card down: anchor on the topmost visible album and restore
+  // its pixel position after the rebuild instead.
+  const anchor = topVisibleAlbum();
   rebuildAlbums();
   refreshCategoryOptions();
   applyFilters();
+  restoreAnchor(anchor);
+}
+
+// The album at the top of the viewport before a background rebuild, with
+// its position. null when nothing is on screen yet (still loading the
+// first shards, or the list is empty).
+function topVisibleAlbum() {
+  if (!state.filtered.length) return null;
+  const cols = columns();
+  const rowH = rowHeight();
+  const viewTop = window.scrollY - els.spacer.offsetTop;
+  const idx = Math.max(0, Math.floor(viewTop / rowH)) * cols;
+  const album = state.filtered[idx];
+  return album
+    ? { key: cardKey(album), offset: viewTop - Math.floor(viewTop / rowH) * rowH }
+    : null;
+}
+
+// Put the anchored album back at its pixel offset. No-op when the album is
+// gone (filtered out by a late category restore) or nothing moved.
+function restoreAnchor(anchor) {
+  if (!anchor) return;
+  const idx = state.filtered.findIndex((a) => cardKey(a) === anchor.key);
+  if (idx < 0) return;
+  const rowH = rowHeight();
+  const newViewTop = Math.floor(idx / columns()) * rowH + anchor.offset;
+  window.scrollTo(0, newViewTop + els.spacer.offsetTop);
 }
 
 function refreshCategoryOptions() {
