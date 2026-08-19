@@ -247,12 +247,12 @@ def scrape_all(sources: dict[str, Source], data_dir: Path, run_ts: str,
     # exclusion as an unavailable seller on every load.
     seller_meta = []
     for source in sellers:
-        if source.skip and not load_shard(data_dir, source.id):
+        shard = load_shard(data_dir, source.id)
+        if source.skip and not shard:
             continue
-        count = len(load_shard(data_dir, source.id))
         seller_meta.append({
             "id": source.id, "name": source.name, "url": source.url,
-            "album_count": count, "shard": f"catalog/{source.id}.json",
+            "album_count": len(shard), "shard": f"catalog/{source.id}.json",
         })
     shop_meta = [
         {"id": s.id, "platform": s.platform, "name": s.name, "url": s.url} for s in shops

@@ -161,3 +161,32 @@ def test_directory_listings_are_refused(tmp_path: Path):
         assert _get(port, "/")[0] == 200
     finally:
         server.shutdown()
+
+
+def test_null_byte_path_gets_404_not_a_dead_handler(tmp_path: Path):
+    """resolve() raises on a null byte, and that exception used to escape
+    translate_path and kill the handler thread with no reply at all. The
+    answer must be a 404, and the server must keep answering afterwards."""
+    viewer = tmp_path / "viewer"
+    data = tmp_path / "data"
+    viewer.mkdir()
+    data.mkdir()
+    (viewer / "index.html").write_text("<h1>lamp</h1>", encoding="utf-8")
+    (data / "index.json").write_text("{}", encoding="utf-8")
+
+    server = make_server(viewer, data, port=0)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        # under /data/ (our handler) and on a viewer path (stdlib
+        # send_head) alike: a NUL must come back as 404, not kill the
+        # handler thread.
+        for path in ("/data/%00index.json", "/%00index.html"):
+            status, _ = _cache_control(port, path)
+            assert status == 404, f"{path} returned {status}"
+        # handler survived: ordinary requests still work
+        assert _get(port, "/data/index.json")[0] == 200
+        assert _get(port, "/")[0] == 200
+    finally:
+        server.shutdown()
