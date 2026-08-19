@@ -70,6 +70,20 @@ def test_load_missing_shard_empty(tmp_path: Path):
     assert load_shard(tmp_path, "ghost") == {}
 
 
+def test_corrupt_shard_raises_with_filename(tmp_path: Path):
+    """A shard that will not parse must name the file, not crash the whole
+    run with a bare JSONDecodeError, and must not be silently dropped."""
+    catalog = tmp_path / "catalog"
+    catalog.mkdir()
+    (catalog / "bad.json").write_text("{broken", encoding="utf-8")
+    with pytest.raises(ValueError, match="corrupt shard.*bad.json"):
+        load_shard(tmp_path, "bad")
+    # structurally wrong but valid JSON is also corrupt
+    (catalog / "noid.json").write_text('{"albums": [{"title": "x"}]}', encoding="utf-8")
+    with pytest.raises(ValueError, match="corrupt shard"):
+        load_shard(tmp_path, "noid")
+
+
 def test_atomic_write_leaves_no_tmp(tmp_path: Path):
     target = tmp_path / "x.json"
     atomic_write_json(target, {"ok": 1})

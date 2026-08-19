@@ -28,12 +28,21 @@ def _shard_path(data_dir: Path, seller: str) -> Path:
 
 
 def load_shard(data_dir: Path, seller: str) -> dict[str, dict]:
-    """Load a seller's shard, keyed by album id. Missing shard - empty dict."""
+    """Load a seller's shard, keyed by album id. Missing shard - empty dict.
+
+    A corrupt shard raises ValueError naming the file: the scraper must not
+    half-merge against unreadable data, and the CLI turns it into a seller
+    error rather than crashing every other seller's run with it.
+    """
     path = _shard_path(data_dir, seller)
     if not path.exists():
         return {}
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    return {album["id"]: album for album in payload["albums"]}
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        albums = payload["albums"]
+        return {album["id"]: album for album in albums}
+    except (ValueError, KeyError, TypeError) as exc:
+        raise ValueError(f"corrupt shard {path}: {exc}") from exc
 
 
 def write_shard(data_dir: Path, seller: str, albums: dict[str, dict]) -> None:

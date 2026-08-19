@@ -479,6 +479,23 @@ def test_index_omits_skipped_sellers_that_have_no_data(tmp_path: Path):
     assert [s["id"] for s in index["sellers"]] == ["sellerx"]
 
 
+def test_corrupt_shard_errors_the_seller_not_the_run(tmp_path: Path):
+    """One unreadable shard must not crash every other seller's scrape or
+    the index build."""
+    catalog = tmp_path / "catalog"
+    catalog.mkdir()
+    (catalog / "sellerx.json").write_text("{broken", encoding="utf-8")
+    others = Source("yupoo", "sellery", "yupoo", "https://sellery.x.yupoo.com", "sellery")
+    sources = {"yupoo:sellerx": SELLER, "yupoo:sellery": others}
+    summaries = scrape_all(sources, tmp_path, "2026-08-18T12:00:00+10:00",
+                           client_factory=make_client)
+    by_seller = {s.seller: s for s in summaries}
+    assert "corrupt shard" in by_seller["sellerx"].error
+    assert by_seller["sellery"].scraped == 2  # untouched by its neighbour's mess
+    index = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    assert [s["id"] for s in index["sellers"]] == ["sellery"]
+
+
 def test_index_keeps_a_skipped_seller_that_was_scraped_before(tmp_path: Path):
     """Skipping later must not hide albums already on disk."""
     scrape_all({"yupoo:sellerx": SELLER}, tmp_path, "2026-08-17T12:00:00+10:00",
