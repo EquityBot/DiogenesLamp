@@ -294,7 +294,7 @@ function topVisibleAlbum() {
     window.scrollY - els.spacer.offsetTop,
     rowHeight(),
     columns(),
-    state.filtered.length,
+    state.filtered.length
   );
   if (!spot) return null;
   const album = state.filtered[spot.index];

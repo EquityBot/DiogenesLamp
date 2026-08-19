@@ -7,10 +7,11 @@
 // Which album sits at the top of the viewport, and how far into its row.
 // Returns null when there is nothing on screen to anchor on.
 //
-// viewTop is clamped at 0 by the caller's measurement, but clamp here too:
-// scrolled above the grid's first row (toolbar in view) a negative viewTop
-// floors to row -1, and the restore would then push the user a full row
-// DOWN on every background refresh.
+// viewTop arrives raw and can be negative: scrolled above the grid's first
+// row (toolbar in view) it would floor to row -1, and the restore would
+// then push the user a full row DOWN on every background refresh. The
+// index is capped too - a filter that shrank the list mid-scroll would
+// otherwise point past the end and the anchor would be silently dropped.
 function anchorAt(viewTop, rowH, cols, count) {
   if (count <= 0 || rowH <= 0 || cols <= 0) return null;
   const top = Math.max(0, viewTop);
