@@ -35,6 +35,13 @@ def classify_url(raw: str) -> Source | None:
     raw = raw.strip()
     if not raw or raw.upper() == "N/A":
         return None
+    # The dump is hand-exported text: a NUL or control char would flow into
+    # sources.toml and from there into request URLs and the shop directory.
+    # Same invisible set links.py scrubs, written as escapes so the source
+    # file shows what it strips.
+    raw = re.sub("[\\x00-\\x1f\\x7f\ufeff\u200b\u200c\u200d\u2060]+", "", raw)
+    if not raw:
+        return None
     if "://" not in raw:
         raw = "https://" + raw
     parsed = urlparse(raw)
