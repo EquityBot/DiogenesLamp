@@ -161,3 +161,22 @@ def test_download_writes_file_atomically(tmp_path: Path):
 def test_download_failure_returns_false(tmp_path: Path):
     client, _ = _client([FakeResponse(404)])
     assert client.download("https://photo.yupoo.com/x.jpg", tmp_path / "t.jpg") is False
+
+
+def test_download_stream_break_returns_false_and_cleans_tmp(tmp_path: Path):
+    """A connection that dies mid-body used to escape download() as an
+    uncaught ChunkedEncodingError and leave the partial .tmp behind."""
+    import requests
+
+    class BrokenStream:
+        status_code = 200
+
+        def iter_content(self, chunk_size):
+            yield b"partial"
+            raise requests.exceptions.ChunkedEncodingError("died mid-body")
+
+    client, _ = _client([BrokenStream()])
+    dest = tmp_path / "thumbs" / "1.jpg"
+    assert client.download("https://photo.yupoo.com/x.jpg", dest) is False
+    assert not dest.exists()
+    assert list(dest.parent.iterdir()) == []  # no .tmp left behind
