@@ -51,6 +51,17 @@ def test_estimate_clamps_below_and_extrapolates_above():
     assert estimate_published(last_id + 1_000_000) > last_date
 
 
+def test_junk_ids_cap_instead_of_crashing():
+    """Trillion-scale junk ids used to overflow date's range at fromordinal,
+    which crashed is_stale mid-scrape and killed the seller's run. They now
+    clamp to date.max: an id implied to be unimaginably new is never stale,
+    and the viewer clamps at the same 'newest representable' bound."""
+    from datetime import date
+
+    assert estimate_published(10**12) == date.max
+    assert is_stale(10**12, 30, date(2026, 8, 18)) is False
+
+
 def test_published_date_prefers_a_known_date():
     assert published_date(8348553, "2026-01-15") == date(2026, 1, 15)
     assert published_date(8348553, "2026-01-15T10:00:00+10:00") == date(2026, 1, 15)
