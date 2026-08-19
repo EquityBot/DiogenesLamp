@@ -31,9 +31,11 @@ function estimatePublishedMs(id) {
   if (i === -1) i = a.length - 1; // past the last anchor: extrapolate
   const [id0, t0] = a[i - 1];
   const [id1, t1] = a[i];
-  // Clamp at the maximum representable Date, matching age.py's date.max
-  // fallback: junk ids (trillion scale) otherwise overflow to Invalid
-  // Date, and an id implied to be unimaginably new is simply never stale.
+  // Clamp at the maximum representable Date. age.py clamps at date.max
+  // (year 9999) and this at year ~275760: different bounds, same meaning
+  // and same decision - an id implying a date that far out is never stale
+  // on either side. What must not happen is the unclamped overflow, which
+  // raised in Python and produced an Invalid Date here.
   return Math.min(t0 + ((id - id0) * (t1 - t0)) / (id1 - id0), 8.64e15);
 }
 
