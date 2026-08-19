@@ -32,8 +32,9 @@ install, and the ci badge above is the release gate.
 
 1. Put your Yupoo links in a text or CSV file, one URL per line (messy exports
    are fine - duplicates, page URLs, and non-Yupoo links are handled). Rows
-   like `12,https://seller.x.yupoo.com` work too: the last comma- or
-   tab-separated field is taken as the URL, so keep the link last.
+   like `12,https://seller.x.yupoo.com` work too: a leading numeric index
+   (comma- or tab-separated) is stripped, and the rest of the line is taken
+   as the URL, so URLs that themselves contain commas survive intact.
 
        lamp import links.csv
 
