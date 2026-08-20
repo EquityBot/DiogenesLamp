@@ -19,9 +19,9 @@ EXPECTED_ACTIONS = {
         "v7.0.0",
     ),
     "actions/setup-node": (
-        "2028fbc5c25fe9cf00d9f06a71cc4710d4507903",
-        "v6.0.0",
-        "v6.0.0",
+        "820762786026740c76f36085b0efc47a31fe5020",
+        "v7.0.0",
+        "v7.0.0",
     ),
     "github/codeql-action/init": (
         "ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd",
@@ -252,8 +252,15 @@ def test_codeql_major_comments_have_reviewed_exact_release_provenance():
 @pytest.mark.parametrize(
     ("filename", "mutated"),
     [
-        ("ci.yml", _replace_once(EXPECTED_CI, EXPECTED_ACTIONS["actions/setup-node"][0], "v6")),
-        ("ci.yml", _replace_once(EXPECTED_CI, "# v6.0.0", "# v5.0.0")),
+        ("ci.yml", _replace_once(EXPECTED_CI, EXPECTED_ACTIONS["actions/setup-node"][0], "v7")),
+        (
+            "ci.yml",
+            _replace_once(
+                EXPECTED_CI,
+                _uses("actions/setup-node", "      - uses: "),
+                _uses("actions/setup-node", "      - uses: ").replace("# v7.0.0", "# v5.0.0"),
+            ),
+        ),
         (
             "ci.yml",
             EXPECTED_CI + "      - uses: example/unverified@main # unreviewed\n",
