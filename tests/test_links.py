@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from lamp.links import _SHORTLINK_HOSTS, Link, extract_links
+from lamp.links import _SHORTLINK_HOSTS, Link, _platform, extract_links
 
 CASES = [
     (
@@ -96,3 +96,25 @@ def test_control_and_invisible_characters_never_reach_a_url():
         for link in extract_links(text):
             assert link.url == link.url.strip()
             assert all(ord(ch) > 0x7E or 0x20 < ord(ch) for ch in link.url), link.url
+
+
+@pytest.mark.parametrize(
+    "host,platform",
+    [
+        ("tmall.com", "tmall"),
+        ("detail.tmall.com", "tmall"),
+        ("taobao.com", "taobao"),
+        ("item.taobao.com", "taobao"),
+        ("weidian.com", "weidian"),
+        ("shop123.v.weidian.com", "weidian"),
+        ("m.tb.cn", "other"),
+        ("k.youshop10.com", "other"),
+        # A hyphenated lookalike is a different registrable domain. The old
+        # endswith("tmall.com") check treated these as marketplace hosts.
+        ("evil-tmall.com", "other"),
+        ("not-taobao.com", "other"),
+        ("prefix-weidian.com", "other"),
+    ],
+)
+def test_platform_uses_a_hostname_label_boundary(host, platform):
+    assert _platform(host) == platform
