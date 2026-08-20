@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
+from urllib.parse import urlparse
 
 # scheme-optional URL matcher for the hosts we care about; the lookarounds stop
 # matches starting or ending inside a longer word ("notataobao.com", "taobao.company")
@@ -29,12 +30,29 @@ class Link:
     url: str
 
 
+def _hostname(host: str) -> str | None:
+    """Hostname of a captured host, parsed so platform checks cannot match a
+    lookalike such as evil-tmall.com via a raw string suffix."""
+    name = urlparse(f"https://{host}/").hostname
+    if name is None:
+        return None
+    return name.casefold()
+
+
+def _labels_end_with(name: str, *suffix: str) -> bool:
+    labels = name.split(".")
+    return len(labels) >= len(suffix) and tuple(labels[-len(suffix) :]) == suffix
+
+
 def _platform(host: str) -> str:
-    if host.endswith("tmall.com"):
+    name = _hostname(host)
+    if name is None:
+        return "other"
+    if _labels_end_with(name, "tmall", "com"):
         return "tmall"
-    if host.endswith("taobao.com"):
+    if _labels_end_with(name, "taobao", "com"):
         return "taobao"
-    if host.endswith("weidian.com"):
+    if _labels_end_with(name, "weidian", "com"):
         return "weidian"
     return "other"
 
