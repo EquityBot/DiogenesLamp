@@ -10,8 +10,9 @@ Please use this repository's private vulnerability reporting feature. Do not
 open a public issue for a suspected security vulnerability. Include a clear
 description, reproduction steps, impact, and any suggested mitigation.
 
-A valid report will be acknowledged within seven days, and the fix and
-disclosure timeline will be agreed with the reporter.
+Use fabricated catalogue pages, source configuration and reproduction data only. Do
+not submit client or private catalogue data, credentials, access tokens, cookies,
+secrets or `.env` content.
 
 ## What this tool does and does not do
 
