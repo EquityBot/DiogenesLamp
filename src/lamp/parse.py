@@ -124,14 +124,19 @@ def _card_thumb(card) -> str:
     return ""
 
 
+def _attr_str(tag: object, key: str) -> str:
+    value = getattr(tag, "get", lambda *_args, **_kwargs: None)(key)
+    return value if isinstance(value, str) else ""
+
+
 def parse_album_list(html: str) -> list[AlbumStub]:
     stubs: list[AlbumStub] = []
     for card in _soup(html).select(_CARD_SELECTOR):
-        href_match = _ALBUM_HREF_RE.search(card.get("href", ""))
+        href_match = _ALBUM_HREF_RE.search(_attr_str(card, "href"))
         if not href_match:
             continue
         title_el = card.select_one(".album__title")
-        title = (card.get("title") or (title_el.get_text(strip=True) if title_el else "")).strip()
+        title = (_attr_str(card, "title") or (title_el.get_text(strip=True) if title_el else "")).strip()
         # .album__count was absent from live album__ markup as of 2026-08;
         # the album3__ template carries the count in .album__photonumber.
         # Falls through to 0 via _first_int when neither is present.
@@ -150,7 +155,7 @@ def parse_album_list(html: str) -> list[AlbumStub]:
 def parse_album_page(html: str) -> AlbumDetail:
     soup = _soup(html)
     title_el = soup.select_one(".showalbumheader__gallerytitle")
-    title = (title_el.get("data-name") or title_el.get_text(strip=True)) if title_el else ""
+    title = (_attr_str(title_el, "data-name") or title_el.get_text(strip=True)) if title_el else ""
     desc_el = soup.select_one(".showalbumheader__gallerysubtitle")
     description = desc_el.get_text("\n", strip=True) if desc_el else ""
     # .showalbumheader__categorieslink was absent from live album-page markup as
