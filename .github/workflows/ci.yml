@@ -14,7 +14,6 @@ permissions:
 
 jobs:
   test:
-    timeout-minutes: 15
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -39,4 +38,5 @@ jobs:
           node-version: "22"
       - run: pip install -e '.[dev]'
       - run: ruff check .
+      - run: mypy src/lamp
       - run: pytest

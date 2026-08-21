@@ -7,6 +7,7 @@ import threading
 import time
 from pathlib import Path
 from urllib.parse import urlparse
+import ipaddress
 
 import requests
 
@@ -70,6 +71,18 @@ class Client:
         self._sleep = sleep_fn
 
     def get(self, url: str, referer: str | None = None) -> requests.Response:
+        parsed = urlparse(url)
+        if parsed.scheme != "https":
+            raise FetchError(f"refusing non-https URL: {url}")
+        host = parsed.hostname or ""
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            if host in {"localhost"} or host.endswith(".local"):
+                raise FetchError(f"refusing local host: {url}")
+        else:
+            if not address.is_global:
+                raise FetchError(f"refusing non-global host: {url}")
         headers = dict(self._headers)
         if referer:
             headers["Referer"] = referer
