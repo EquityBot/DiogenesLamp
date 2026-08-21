@@ -72,7 +72,7 @@ def write_shard(data_dir: Path, seller: str, albums: dict[str, dict]) -> None:
 # Facts about the album itself, not about this scrape run: once captured they
 # stay captured. A later fetch that fails to extract them (layout variant,
 # truncated JSON-LD) must not erase what an earlier run already learned.
-_STICKY_FIELDS = ("date_published", "date_modified")
+_STICKY_FIELDS = ("date_published", "date_modified", "price")
 
 
 def merge_album(old: dict | None, new: dict, run_ts: str) -> dict:

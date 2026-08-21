@@ -14,6 +14,7 @@ const FILTER_DEFAULTS = {
   seller: "",
   category: "",
   age: "",
+  sort: "default",
   newOnly: false,
   favsOnly: false,
   hideDups: false,

@@ -11,6 +11,26 @@ from bs4 import BeautifulSoup
 _ALBUM_HREF_RE = re.compile(r"/albums/(\d+)")
 _INT_RE = re.compile(r"\d+")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}")
+_PRICE_PATTERNS = (
+    re.compile(r"(?:¥|￥|\brmb|\byuan)\s*([0-9]{2,5})\b", re.IGNORECASE),
+    re.compile(r"\b([0-9]{2,5})\s*(?:¥|￥|元|块|rmb|yuan)\b", re.IGNORECASE),
+    re.compile(r"\b[pP]([0-9]{2,4})\b"),
+    re.compile(r"\b([0-9]{2,4})[pP]\b"),
+)
+
+
+def parse_price(text: str) -> int:
+    """Extract price in CNY/RMB from title or description text (e.g. ¥180, 180元, P180, 180p).
+
+    Returns 0 if no price found or if the value is outside sensible catalogue ranges (10..99999).
+    """
+    for pat in _PRICE_PATTERNS:
+        match = pat.search(text)
+        if match:
+            val = int(match.group(1))
+            if 10 <= val <= 99999:
+                return val
+    return 0
 
 
 @dataclass(frozen=True)
@@ -29,6 +49,7 @@ class AlbumDetail:
     photo_count: int
     date_published: str = ""
     date_modified: str = ""
+    price: int = 0
 
 
 def _soup(html: str) -> BeautifulSoup:
@@ -125,6 +146,7 @@ def parse_album_page(html: str) -> AlbumDetail:
     # 2026-08 - kept for older/variant layouts; falls through to 0 when missing.
     count_el = soup.select_one(".showalbumheader__gallerycount")
     published, modified = _dates_from_ld_json(soup)
+    price = parse_price(f"{title} {description}")
     return AlbumDetail(
         title=title.strip(),
         description=description,
@@ -132,6 +154,7 @@ def parse_album_page(html: str) -> AlbumDetail:
         photo_count=_first_int(count_el.get_text() if count_el else ""),
         date_published=published,
         date_modified=modified,
+        price=price,
     )
 
 

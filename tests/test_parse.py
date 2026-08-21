@@ -58,6 +58,21 @@ def test_parse_album_page_malformed_ld_json():
     assert detail.date_modified == "2026-01-02"
 
 
+def test_parse_price():
+    from lamp.parse import parse_price
+
+    assert parse_price("Nike Tech Fleece ¥180 Black") == 180
+    assert parse_price("Stussy Tee ￥150 White") == 150
+    assert parse_price("Bape Hoodie 220元 M-XXL") == 220
+    assert parse_price("Balenciaga Shoes P350 40-45") == 350
+    assert parse_price("Prada Jacket 420P New") == 420
+    assert parse_price("Arcteryx 380 RMB") == 380
+    assert parse_price("Plain Title No Price") == 0
+    assert parse_price("Size 180cm height") == 0
+    assert parse_price("Micro price 5") == 0  # < 10 ignored
+
+
+
 def test_parse_album_page_ld_json_array_and_graph_forms():
     """JSON-LD may wrap the same data in an array or an @graph, not just a bare object."""
     array_form = (

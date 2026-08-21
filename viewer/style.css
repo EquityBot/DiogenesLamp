@@ -284,6 +284,12 @@ button:hover { border-color: var(--accent); color: var(--accent-text); }
   color: var(--accent-ink); font-size: 10px; font-weight: 700;
   padding: 2px 7px; border-radius: 6px; letter-spacing: 0.04em;
 }
+.badge-price {
+  position: absolute; top: 8px; left: 56px; background: rgb(0 0 0 / 0.72);
+  color: var(--scrim-accent); font-size: 11px; font-weight: 700;
+  padding: 2px 6px; border-radius: 6px; border: 1px solid rgb(232 177 58 / 0.4);
+  letter-spacing: 0.02em;
+}
 /* Anchored to the bottom of the cover it sits in, not to a pixel offset that
    has to be recalculated whenever the cover height changes. */
 .badge-dup {

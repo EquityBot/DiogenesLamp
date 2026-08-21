@@ -34,7 +34,7 @@ test("defaults describe an unfiltered view", () => {
 test("each filter on its own counts as active", () => {
   for (const [key, value] of Object.entries({
     search: "shoe", seller: "someseller", category: "hoodies", age: "90",
-    newOnly: true, favsOnly: true, hideDups: true,
+    sort: "price-asc", newOnly: true, favsOnly: true, hideDups: true,
   })) {
     const filters = { ...defaultFilters(), [key]: value };
     assert.equal(anyFilterActive(filters), true, `${key} should count as active`);

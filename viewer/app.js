@@ -46,6 +46,8 @@ const els = {
   favsOnly: document.getElementById("favs-only"),
   hideDups: document.getElementById("hide-dups"),
   age: document.getElementById("age-filter"),
+  sort: document.getElementById("sort-filter"),
+  exportFavs: document.getElementById("export-favs"),
   groupClear: document.getElementById("group-clear"),
   filtersClear: document.getElementById("filters-clear"),
   status: document.getElementById("status"),
@@ -70,6 +72,7 @@ function currentFilters() {
     seller: els.seller.value,
     category: els.category.value,
     age: els.age.value,
+    sort: els.sort.value,
     newOnly: els.newOnly.checked,
     favsOnly: els.favsOnly.checked,
     hideDups: els.hideDups.checked,
@@ -368,6 +371,14 @@ function applyFilters() {
     state.dupCounts = counts;
     state.dupHidden = before - out.length;
   }
+  const sortOrder = els.sort.value;
+  if (sortOrder === "price-asc") {
+    filtered.sort((a, b) => (a.price || Infinity) - (b.price || Infinity));
+  } else if (sortOrder === "price-desc") {
+    filtered.sort((a, b) => (b.price || 0) - (a.price || 0));
+  } else if (sortOrder === "photos-desc") {
+    filtered.sort((a, b) => (b.photo_count || 0) - (a.photo_count || 0));
+  }
   state.filtered = filtered;
   state.filterVersion += 1;
   setStatus();
@@ -450,6 +461,7 @@ function makeCard(album) {
     // rather than against a hard-coded offset that has to be kept in step
     // with the cover height at every breakpoint.
     (isNew ? `<span class="badge-new">NEW</span>` : "") +
+    (album.price ? `<span class="badge-price">¥${escapeHtml(String(album.price))}</span>` : "") +
     (dupCount > 1
       ? `<button class="badge-dup" type="button" ` +
         `aria-label="Show all ${dupCount} copies of this posting">` +
@@ -741,10 +753,11 @@ function userFilterChange() {
 // not exist yet. Retry as they appear, until the user takes over.
 function restoreLateFilters() {
   if (userTouchedFilters) return;
-  const before = `${els.seller.value}|${els.category.value}`;
+  const before = `${els.seller.value}|${els.category.value}|${els.sort.value}`;
   setSelectIfPresent(els.seller, storedFilters.seller);
   setSelectIfPresent(els.category, storedFilters.category);
-  return before !== `${els.seller.value}|${els.category.value}`;
+  setSelectIfPresent(els.sort, storedFilters.sort);
+  return before !== `${els.seller.value}|${els.category.value}|${els.sort.value}`;
 }
 
 function clearFilters() {
@@ -754,6 +767,7 @@ function clearFilters() {
   els.seller.value = defaults.seller;
   els.category.value = defaults.category;
   els.age.value = defaults.age;
+  els.sort.value = defaults.sort;
   els.newOnly.checked = defaults.newOnly;
   els.favsOnly.checked = defaults.favsOnly;
   els.hideDups.checked = defaults.hideDups;
@@ -765,13 +779,44 @@ function clearFilters() {
 }
 els.filtersClear.addEventListener("click", clearFilters);
 
+els.exportFavs.addEventListener("click", () => {
+  const favAlbums = state.albums.filter((a) => state.favorites.has(a.id));
+  if (!favAlbums.length) {
+    alert("No favourites saved yet. Click the star on any album to save it.");
+    return;
+  }
+  const exportData = {
+    exported_at: new Date().toISOString(),
+    count: favAlbums.length,
+    albums: favAlbums.map((a) => ({
+      id: a.id,
+      seller: a.seller,
+      title: a.title,
+      price: a.price || null,
+      album_url: a.album_url,
+      links: a.links,
+      category: a.category,
+      date_published: a.date_published,
+    })),
+  };
+  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `diogenes-favourites-${new Date().toISOString().slice(0, 10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
 let searchTimer = 0;
 els.search.addEventListener("input", () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(userFilterChange, 150);
 });
 for (const el of [els.seller, els.category, els.newOnly, els.favsOnly,
-                  els.hideDups, els.age]) {
+                  els.hideDups, els.age, els.sort]) {
   el.addEventListener("change", userFilterChange);
 }
 
