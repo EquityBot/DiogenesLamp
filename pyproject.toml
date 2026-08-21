@@ -32,6 +32,11 @@ addopts = "-m 'not manual'"
 line-length = 100
 src = ["src", "tests"]
 
+[tool.ruff.lint]
+# First-enablement set: syntax and undefined-name errors only (E9, F82).
+# Keep Decimal("10.00") money literals and existing import layout.
+select = ["E9", "F82"]
+
 [tool.ruff.lint.per-file-ignores]
 # Test modules may import a symbol only to prove it is part of the public
 # interface (e.g. Source from lamp.ingest), without using it in an assert.

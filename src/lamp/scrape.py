@@ -12,7 +12,7 @@ from lamp.age import is_stale
 from lamp.http import BlockedError, Client, FetchError, RateLimiter
 from lamp.ingest import Source
 from lamp.links import extract_links
-from lamp.parse import parse_album_list, parse_album_page, parse_price
+from lamp.parse import AlbumStub, parse_album_list, parse_album_page, parse_price
 from lamp.storage import load_shard, merge_album, write_index, write_shard
 
 _BLOCKED_STREAK_LIMIT = 3
@@ -47,7 +47,7 @@ class SellerSummary:
 
 
 def _fetch_all_stubs(client, source: Source, data_dir: Path, save_debug: bool = True):
-    stubs = []
+    stubs: list[AlbumStub] = []
     seen_ids: set[str] = set()
     page = 1
     while True:
