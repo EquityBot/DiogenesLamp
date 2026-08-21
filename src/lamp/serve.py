@@ -35,7 +35,7 @@ class _Handler(SimpleHTTPRequestHandler):
             # spelling of it at the refused name for a 404.
             return str(self._data_dir / self.REFUSED)
         if clean.startswith("/data/"):
-            relative = clean[len("/data/"):]
+            relative = clean[len("/data/") :]
             # Anything else resolve() rejects must not escape
             # translate_path either: same 404, handler stays alive.
             try:
@@ -61,8 +61,7 @@ class _Handler(SimpleHTTPRequestHandler):
         # lands in a later scrape, and answering a revalidation with
         # no-store would tell the browser to drop what it already holds.
         # Everything else (index, shards, viewer files) stays uncached.
-        if (self.path.startswith("/data/thumbs/")
-                and getattr(self, "_status", 0) in (200, 304)):
+        if self.path.startswith("/data/thumbs/") and getattr(self, "_status", 0) in (200, 304):
             self.send_header("Cache-Control", "public, max-age=86400")
         else:
             self.send_header("Cache-Control", "no-store")
@@ -74,8 +73,8 @@ class _Handler(SimpleHTTPRequestHandler):
         self.send_header(
             "Content-Security-Policy",
             "default-src 'none'; img-src 'self' data:; script-src 'self'; "
-            "style-src 'self'; connect-src 'self'; base-uri 'none'; "
-            "form-action 'none'",
+            "style-src 'self'; connect-src 'self'; manifest-src 'self'; "
+            "base-uri 'none'; form-action 'none'",
         )
         # Stops a browser from sniffing a JSON shard or an HTML error page
         # into something executable.

@@ -12,7 +12,7 @@ from lamp.age import is_stale
 from lamp.http import BlockedError, Client, FetchError, RateLimiter
 from lamp.ingest import Source
 from lamp.links import extract_links
-from lamp.parse import parse_album_list, parse_album_page
+from lamp.parse import parse_album_list, parse_album_page, parse_price
 from lamp.storage import load_shard, merge_album, write_index, write_shard
 
 _BLOCKED_STREAK_LIMIT = 3
@@ -46,7 +46,7 @@ class SellerSummary:
     skipped_old: int = 0  # albums past the age cutoff, never fetched
 
 
-def _fetch_all_stubs(client, source: Source, data_dir: Path):
+def _fetch_all_stubs(client, source: Source, data_dir: Path, save_debug: bool = True):
     stubs = []
     seen_ids: set[str] = set()
     page = 1
@@ -57,8 +57,11 @@ def _fetch_all_stubs(client, source: Source, data_dir: Path):
         if not batch:
             if page == 1:
                 debug = data_dir / "debug" / f"{source.id}-page1.html"
-                debug.parent.mkdir(parents=True, exist_ok=True)
-                debug.write_text(html, encoding="utf-8")
+                saved_note = ""
+                if save_debug:
+                    debug.parent.mkdir(parents=True, exist_ok=True)
+                    debug.write_text(html, encoding="utf-8")
+                    saved_note = f"; saved {debug}"
                 # Distinguish the two causes, because they need opposite
                 # responses: a page with album links we failed to read is a
                 # parser problem worth investigating, while a page with none
@@ -72,11 +75,11 @@ def _fetch_all_stubs(client, source: Source, data_dir: Path):
                 if len(set(_ALBUM_LINK_RE.findall(html))) >= _LAYOUT_CHANGE_MIN_LINKS:
                     raise LayoutChangeError(
                         f"page 1 of {source.id} has album links but parsed to "
-                        f"zero albums; saved {debug} - Yupoo layout change?"
+                        f"zero albums{saved_note} - Yupoo layout change?"
                     )
                 raise EmptySellerError(
-                    f"page 1 of {source.id} contains no albums; "
-                    f"saved {debug} - empty or closed seller?"
+                    f"page 1 of {source.id} contains no albums{saved_note} "
+                    f"- empty or closed seller?"
                 )
             return stubs
         # Defensive hardening for seller variance across the production run: a
@@ -94,7 +97,7 @@ def _fetch_all_stubs(client, source: Source, data_dir: Path):
 
 def scrape_seller(client, source: Source, data_dir: Path,
                   run_ts: str, full: bool = False,
-                  max_age_days: int = 0) -> SellerSummary:
+                  max_age_days: int = 0, dry_run: bool = False) -> SellerSummary:
     summary = SellerSummary(source.id)
     try:
         shard = load_shard(data_dir, source.id)
@@ -110,7 +113,7 @@ def scrape_seller(client, source: Source, data_dir: Path,
     thumb_blocked_streak = 0
     thumbs_disabled = False
     try:
-        stubs = _fetch_all_stubs(client, source, data_dir)
+        stubs = _fetch_all_stubs(client, source, data_dir, save_debug=not dry_run)
     except BlockedError as exc:
         summary.error = f"blocked: {exc}"
         return summary
@@ -137,6 +140,9 @@ def scrape_seller(client, source: Source, data_dir: Path,
             continue
         if old is not None and not full and old.get("list_title") == stub.title:
             summary.skipped += 1
+            continue
+        if dry_run:
+            summary.scraped += 1
             continue
         # Yupoo album pages 404 on the bare form and 200 on the ?uid=1 form
         # (verified live against a real seller: every bare-URL fetch
@@ -167,6 +173,7 @@ def scrape_seller(client, source: Source, data_dir: Path,
         # data-name with the link carried in the list title instead. extract_links
         # dedupes, so overlap with title/detail.description costs nothing.
         links = extract_links(f"{title}\n{stub.title}\n{detail.description}")
+        price = detail.price or parse_price(f"{title} {stub.title} {detail.description}")
         thumb_rel = f"thumbs/{source.id}/{stub.id}.jpg"
         if stub.thumb_url and not thumbs_disabled:
             try:
@@ -190,6 +197,7 @@ def scrape_seller(client, source: Source, data_dir: Path,
             "album_url": album_url,
             "links": [{"platform": link.platform, "url": link.url} for link in links],
             "category": detail.category,
+            "price": price,
             "photo_count": detail.photo_count or stub.photo_count,
             "date_published": detail.date_published,
             "date_modified": detail.date_modified,
@@ -215,14 +223,15 @@ def scrape_seller(client, source: Source, data_dir: Path,
     if attempted > 0 and summary.scraped == 0 and summary.failed > 0 and not summary.error:
         summary.error = f"all {summary.failed} album fetches failed"
 
-    write_shard(data_dir, source.id, shard)
+    if not dry_run:
+        write_shard(data_dir, source.id, shard)
     return summary
 
 
 def scrape_all(sources: dict[str, Source], data_dir: Path, run_ts: str,
                full: bool = False, workers: int = 4, client_factory=None,
                only: set[str] | None = None, rps: float = 8.0,
-               max_age_days: int = 0) -> list[SellerSummary]:
+               max_age_days: int = 0, dry_run: bool = False) -> list[SellerSummary]:
     if client_factory is None:
         # The shared thumbnail CDN host would otherwise serialize the whole
         # run at 1 req/s; it runs at the global cap instead. Per-host 1 req/s
@@ -250,7 +259,7 @@ def scrape_all(sources: dict[str, Source], data_dir: Path, run_ts: str,
 
     def run_one(source: Source) -> SellerSummary:
         return scrape_seller(client_factory(), source, data_dir, run_ts, full=full,
-                             max_age_days=max_age_days)
+                             max_age_days=max_age_days, dry_run=dry_run)
 
     with ThreadPoolExecutor(max_workers=workers) as pool:
         summaries = list(pool.map(run_one, to_scrape))
@@ -260,6 +269,9 @@ def scrape_all(sources: dict[str, Source], data_dir: Path, run_ts: str,
     # Sellers marked skip are the exception - they have no shard and never
     # will, so listing them would make the viewer report a deliberate
     # exclusion as an unavailable seller on every load.
+    if dry_run:
+        return summaries
+
     seller_meta = []
     for source in sellers:
         try:

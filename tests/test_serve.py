@@ -222,6 +222,7 @@ def test_security_headers_on_every_response(tmp_path: Path):
             csp = headers.get("Content-Security-Policy", "")
             assert "default-src 'none'" in csp, f"{path}: no CSP ({csp})"
             assert "script-src 'self'" in csp, f"{path}: scripts not self-only"
+            assert "manifest-src 'self'" in csp, f"{path}: PWA manifest blocked ({csp})"
             assert headers.get("X-Content-Type-Options") == "nosniff"
     finally:
         server.shutdown()

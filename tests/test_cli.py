@@ -108,10 +108,11 @@ def test_scrape_passes_max_age_days_through(tmp_path: Path, monkeypatch):
         return []
     monkeypatch.setattr("lamp.scrape.scrape_all", fake_scrape_all)
     main(["--sources", str(_sources_file(tmp_path)), "--data", str(tmp_path / "d"),
-          "scrape", "--max-age-days", "180", "--rps", "20", "--workers", "16"])
+          "scrape", "--max-age-days", "180", "--rps", "20", "--workers", "16", "--dry-run"])
     assert seen["max_age_days"] == 180
     assert seen["rps"] == 20.0
     assert seen["workers"] == 16
+    assert seen["dry_run"] is True
 
 
 def test_serve_warns_when_no_index_json(tmp_path: Path, capsys, monkeypatch):

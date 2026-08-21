@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="color-scheme" content="dark light">
 <title>DiogenesLamp</title>
+<link rel="manifest" href="manifest.json">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- Inline so the page needs no extra request and the server never has to
      answer a favicon 404 on every load. -->
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23121316'/%3E%3Cpath d='M9 21h14l-3-4H12z' fill='%23e8b13a'/%3E%3Ccircle cx='16' cy='12' r='4' fill='%23e8b13a'/%3E%3C/svg%3E">
@@ -45,9 +48,19 @@
         <option value="365">Last year</option>
       </select>
     </div>
+    <div class="field">
+      <label class="sr-only" for="sort-filter">Sort</label>
+      <select id="sort-filter">
+        <option value="default">Newest first</option>
+        <option value="price-asc">Price: Low to High</option>
+        <option value="price-desc">Price: High to Low</option>
+        <option value="photos-desc">Most photos</option>
+      </select>
+    </div>
     <label class="toggle"><input type="checkbox" id="new-only"> New</label>
     <label class="toggle"><input type="checkbox" id="favs-only"> &#9733; Favourites</label>
     <label class="toggle"><input type="checkbox" id="hide-dups"> Hide duplicates</label>
+    <button id="export-favs" type="button" title="Export starred favourites as JSON">Export ★</button>
     <button id="filters-clear" type="button" hidden>Clear filters</button>
     <button id="group-clear" type="button" hidden></button>
     <p id="status" role="status"></p>

@@ -21,7 +21,7 @@ _KEEP_PARAMS = {"id", "itemid", "userid"}
 _SHORTLINK_HOSTS = ("m.tb.cn", "k.youshop10.com")
 # Album text routinely wraps or ends links with prose punctuation - strip it
 # from the tail of the matched rest before it reaches the URL, not the regex.
-_TRAILING_PUNCT = ".,;:!?)"
+_TRAILING_PUNCT = ".,;:!?)]}>，。！？；：（）】》「」『』、“”’‘"
 
 
 @dataclass(frozen=True)
@@ -93,7 +93,11 @@ def extract_links(text: str) -> list[Link]:
     links: list[Link] = []
     for match in _URL_RE.finditer(text):
         host = match.group("host").lower()
-        rest = _INVISIBLE.sub("", (match.group("rest") or "").rstrip(_TRAILING_PUNCT))
+        rest = _INVISIBLE.sub("", match.group("rest") or "")
+        # Chinese prose in album descriptions is frequently pasted adjacent to
+        # URLs without spaces. Discard non-ASCII / CJK text and trailing punctuation
+        # attached to the URL.
+        rest = re.split(r"[^\x21-\x7e]", rest, maxsplit=1)[0].rstrip(_TRAILING_PUNCT)
         platform = _platform(host)
         if platform == "other":
             if host not in _SHORTLINK_HOSTS:

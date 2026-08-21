@@ -553,3 +553,44 @@ def test_scrape_flushes_the_shard_periodically(tmp_path: Path, monkeypatch):
     # 150 scraped = one mid-run flush at 100 plus the end-of-run write.
     assert writes == 2
     assert len(load_shard(tmp_path, "sellerx")) == 150
+
+
+def test_scrape_dry_run_previews_without_album_fetches_or_disk_writes(tmp_path: Path):
+    """--dry-run fetches list pages to count stubs, but touches no album pages,
+    downloads no thumbs, and writes no shards or index files."""
+    client = make_client()
+    summary = scrape_seller(client, SELLER, tmp_path, "2026-08-17T12:00:00+10:00", dry_run=True)
+    assert summary.scraped == 2
+    assert summary.skipped == 0
+    assert summary.failed == 0
+    # List pages fetched, but NO album pages and NO downloads
+    assert any("albums?page=1" in url for url in client.calls)
+    assert not any("/albums/101" in url for url in client.calls)
+    assert not any("/albums/102" in url for url in client.calls)
+    assert client.download_calls == []
+    # Nothing written to disk
+    assert not (tmp_path / "catalog" / "sellerx.json").exists()
+    assert not (tmp_path / "thumbs").exists()
+
+    # scrape_all in dry_run mode also leaves index.json unwritten
+    sources = {"yupoo:sellerx": SELLER}
+    summaries = scrape_all(sources, tmp_path, "2026-08-17T12:00:00+10:00",
+                           client_factory=make_client, dry_run=True)
+    assert len(summaries) == 1
+    assert summaries[0].scraped == 2
+    assert not (tmp_path / "index.json").exists()
+
+
+def test_scrape_dry_run_does_not_write_debug_html_for_an_empty_parse(tmp_path: Path):
+    """An empty list page still reports the empty-seller error, but --dry-run
+    must not write or overwrite data/debug/<seller>-page1.html."""
+    summary = scrape_seller(
+        FakeClient({"albums?page=1": EMPTY_PAGE}),
+        SELLER,
+        tmp_path,
+        "2026-08-18T12:00:00+10:00",
+        dry_run=True,
+    )
+    assert "empty or closed seller" in summary.error
+    assert not (tmp_path / "debug").exists()
+
