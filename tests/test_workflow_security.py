@@ -59,6 +59,7 @@ EXPECTED_CI = "\n".join(
         "",
         "jobs:",
         "  test:",
+        "    timeout-minutes: 15",
         "    runs-on: ubuntu-latest",
         "    strategy:",
         "      fail-fast: false",
@@ -272,8 +273,8 @@ def test_codeql_major_comments_have_reviewed_exact_release_provenance():
             "ci.yml",
             _replace_once(
                 EXPECTED_CI,
-                "  test:\n    runs-on:",
-                "  test:\n    permissions:\n      contents: write\n    runs-on:",
+                "  test:\n    timeout-minutes: 15\n    runs-on:",
+                "  test:\n    permissions:\n      contents: write\n    timeout-minutes: 15\n    runs-on:",
             ),
         ),
         ("ci.yml", EXPECTED_CI + "permissions: write-all\n"),
