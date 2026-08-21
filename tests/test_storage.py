@@ -58,6 +58,14 @@ def test_merge_album_fresh_dates_win_over_old():
     assert merged["date_modified"] == "2026-08-17"
 
 
+def test_merge_album_absent_price_does_not_keep_the_old_price():
+    """A listing that no longer carries a price must not keep the old one."""
+    known = dict(RECORD, price=180)
+    fresh = dict(RECORD, price=0, first_seen="", updated_at="")
+    merged = merge_album(known, fresh, "2026-08-17T12:00:00+10:00")
+    assert merged["price"] == 0
+
+
 def test_shard_roundtrip_sorted(tmp_path: Path):
     albums = {"5": dict(RECORD, id="5"), "10": dict(RECORD, id="10")}
     write_shard(tmp_path, "sellerx", albums)

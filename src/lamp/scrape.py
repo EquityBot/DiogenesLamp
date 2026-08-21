@@ -46,7 +46,7 @@ class SellerSummary:
     skipped_old: int = 0  # albums past the age cutoff, never fetched
 
 
-def _fetch_all_stubs(client, source: Source, data_dir: Path):
+def _fetch_all_stubs(client, source: Source, data_dir: Path, save_debug: bool = True):
     stubs = []
     seen_ids: set[str] = set()
     page = 1
@@ -57,8 +57,11 @@ def _fetch_all_stubs(client, source: Source, data_dir: Path):
         if not batch:
             if page == 1:
                 debug = data_dir / "debug" / f"{source.id}-page1.html"
-                debug.parent.mkdir(parents=True, exist_ok=True)
-                debug.write_text(html, encoding="utf-8")
+                saved_note = ""
+                if save_debug:
+                    debug.parent.mkdir(parents=True, exist_ok=True)
+                    debug.write_text(html, encoding="utf-8")
+                    saved_note = f"; saved {debug}"
                 # Distinguish the two causes, because they need opposite
                 # responses: a page with album links we failed to read is a
                 # parser problem worth investigating, while a page with none
@@ -72,11 +75,11 @@ def _fetch_all_stubs(client, source: Source, data_dir: Path):
                 if len(set(_ALBUM_LINK_RE.findall(html))) >= _LAYOUT_CHANGE_MIN_LINKS:
                     raise LayoutChangeError(
                         f"page 1 of {source.id} has album links but parsed to "
-                        f"zero albums; saved {debug} - Yupoo layout change?"
+                        f"zero albums{saved_note} - Yupoo layout change?"
                     )
                 raise EmptySellerError(
-                    f"page 1 of {source.id} contains no albums; "
-                    f"saved {debug} - empty or closed seller?"
+                    f"page 1 of {source.id} contains no albums{saved_note} "
+                    f"- empty or closed seller?"
                 )
             return stubs
         # Defensive hardening for seller variance across the production run: a
@@ -110,7 +113,7 @@ def scrape_seller(client, source: Source, data_dir: Path,
     thumb_blocked_streak = 0
     thumbs_disabled = False
     try:
-        stubs = _fetch_all_stubs(client, source, data_dir)
+        stubs = _fetch_all_stubs(client, source, data_dir, save_debug=not dry_run)
     except BlockedError as exc:
         summary.error = f"blocked: {exc}"
         return summary

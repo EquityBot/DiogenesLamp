@@ -580,3 +580,17 @@ def test_scrape_dry_run_previews_without_album_fetches_or_disk_writes(tmp_path: 
     assert summaries[0].scraped == 2
     assert not (tmp_path / "index.json").exists()
 
+
+def test_scrape_dry_run_does_not_write_debug_html_for_an_empty_parse(tmp_path: Path):
+    """An empty list page still reports the empty-seller error, but --dry-run
+    must not write or overwrite data/debug/<seller>-page1.html."""
+    summary = scrape_seller(
+        FakeClient({"albums?page=1": EMPTY_PAGE}),
+        SELLER,
+        tmp_path,
+        "2026-08-18T12:00:00+10:00",
+        dry_run=True,
+    )
+    assert "empty or closed seller" in summary.error
+    assert not (tmp_path / "debug").exists()
+

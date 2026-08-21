@@ -41,13 +41,18 @@ def test_parse_album_page():
 
 def test_parse_album_page_missing_everything():
     detail = parse_album_page("<html><body></body></html>")
-    assert (detail.title, detail.description, detail.category, detail.photo_count) == ("", "", "", 0)
+    assert (detail.title, detail.description, detail.category, detail.photo_count) == (
+        "",
+        "",
+        "",
+        0,
+    )
     assert (detail.date_published, detail.date_modified) == ("", "")
 
 
 def test_parse_album_page_malformed_ld_json():
     html = (
-        '<html><body>'
+        "<html><body>"
         '<script type="application/ld+json">not json {</script>'
         '<script type="application/ld+json">{"datePublished": "garbage"}</script>'
         '<script type="application/ld+json">{"dateModified": "2026-01-02"}</script>'
@@ -70,7 +75,14 @@ def test_parse_price():
     assert parse_price("Plain Title No Price") == 0
     assert parse_price("Size 180cm height") == 0
     assert parse_price("Micro price 5") == 0  # < 10 ignored
-
+    assert parse_price("Nike Tech Fleece ¥180.50 Black") == 181
+    assert parse_price("180.50 yuan") == 181
+    assert parse_price("Jacket ¥1,280") == 1280
+    assert parse_price("¥180黑色") == 180
+    assert parse_price("黑色180元新款") == 180
+    assert parse_price("¥5 ¥180") == 180
+    assert parse_price("¥8.8 ¥180") == 180
+    assert parse_price("¥100000 then ¥180") == 180
 
 
 def test_parse_album_page_ld_json_array_and_graph_forms():
@@ -95,7 +107,7 @@ def test_parse_album_page_ld_json_array_and_graph_forms():
 def test_parse_album_page_dates_collected_across_blocks():
     """A block carrying only dateModified must not hide a later datePublished."""
     html = (
-        '<html><body>'
+        "<html><body>"
         '<script type="application/ld+json">{"dateModified": "2026-02-02"}</script>'
         '<script type="application/ld+json">{"datePublished": "2024-09-09"}</script>'
         "</body></html>"
