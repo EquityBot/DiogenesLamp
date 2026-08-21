@@ -138,7 +138,11 @@ def scrape_seller(client, source: Source, data_dir: Path,
                     (old or {}).get("date_published", "")):
             summary.skipped_old += 1
             continue
-        if old is not None and not full and old.get("list_title") == stub.title:
+        if (old is not None and not full and old.get("list_title") == stub.title
+                and "price" in old):
+            # Unchanged titles still need a fetch when the on-disk record
+            # predates price extraction (no "price" key). Records that already
+            # carry a price — including 0, meaning none was found — stay skipped.
             summary.skipped += 1
             continue
         if dry_run:

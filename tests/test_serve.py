@@ -1,9 +1,12 @@
+import json
 import threading
 import urllib.error
 import urllib.request
 from pathlib import Path
 
 from lamp.serve import make_server
+
+ROOT = Path(__file__).resolve().parents[1]
 
 
 def _get(port: int, path: str) -> tuple[int, bytes]:
@@ -224,6 +227,37 @@ def test_security_headers_on_every_response(tmp_path: Path):
             assert "script-src 'self'" in csp, f"{path}: scripts not self-only"
             assert "manifest-src 'self'" in csp, f"{path}: PWA manifest blocked ({csp})"
             assert headers.get("X-Content-Type-Options") == "nosniff"
+    finally:
+        server.shutdown()
+
+
+def test_viewer_declares_and_serves_the_pwa_manifest(tmp_path: Path):
+    """The installable-app claim is the index.html link plus a JSON file the
+    CSP actually allows. A missing file or a page that never references it
+    would make lamp serve look fine while the browser never installs."""
+    html = (ROOT / "viewer" / "index.html").read_text(encoding="utf-8")
+    assert 'rel="manifest"' in html
+    assert 'href="manifest.json"' in html
+    on_disk = json.loads((ROOT / "viewer" / "manifest.json").read_text(encoding="utf-8"))
+    assert on_disk["name"] == "DiogenesLamp"
+    assert on_disk["start_url"] == "./"
+
+    data = tmp_path / "data"
+    data.mkdir()
+    (data / "index.json").write_text("{}", encoding="utf-8")
+    server = make_server(ROOT / "viewer", data, port=0)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+    try:
+        status, body = _get(port, "/manifest.json")
+        assert status == 200
+        served = json.loads(body.decode())
+        assert served["name"] == "DiogenesLamp"
+        csp = urllib.request.urlopen(
+            f"http://127.0.0.1:{port}/manifest.json"
+        ).headers.get("Content-Security-Policy", "")
+        assert "manifest-src 'self'" in csp
     finally:
         server.shutdown()
 

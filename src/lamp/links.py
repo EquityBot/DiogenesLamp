@@ -6,13 +6,17 @@ import re
 from dataclasses import dataclass
 from urllib.parse import urlparse
 
-# scheme-optional URL matcher for the hosts we care about; the lookarounds stop
-# matches starting or ending inside a longer word ("notataobao.com", "taobao.company")
+# scheme-optional URL matcher for the hosts we care about. Lookarounds and host
+# labels are ASCII-only: Python \w includes CJK, so a Unicode word boundary
+# either misses a scheme-less URL glued to Chinese prose ("购买weidian.com/...")
+# or swallows that prose into the hostname ("链接item.taobao.com" -> a
+# malformed https://链接item.taobao.com/...). ASCII labels still stop matches
+# inside a longer English word ("notataobao.com", "taobao.company").
 _URL_RE = re.compile(
-    r"(?<![\w-])"
+    r"(?<![A-Za-z0-9-])"
     r"(?:https?://)?"
-    r"(?P<host>(?:[\w-]+\.)*(?:taobao\.com|tmall\.com|weidian\.com|m\.tb\.cn|k\.youshop10\.com))"
-    r"(?![\w-])"
+    r"(?P<host>(?:[A-Za-z0-9-]+\.)*(?:taobao\.com|tmall\.com|weidian\.com|m\.tb\.cn|k\.youshop10\.com))"
+    r"(?![A-Za-z0-9-])"
     r"(?P<rest>/[^\s'\"<>]*|\?[^\s'\"<>]*)?",
     re.IGNORECASE,
 )
