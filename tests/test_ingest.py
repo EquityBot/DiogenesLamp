@@ -49,6 +49,22 @@ def test_parse_dump_keeps_urls_that_contain_commas():
     assert parse_dump("1,https://weidian.com/i.html?itemID=1,2\n") == [
         "https://weidian.com/i.html?itemID=1,2"
     ]
+    # Quoted exports from spreadsheet applications (Excel, Google Sheets, etc.)
+    assert parse_dump('"1","https://seller.x.yupoo.com/"\n') == [
+        "https://seller.x.yupoo.com/"
+    ]
+    assert parse_dump('1,"https://seller.x.yupoo.com/"\n') == [
+        "https://seller.x.yupoo.com/"
+    ]
+    assert parse_dump('"https://seller.x.yupoo.com/"\n') == [
+        "https://seller.x.yupoo.com/"
+    ]
+    assert parse_dump('"1"\t"https://seller.x.yupoo.com/"\n') == [
+        "https://seller.x.yupoo.com/"
+    ]
+    assert parse_dump('\'https://seller.x.yupoo.com/\'\n') == [
+        "https://seller.x.yupoo.com/"
+    ]
 
 
 def test_merge_dedupes_and_counts():

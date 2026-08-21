@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 
 const { FILTER_STORAGE_KEY, defaultFilters, normalizeFilters, anyFilterActive,
-  serializeFilters, readFilters, writeFilters } =
+  serializeFilters, readFilters, writeFilters, matchSearch } =
   require(path.join(__dirname, "..", "..", "viewer", "filters.js"));
 
 // Minimal stand-in for localStorage. `fail` makes both accessors throw, which
@@ -34,7 +34,7 @@ test("defaults describe an unfiltered view", () => {
 test("each filter on its own counts as active", () => {
   for (const [key, value] of Object.entries({
     search: "shoe", seller: "someseller", category: "hoodies", age: "90",
-    newOnly: true, favsOnly: true, hideDups: true,
+    sort: "price-asc", newOnly: true, favsOnly: true, hideDups: true,
   })) {
     const filters = { ...defaultFilters(), [key]: value };
     assert.equal(anyFilterActive(filters), true, `${key} should count as active`);
@@ -86,4 +86,16 @@ test("unreadable storage yields defaults instead of throwing", () => {
 
 test("a failed write is swallowed", () => {
   assert.doesNotThrow(() => writeFilters(fakeStorage({}, true), defaultFilters()));
+});
+
+test("matchSearch supports multi-term whitespace-separated matching in any order", () => {
+  const title = "Nike Tech Fleece Black Zip Hoodie 2026";
+  assert.equal(matchSearch(title, ""), true);
+  assert.equal(matchSearch(title, "   "), true);
+  assert.equal(matchSearch(title, "nike"), true);
+  assert.equal(matchSearch(title, "NIKE HOODIE"), true);
+  assert.equal(matchSearch(title, "hoodie black 2026"), true);
+  assert.equal(matchSearch(title, "fleece zip nike"), true);
+  assert.equal(matchSearch(title, "adidas"), false);
+  assert.equal(matchSearch(title, "nike adidas"), false);
 });

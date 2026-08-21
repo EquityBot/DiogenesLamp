@@ -25,9 +25,7 @@ def atomic_write_json(path: Path, obj: object) -> None:
     tmp = path.with_name(path.name + ".tmp")
     # Compact separators: shards are machine-read by the viewer, and the
     # indent=1 form measured ~35% larger on real catalog data.
-    tmp.write_text(
-        json.dumps(obj, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
-    )
+    tmp.write_text(json.dumps(obj, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     for attempt in range(5):
         try:
             os.replace(tmp, path)
@@ -38,7 +36,7 @@ def atomic_write_json(path: Path, obj: object) -> None:
                 # otherwise linger until the next write overwrites it.
                 tmp.unlink(missing_ok=True)
                 raise
-            time.sleep(0.1 * 2 ** attempt)
+            time.sleep(0.1 * 2**attempt)
 
 
 def _shard_path(data_dir: Path, seller: str) -> Path:
@@ -72,6 +70,8 @@ def write_shard(data_dir: Path, seller: str, albums: dict[str, dict]) -> None:
 # Facts about the album itself, not about this scrape run: once captured they
 # stay captured. A later fetch that fails to extract them (layout variant,
 # truncated JSON-LD) must not erase what an earlier run already learned.
+# Price is not sticky: an absent price is a catalogue change, not a missed
+# extract of a date-like field.
 _STICKY_FIELDS = ("date_published", "date_modified")
 
 

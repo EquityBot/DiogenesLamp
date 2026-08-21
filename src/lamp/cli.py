@@ -56,6 +56,8 @@ def _build_parser() -> argparse.ArgumentParser:
     p_scrape.add_argument("--max-age-days", type=int, default=0, metavar="N",
                           help="skip albums posted more than N days ago "
                                "(0 = no age limit); stock that old is usually gone")
+    p_scrape.add_argument("--dry-run", action="store_true",
+                          help="preview scrape work without fetching album pages or saving files")
 
     p_serve = sub.add_parser("serve", help="serve the local viewer")
     p_serve.add_argument("--port", type=_port, default=8000)
@@ -129,10 +131,11 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
     run_ts = datetime.now(UTC).astimezone().isoformat(timespec="seconds")
     summaries = scrape_all(sources, args.data, run_ts,
                            full=args.full, workers=args.workers, only=only, rps=args.rps,
-                           max_age_days=args.max_age_days)
+                           max_age_days=args.max_age_days, dry_run=args.dry_run)
     errored = [s for s in summaries if s.error]
     for s in summaries:
-        line = f"{s.seller}: {s.scraped} scraped, {s.skipped} skipped, {s.failed} failed"
+        action_verb = "would scrape" if args.dry_run else "scraped"
+        line = f"{s.seller}: {s.scraped} {action_verb}, {s.skipped} skipped, {s.failed} failed"
         if s.skipped_old:
             line += f", {s.skipped_old} too old"
         if s.failed_ids:
@@ -145,7 +148,7 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
         # cleanly yet extracting no date at all is the signature of a Yupoo
         # markup change, and it is otherwise invisible: the viewer just
         # falls back to id-based age estimates forever.
-        if s.scraped and not s.dated:
+        if s.scraped and not s.dated and not args.dry_run:
             line += " (no publish dates found - Yupoo markup change?)"
         if s.error:
             line += f"  ERROR: {s.error}"
@@ -157,7 +160,8 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
         if src.kind == "yupoo" and src.skip and (only is None or src.id not in only)
     )
     tail = f", {len(skipped)} skipped ({', '.join(skipped)})" if skipped else ""
-    print(f"{len(summaries)} sellers, {len(errored)} with errors{tail}")
+    dry_tag = " [DRY RUN - no files written]" if args.dry_run else ""
+    print(f"{len(summaries)} sellers, {len(errored)} with errors{tail}{dry_tag}")
     return 1 if errored else 0
 
 
