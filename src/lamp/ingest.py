@@ -194,6 +194,8 @@ def load_sources(path: Path) -> dict[str, Source]:
     data = tomllib.loads(path.read_text(encoding="utf-8"))
     sources: dict[str, Source] = {}
     for seller_id, entry in data.get("yupoo", {}).items():
+        if not _SAFE_ID.fullmatch(seller_id):
+            raise ValueError(f"unsafe TOML id: {seller_id!r}")
         # Trailing slash on a hand-edited url makes every request URL carry
         # "//albums" - Yupoo answers with a 302 to the canonical path, so
         # the whole run pays a redirect round-trip per page for a typo.
@@ -203,6 +205,8 @@ def load_sources(path: Path) -> dict[str, Source]:
             skip=bool(entry.get("skip", False)),
         )
     for shop_id, entry in data.get("shops", {}).items():
+        if not _SAFE_ID.fullmatch(shop_id):
+            raise ValueError(f"unsafe TOML id: {shop_id!r}")
         sources[f"shop:{shop_id}"] = Source(
             "shop", shop_id, entry.get("platform", "web"), entry["url"],
             entry.get("name", shop_id), skip=bool(entry.get("skip", False)),

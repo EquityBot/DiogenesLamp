@@ -10,13 +10,13 @@ readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.11"
 dependencies = [
-    "requests",
-    "beautifulsoup4",
-    "lxml",
+    "requests==2.34.2",
+    "beautifulsoup4==4.15.0",
+    "lxml==6.1.2",
 ]
 
 [project.optional-dependencies]
-dev = ["pytest", "ruff"]
+dev = ["pytest", "ruff", "mypy"]
 
 [project.scripts]
 lamp = "lamp.cli:main"
@@ -36,3 +36,9 @@ src = ["src", "tests"]
 # Test modules may import a symbol only to prove it is part of the public
 # interface (e.g. Source from lamp.ingest), without using it in an assert.
 "tests/*.py" = ["F401"]
+
+[tool.mypy]
+python_version = "3.11"
+packages = ["lamp"]
+ignore_missing_imports = true
+pretty = true
