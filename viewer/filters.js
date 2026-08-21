@@ -80,8 +80,18 @@ function writeFilters(storage, filters) {
   }
 }
 
+// Multi-term title matching: all whitespace-separated terms in query must
+// appear in the title (case-insensitive, in any order).
+function matchSearch(titleLc, query) {
+  if (!query) return true;
+  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
+  if (!terms.length) return true;
+  const target = (titleLc || "").toLowerCase();
+  return terms.every((term) => target.includes(term));
+}
+
 if (typeof module !== "undefined") {
   module.exports = { FILTER_STORAGE_KEY, FILTER_DEFAULTS, defaultFilters,
     normalizeFilters, anyFilterActive, serializeFilters, readFilters,
-    writeFilters };
+    writeFilters, matchSearch };
 }

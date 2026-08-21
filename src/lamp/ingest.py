@@ -33,6 +33,8 @@ def _slug(text: str) -> str:
 
 def classify_url(raw: str) -> Source | None:
     raw = raw.strip()
+    if (raw.startswith('"') and raw.endswith('"')) or (raw.startswith("'") and raw.endswith("'")):
+        raw = raw[1:-1].strip()
     if not raw or raw.upper() == "N/A":
         return None
     # The dump is hand-exported text: a NUL or control char would flow into
@@ -106,12 +108,17 @@ def parse_dump(text: str) -> list[str]:
         if not line:
             continue
         # Tolerate "123<TAB>url" and "123,url" index prefixes, including
-        # several of them ("12,34,url" from a two-index export). Splitting
-        # on every comma and keeping the last field would silently mangle
-        # any URL that itself contains a comma (weidian search links do),
+        # quoted variants ('"123",url', '123,"url"', '"123","url"').
+        # Splitting on every comma and keeping the last field would silently
+        # mangle any URL that itself contains a comma (weidian search links do),
         # so only a run of purely numeric fields is stripped.
-        match = re.match(r"^(?:[0-9]+[\t,]\s*)+(?P<url>.+)$", line)
-        rows.append((match.group("url") if match else line).strip())
+        match = re.match(r'^(?:(?:"[0-9]+"|[0-9]+)[\t,]\s*)+(?P<url>.+)$', line)
+        extracted = (match.group("url") if match else line).strip()
+        if (extracted.startswith('"') and extracted.endswith('"')) or (
+            extracted.startswith("'") and extracted.endswith("'")
+        ):
+            extracted = extracted[1:-1].strip()
+        rows.append(extracted)
     return rows
 
 

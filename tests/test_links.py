@@ -42,6 +42,27 @@ CASES = [
         "(https://weidian.com/item.html?itemID=2)",
         [Link("weidian", "https://weidian.com/item.html?itemID=2")],
     ),
+    # CJK brackets and punctuation surrounding or following URLs without spaces.
+    (
+        "【https://item.taobao.com/item.htm?id=1001】",
+        [Link("taobao", "https://item.taobao.com/item.htm?id=1001")],
+    ),
+    (
+        "（https://weidian.com/item.html?itemID=2002）",
+        [Link("weidian", "https://weidian.com/item.html?itemID=2002")],
+    ),
+    (
+        "购买链接：https://item.taobao.com/item.htm?id=3003，尺码咨询客服",
+        [Link("taobao", "https://item.taobao.com/item.htm?id=3003")],
+    ),
+    (
+        "淘宝：https://m.tb.cn/h.ABCdef快来看看",
+        [Link("other", "https://m.tb.cn/h.ABCdef")],
+    ),
+    (
+        "微店https://k.youshop10.com/AbCd1234。",
+        [Link("other", "https://k.youshop10.com/AbCd1234")],
+    ),
 ]
 
 

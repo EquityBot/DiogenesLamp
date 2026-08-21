@@ -35,6 +35,9 @@ CASES = [
     # Anything else: generic web shop, original URL kept.
     ("http://www.example-store.ru/", ("shop", "example-store-ru", "web", "http://www.example-store.ru/")),
     ("https://shop.example/coupon/?discount=X", ("shop", "shop-example", "web", "https://shop.example/coupon/?discount=X")),
+    # Quoted URLs from CSV dumps.
+    ('"https://sellerx.x.yupoo.com/"', ("yupoo", "sellerx", "yupoo", "https://sellerx.x.yupoo.com")),
+    ("'https://sellerx.x.yupoo.com/'", ("yupoo", "sellerx", "yupoo", "https://sellerx.x.yupoo.com")),
 ]
 
 

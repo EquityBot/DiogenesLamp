@@ -359,7 +359,7 @@ function applyFilters() {
     (!newOnly || album.first_seen === state.generatedAt) &&
     (!favsOnly || state.favorites.has(album.id)) &&
     (!maxDays || ageInDays(album.published_ms, now) <= maxDays) &&
-    (!query || album.title_lc.includes(query))
+    matchSearch(album.title_lc, query)
   );
   if (els.hideDups.checked) {
     const before = filtered.length;
@@ -807,6 +807,16 @@ function setShopsOpen(open) {
 els.shopsToggle.addEventListener("click", () => setShopsOpen(els.shopsPanel.hidden));
 
 window.addEventListener("keydown", (event) => {
+  if (event.key === "/") {
+    const active = document.activeElement;
+    const tag = active ? active.tagName.toLowerCase() : "";
+    if (tag !== "input" && tag !== "select" && tag !== "textarea") {
+      event.preventDefault();
+      els.search.focus();
+      els.search.select();
+    }
+    return;
+  }
   if (event.key !== "Escape") return;
   // Innermost overlay first: a group view opened from inside the panel
   // should not close both at once.
