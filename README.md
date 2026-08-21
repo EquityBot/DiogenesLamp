@@ -62,10 +62,15 @@ install, and the ci badge above is the release gate.
    already scraped stay in `data/`, and the viewer's age filter hides them.
 
    Other flags: `--seller <id>` for one seller, `--full` to re-fetch
-   everything, `--workers N` (default 8), `--rps N` (default 8.0, global
+   everything, `--dry-run` to count list-page work without fetching album
+   pages or writing files, `--workers N` (default 8), `--rps N` (default 8.0, global
    request rate cap). Raising `--rps` alone does little: each seller host is
    held to 1 request/second, so more hosts have to be in flight for a higher
    cap to matter. Raise `--workers` with it.
+
+   Incremental re-runs skip unchanged titles, but records written before
+   price extraction (no `price` field on disk) are fetched once so catalogue
+   prices can backfill. Use `--full` to re-fetch everything.
 
 3. Browse:
 
@@ -75,11 +80,15 @@ install, and the ci badge above is the release gate.
    Global options go *before* the subcommand: `lamp --data other-dir serve`
    and `lamp --sources other.toml scrape`.
 
-   Search titles, filter by seller or category, show only new-since-last-scrape
-   items, star favourites, and open purchase links or the original album per
-   item. Favourites, your filter selection and the colour theme are all
+   Search titles (press `/` to focus the box), filter by seller or category, show only new-since-last-scrape
+   items, star favourites, export starred albums as JSON, and open purchase links or the original album per
+   item. Titles and descriptions are scanned for a yuan price (`¥180`, `180元`, `P180`) and the grid can
+   sort by that price, by photo count, or newest-first across the whole catalogue — not grouped by seller.
+   Favourites, your filter selection and the colour theme are all
    remembered in your browser, so a reload puts you back where you were.
-   **Clear filters** resets them in one go.
+   **Clear filters** resets them in one go. The page is an installable PWA
+   (`manifest.json`); export of favourites waits until every seller shard has
+   loaded and names any starred albums it had to leave out.
 
    The theme button cycles system, light and dark. Every control is labelled
    and keyboard reachable, Escape closes the shops panel or a duplicate group,

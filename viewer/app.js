@@ -372,13 +372,7 @@ function applyFilters() {
     state.dupHidden = before - out.length;
   }
   const sortOrder = els.sort.value;
-  if (sortOrder === "price-asc") {
-    filtered.sort((a, b) => (a.price || Infinity) - (b.price || Infinity));
-  } else if (sortOrder === "price-desc") {
-    filtered.sort((a, b) => (b.price || 0) - (a.price || 0));
-  } else if (sortOrder === "photos-desc") {
-    filtered.sort((a, b) => (b.photo_count || 0) - (a.photo_count || 0));
-  }
+  filtered = sortAlbums(filtered, sortOrder);
   state.filtered = filtered;
   state.filterVersion += 1;
   setStatus();
@@ -461,7 +455,7 @@ function makeCard(album) {
     // rather than against a hard-coded offset that has to be kept in step
     // with the cover height at every breakpoint.
     (isNew ? `<span class="badge-new">NEW</span>` : "") +
-    (album.price ? `<span class="badge-price">¥${escapeHtml(String(album.price))}</span>` : "") +
+    (album.price ? `<span class="badge-price">${escapeHtml(formatPrice(album.price))}</span>` : "") +
     (dupCount > 1
       ? `<button class="badge-dup" type="button" ` +
         `aria-label="Show all ${dupCount} copies of this posting">` +
@@ -780,15 +774,33 @@ function clearFilters() {
 els.filtersClear.addEventListener("click", clearFilters);
 
 els.exportFavs.addEventListener("click", () => {
-  const favAlbums = state.albums.filter((a) => state.favorites.has(a.id));
-  if (!favAlbums.length) {
+  const total = state.index ? state.index.sellers.length : 0;
+  const loading = !state.index || state.loadedSellers < total || state.pendingShards.length > 0;
+  const plan = favouritesExportPlan({
+    favoriteIds: state.favorites,
+    albums: state.albums,
+    loading,
+  });
+  if (plan.reason === "empty") {
     alert("No favourites saved yet. Click the star on any album to save it.");
+    return;
+  }
+  if (plan.reason === "loading") {
+    alert("Catalog is still loading. Wait until every seller is loaded before exporting.");
+    return;
+  }
+  if (plan.reason === "missing") {
+    const failed = state.failedShards.length
+      ? ` Unavailable sellers: ${state.failedShards.join(", ")}.`
+      : "";
+    alert(`None of the starred albums are in the loaded catalog.${failed}`);
     return;
   }
   const exportData = {
     exported_at: new Date().toISOString(),
-    count: favAlbums.length,
-    albums: favAlbums.map((a) => ({
+    count: plan.albums.length,
+    omitted: plan.omittedIds.length,
+    albums: plan.albums.map((a) => ({
       id: a.id,
       seller: a.seller,
       title: a.title,
@@ -799,6 +811,15 @@ els.exportFavs.addEventListener("click", () => {
       date_published: a.date_published,
     })),
   };
+  if (plan.omittedIds.length) {
+    const failed = state.failedShards.length
+      ? ` Unavailable sellers: ${state.failedShards.join(", ")}.`
+      : "";
+    alert(
+      `Exported ${plan.albums.length} favourite${plan.albums.length === 1 ? "" : "s"}; ` +
+      `${plan.omittedIds.length} could not be included because their seller data is unavailable.${failed}`
+    );
+  }
   const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -852,14 +873,10 @@ function setShopsOpen(open) {
 els.shopsToggle.addEventListener("click", () => setShopsOpen(els.shopsPanel.hidden));
 
 window.addEventListener("keydown", (event) => {
-  if (event.key === "/") {
-    const active = document.activeElement;
-    const tag = active ? active.tagName.toLowerCase() : "";
-    if (tag !== "input" && tag !== "select" && tag !== "textarea") {
-      event.preventDefault();
-      els.search.focus();
-      els.search.select();
-    }
+  if (isSearchShortcut(event.key, document.activeElement && document.activeElement.tagName)) {
+    event.preventDefault();
+    els.search.focus();
+    els.search.select();
     return;
   }
   if (event.key !== "Escape") return;

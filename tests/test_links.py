@@ -63,6 +63,20 @@ CASES = [
         "微店https://k.youshop10.com/AbCd1234。",
         [Link("other", "https://k.youshop10.com/AbCd1234")],
     ),
+    # Scheme-less URLs glued to CJK must still parse, and the CJK must not
+    # become part of the hostname.
+    (
+        "购买weidian.com/item.html?itemID=42",
+        [Link("weidian", "https://weidian.com/item.html?itemID=42")],
+    ),
+    (
+        "链接item.taobao.com/item.htm?id=1马上买",
+        [Link("taobao", "https://item.taobao.com/item.htm?id=1")],
+    ),
+    (
+        "购买https://item.taobao.com/item.htm?id=9",
+        [Link("taobao", "https://item.taobao.com/item.htm?id=9")],
+    ),
 ]
 
 

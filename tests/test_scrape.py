@@ -594,3 +594,60 @@ def test_scrape_dry_run_does_not_write_debug_html_for_an_empty_parse(tmp_path: P
     assert "empty or closed seller" in summary.error
     assert not (tmp_path / "debug").exists()
 
+
+def test_incremental_scrape_backfills_price_on_pre_price_records(tmp_path: Path):
+    """Catalogue records written before price extraction have no price key.
+    An ordinary incremental scrape must still fetch those album pages once
+    so a later price in the title or description is not left as 0 forever.
+    """
+    from lamp.storage import write_shard
+
+    write_shard(tmp_path, "sellerx", {"101": {
+        "id": "101", "seller": "sellerx", "title": "Item A", "list_title": "Item A",
+        "thumb": "thumbs/sellerx/101.jpg",
+        "album_url": "https://sellerx.x.yupoo.com/albums/101?uid=1",
+        "links": [], "category": "", "photo_count": 3,
+        "first_seen": "2026-08-01T00:00:00+10:00",
+        "updated_at": "2026-08-01T00:00:00+10:00",
+    }})
+    client = FakeClient({
+        "albums?page=1": LIST_ITEM.format(aid="101", title="Item A"),
+        "albums?page=2": EMPTY_PAGE,
+        "/albums/101": ALBUM_PAGE.format(
+            title="Item A", desc="Nike Tech Fleece ¥180 Black",
+        ),
+    })
+    summary = scrape_seller(client, SELLER, tmp_path, "2026-08-18T12:00:00+10:00")
+    assert summary.skipped == 0
+    assert summary.scraped == 1
+    assert any("/albums/101" in url for url in client.calls)
+    shard = load_shard(tmp_path, "sellerx")
+    assert shard["101"]["price"] == 180
+    assert shard["101"]["first_seen"] == "2026-08-01T00:00:00+10:00"
+
+
+def test_incremental_scrape_still_skips_unchanged_priced_records(tmp_path: Path):
+    """A record that already has a price key — even 0 — is not re-fetched
+    just because a later run could theoretically find a price.
+    """
+    from lamp.storage import write_shard
+
+    write_shard(tmp_path, "sellerx", {"101": {
+        "id": "101", "seller": "sellerx", "title": "Item A", "list_title": "Item A",
+        "thumb": "thumbs/sellerx/101.jpg",
+        "album_url": "https://sellerx.x.yupoo.com/albums/101?uid=1",
+        "links": [], "category": "", "photo_count": 3, "price": 0,
+        "first_seen": "2026-08-01T00:00:00+10:00",
+        "updated_at": "2026-08-01T00:00:00+10:00",
+    }})
+    client = FakeClient({
+        "albums?page=1": LIST_ITEM.format(aid="101", title="Item A"),
+        "albums?page=2": EMPTY_PAGE,
+        "/albums/101": ALBUM_PAGE.format(title="Item A", desc="¥180"),
+    })
+    summary = scrape_seller(client, SELLER, tmp_path, "2026-08-18T12:00:00+10:00")
+    assert summary.skipped == 1
+    assert summary.scraped == 0
+    assert not any("/albums/101" in url for url in client.calls)
+    assert load_shard(tmp_path, "sellerx")["101"]["price"] == 0
+
