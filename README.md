@@ -83,7 +83,7 @@ install, and the ci badge above is the release gate.
    Search titles (press `/` to focus the box), filter by seller or category, show only new-since-last-scrape
    items, star favourites, export starred albums as JSON, and open purchase links or the original album per
    item. Titles and descriptions are scanned for a yuan price (`¥180`, `180元`, `P180`) and the grid can
-   sort by that price, by photo count, or newest-first across the whole catalogue — not grouped by seller.
+   sort by that price, by photo count, or newest-first across the whole catalogue, not grouped by seller.
    Favourites, your filter selection and the colour theme are all
    remembered in your browser, so a reload puts you back where you were.
    **Clear filters** resets them in one go. The page is an installable PWA
