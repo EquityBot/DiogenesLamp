@@ -145,7 +145,7 @@ function setGridMessage(loading) {
     // come from an empty input, which means dupHidden is zero too.
     text = "No albums in this catalog yet. Run `lamp scrape` to fill it.";
   } else {
-    text = "No albums match these filters.";
+    text = "No albums match these filters. Nothing interesting happens.";
   }
   els.message.textContent = text;
   els.message.hidden = false;
