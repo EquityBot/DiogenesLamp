@@ -627,7 +627,7 @@ def test_incremental_scrape_backfills_price_on_pre_price_records(tmp_path: Path)
 
 
 def test_incremental_scrape_still_skips_unchanged_priced_records(tmp_path: Path):
-    """A record that already has a price key — even 0 — is not re-fetched
+    """A record that already has a price key, even 0, is not re-fetched
     just because a later run could theoretically find a price.
     """
     from lamp.storage import write_shard
