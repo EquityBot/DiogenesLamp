@@ -10,26 +10,87 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <!-- Inline so the page needs no extra request and the server never has to
      answer a favicon 404 on every load. -->
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23121316'/%3E%3Cpath d='M9 21h14l-3-4H12z' fill='%23e8b13a'/%3E%3Ccircle cx='16' cy='12' r='4' fill='%23e8b13a'/%3E%3C/svg%3E">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%230e1013'/%3E%3Cpath d='M9 21h14l-3-4H12z' fill='%23ff6a4d'/%3E%3Ccircle cx='16' cy='12' r='4' fill='%23ff6a4d'/%3E%3C/svg%3E">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
+<!--
+THESIS: the catalogue is a ruled album leaf of mounted specimens, refusing the
+floating rounded-card grid this category always ships.
+OWN-WORLD: two inks on a cool printed leaf. Hairlines ruled once across the
+page, windows cut edge to edge, corner mounts, catalogue figures in tabular
+mono. No radius, no shadow on the leaf, no third colour: the only colour on
+the page comes from the covers.
+STORY: the reader sweeps a leaf of specimens, mounts what they want to keep,
+and opens the original album.
+FIRST VIEWPORT: head band carrying the lamp mark and a tally in fixed digit
+positions, printed form fields beneath it, then the lattice filling the page,
+each cover to its window edge, under it a clamped title and a mono line of
+seller and purchase marks. A duplicate group leaves the lattice for the stock
+book's strip page, where the copies stand side by side with their dates.
+FORM: The Stock Book, candidate 7 of 7, seed 95f87760.
+FINISH: unreviewed and undocumented is unfinished; this build ends with the
+finish review, the verdict, DESIGN.md, and every shipping raster carrying its
+provenance
+-->
+<!-- One drawn mark set, in one stroke weight, referenced by <use>. Glyphs and
+     emoji were standing in for an icon system before this. -->
+<svg id="marks" aria-hidden="true" focusable="false">
+  <symbol id="mark-lamp" viewBox="0 0 24 24">
+    <circle cx="12" cy="8" r="4.2"/>
+    <path d="M6.5 19h11l-2.6-4.4H9.1z" stroke-linejoin="round"/>
+    <path d="M12 2.6v1.6M18.6 5.4l-1.2 1M5.4 5.4l1.2 1" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="mark-mount" viewBox="0 0 30 30">
+    <path d="M30 0v21L9 0z" stroke-linejoin="miter"/>
+  </symbol>
+  <symbol id="mark-tick" viewBox="0 0 24 24">
+    <path d="M4 12.6l5.2 5.2L20 6.4" stroke-linecap="square"/>
+  </symbol>
+  <symbol id="mark-export" viewBox="0 0 24 24">
+    <path d="M12 3v11M7.6 9.8L12 14.2l4.4-4.4" stroke-linecap="round"
+          stroke-linejoin="round"/>
+    <path d="M4 17.4v2.2h16v-2.2" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="mark-cross" viewBox="0 0 24 24">
+    <path d="M5 5l14 14M19 5L5 19" stroke-linecap="square"/>
+  </symbol>
+  <symbol id="mark-theme-system" viewBox="0 0 24 24">
+    <rect x="2.6" y="4.4" width="18.8" height="13" stroke-linejoin="round"/>
+    <path d="M8.4 20.4h7.2" stroke-linecap="round"/>
+  </symbol>
+  <symbol id="mark-theme-light" viewBox="0 0 24 24">
+    <circle cx="12" cy="12" r="4.4"/>
+    <path d="M12 2.4v2.8M12 18.8v2.8M2.4 12h2.8M18.8 12h2.8M5.2 5.2l2 2M16.8 16.8l2 2M18.8 5.2l-2 2M7.2 16.8l-2 2"
+          stroke-linecap="round"/>
+  </symbol>
+  <symbol id="mark-theme-dark" viewBox="0 0 24 24">
+    <path d="M20 14.4A8.6 8.6 0 019.6 4 8.6 8.6 0 1020 14.4z" stroke-linejoin="round"/>
+  </symbol>
+</svg>
 <a class="skip-link" href="#grid">Skip to albums</a>
 <header id="topbar">
-  <div class="topbar-row">
-    <span id="brand">&#129684; DiogenesLamp</span>
-    <div class="field field-grow">
-      <label class="sr-only" for="search">Search album titles</label>
-      <input id="search" type="search" placeholder="Search titles..." autocomplete="off">
-    </div>
+  <div class="band">
+    <span id="brand">
+      <svg class="mark mark-brand" aria-hidden="true" focusable="false"><use href="#mark-lamp"/></svg>
+      <span class="brand-name">Diogenes Lamp</span>
+    </span>
+    <p id="status" role="status"></p>
+    <button id="export-favs" type="button" aria-label="Export favourites">
+      <svg class="mark" aria-hidden="true" focusable="false"><use href="#mark-export"/></svg>
+      <span class="btn-label">Export favourites</span></button>
     <button id="theme-toggle" type="button" aria-label="Colour theme: follow system">
-      <span aria-hidden="true" id="theme-icon">&#9681;</span>
+      <svg class="mark" aria-hidden="true" focusable="false"><use id="theme-icon" href="#mark-theme-system"/></svg>
     </button>
     <button id="shops-toggle" type="button" aria-expanded="false" aria-controls="shops-panel">
       Shops
     </button>
   </div>
-  <div class="topbar-row" role="group" aria-label="Filters">
+  <div class="rules" role="group" aria-label="Filters">
+    <div class="field field-grow">
+      <label class="sr-only" for="search">Search album titles</label>
+      <input id="search" type="search" placeholder="Search titles" autocomplete="off">
+    </div>
     <div class="field">
       <label class="sr-only" for="seller-filter">Seller</label>
       <select id="seller-filter"><option value="">All sellers</option></select>
@@ -52,18 +113,22 @@
       <label class="sr-only" for="sort-filter">Sort</label>
       <select id="sort-filter">
         <option value="default">Newest first</option>
-        <option value="price-asc">Price: Low to High</option>
-        <option value="price-desc">Price: High to Low</option>
+        <option value="price-asc">Price: low to high</option>
+        <option value="price-desc">Price: high to low</option>
         <option value="photos-desc">Most photos</option>
       </select>
     </div>
-    <label class="toggle"><input type="checkbox" id="new-only"> New</label>
-    <label class="toggle"><input type="checkbox" id="favs-only"> &#9733; Favourites</label>
-    <label class="toggle"><input type="checkbox" id="hide-dups"> Hide duplicates</label>
-    <button id="export-favs" type="button" title="Export starred favourites as JSON">Export ★</button>
+    <label class="toggle"><input type="checkbox" id="new-only">
+      <svg class="mark mark-check" aria-hidden="true" focusable="false"><use href="#mark-tick"/></svg>
+      <span>New</span></label>
+    <label class="toggle"><input type="checkbox" id="favs-only">
+      <svg class="mark mark-check" aria-hidden="true" focusable="false"><use href="#mark-tick"/></svg>
+      <span>Favourites</span></label>
+    <label class="toggle"><input type="checkbox" id="hide-dups">
+      <svg class="mark mark-check" aria-hidden="true" focusable="false"><use href="#mark-tick"/></svg>
+      <span>Hide duplicates</span></label>
     <button id="filters-clear" type="button" hidden>Clear filters</button>
     <button id="group-clear" type="button" hidden></button>
-    <p id="status" role="status"></p>
   </div>
   <div id="load-progress" role="presentation"><div id="load-progress-bar"></div></div>
 </header>
@@ -80,6 +145,7 @@
 <script src="age.js"></script>
 <script src="filters.js"></script>
 <script src="anchor.js"></script>
+<script src="catalogue.js"></script>
 <script src="app.js"></script>
 </body>
 </html>

@@ -3,10 +3,13 @@
 Usage: python tests/make_demo_data.py [data_dir] [sellers] [albums_per_seller]
 Then:  lamp --data <data_dir> serve --no-browser
 
-Covers are generated for the first COVERS_PER_SELLER albums of each seller.
-The rest are left cover-less deliberately: Yupoo has no cover image for some
-albums, and the viewer draws its titled colour block for those, so a demo
-where every card carried an image would never exercise that path.
+Two albums in every three get a cover, spread across each seller rather than
+sitting on its first albums. The rest are left cover-less deliberately: Yupoo
+has no cover image for some albums, and the viewer draws its titled colour
+block for those, so a demo where every card carried an image would never
+exercise that path. Spread rather than prefixed because the viewer orders by
+posting date, which is unrelated to position, so a prefix of covers left every
+screen of the demo showing nothing but the fallback.
 """
 
 import json
@@ -20,8 +23,12 @@ from pathlib import Path
 WORDS = ("alpha", "bravo", "canvas", "denim", "echo", "fleece", "grid", "hood",
          "indigo", "jacket", "knit", "lunar", "mesh", "nylon", "orbit", "polo")
 
-COVERS_PER_SELLER = 300
+UNCOVERED_EVERY = 3
 COVER_PX = 240
+
+
+def has_cover(index: int) -> bool:
+    return index % UNCOVERED_EVERY != 0
 
 
 def _png(width: int, height: int, rows: list[bytes]) -> bytes:
@@ -101,13 +108,13 @@ def main() -> None:
             if j % 4 == 0:
                 links.append({"platform": "taobao",
                               "url": f"https://item.taobao.com/item.htm?id={j}"})
-            if j < COVERS_PER_SELLER:
+            if has_cover(j):
                 (thumb_dir / f"{aid}.png").write_bytes(cover_bytes(int(aid)))
             age_days = rng.randint(0, 1095)
             albums.append({
                 "id": aid, "seller": seller, "title": title, "list_title": title,
                 "thumb": (f"thumbs/{seller}/{aid}.png"
-                          if j < COVERS_PER_SELLER else ""),
+                          if has_cover(j) else ""),
                 "album_url": f"https://{seller}.x.yupoo.com/albums/{aid}?uid=1",
                 "links": links,
                 "category": rng.choice(("hoodies", "tees", "shoes", "")),
@@ -129,7 +136,7 @@ def main() -> None:
         json.dumps({"generated_at": run_ts, "sellers": sellers, "shops": shops}),
         encoding="utf-8",
     )
-    covers = n_sellers * min(n_albums, COVERS_PER_SELLER)
+    covers = n_sellers * sum(1 for j in range(n_albums) if has_cover(j))
     print(f"wrote {n_sellers} sellers x {n_albums} albums "
           f"({covers} covers) to {data_dir}/")
 

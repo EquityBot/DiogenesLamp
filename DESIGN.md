@@ -1,0 +1,324 @@
+---
+name: DiogenesLamp
+description: A local Yupoo catalogue read as a ruled album leaf of mounted specimens.
+colors:
+  leaf: "#0e1013"
+  leaf-raised: "#14171b"
+  rule: "#262c33"
+  rule-strong: "#3a434d"
+  ink: "#e9ebee"
+  ink-faint: "#9aa3ad"
+  ink-second: "#ff6a4d"
+  on-ink-second: "#0e1013"
+  leaf-light: "#e7e9ec"
+  leaf-raised-light: "#f3f5f7"
+  rule-light: "#c8ced5"
+  rule-strong-light: "#9aa4ae"
+  ink-light: "#14171b"
+  ink-faint-light: "#545c66"
+  ink-second-light: "#b8301a"
+  on-ink-second-light: "#ffffff"
+typography:
+  body:
+    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif"
+    fontSize: "14px"
+    fontWeight: 400
+    lineHeight: 1.45
+  title:
+    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif"
+    fontSize: "14px"
+    fontWeight: 400
+    lineHeight: 1.32
+  note:
+    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif"
+    fontSize: "22px"
+    fontWeight: 400
+    lineHeight: 1.5
+  label:
+    fontFamily: "ui-monospace, Cascadia Mono, Segoe UI Mono, Menlo, monospace"
+    fontSize: "11px"
+    fontWeight: 400
+    letterSpacing: "0.01em"
+  brand:
+    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif"
+    fontSize: "11px"
+    fontWeight: 700
+    letterSpacing: "0.14em"
+rounded:
+  none: "0"
+spacing:
+  gutter: "10px"
+  gutter-narrow: "8px"
+  gutter-strip: "14px"
+  caption: "8px"
+  band: "7px 14px"
+components:
+  button:
+    backgroundColor: "transparent"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.none}"
+    padding: "6px 11px"
+  button-hover:
+    textColor: "{colors.ink}"
+  button-active:
+    backgroundColor: "{colors.ink-second}"
+    textColor: "{colors.on-ink-second}"
+  button-second-ink:
+    backgroundColor: "transparent"
+    textColor: "{colors.ink-second}"
+    rounded: "{rounded.none}"
+    padding: "6px 11px"
+  field:
+    backgroundColor: "transparent"
+    textColor: "{colors.ink}"
+    rounded: "{rounded.none}"
+    padding: "6px 2px"
+  window:
+    backgroundColor: "{colors.leaf}"
+    rounded: "{rounded.none}"
+    width: "220px"
+    height: "288px"
+  window-narrow:
+    width: "158px"
+    height: "202px"
+  window-strip:
+    width: "300px"
+    height: "384px"
+  purchase-mark:
+    backgroundColor: "transparent"
+    textColor: "{colors.ink-faint}"
+    typography: "{typography.label}"
+    rounded: "{rounded.none}"
+    padding: "0 5px"
+  arrival-tag:
+    backgroundColor: "{colors.ink-second}"
+    textColor: "{colors.on-ink-second}"
+    typography: "{typography.label}"
+    rounded: "{rounded.none}"
+    padding: "0 6px"
+  price-mark:
+    backgroundColor: "{colors.leaf}"
+    textColor: "{colors.ink}"
+    typography: "{typography.label}"
+    rounded: "{rounded.none}"
+    padding: "1px 8px"
+---
+
+# Design System: DiogenesLamp
+
+## Overview
+
+**Creative North Star: "The Stock Book"**
+
+A stock book is the leaf a collection keeps for its specimens: a page ruled
+before anything is mounted on it, windows cut at a fixed pitch, a folded paper
+corner holding each piece, and a printed line of catalogue figures underneath.
+Nothing on that page competes with what is mounted on it, which is the whole
+reason the form survived: the page is apparatus, the specimens are the subject.
+
+DiogenesLamp is tens of thousands of cover photographs judged at a glance, so
+it inherits that discipline literally. The chrome is two inks on one ground.
+Every colour a visitor sees comes from the covers themselves. There are no
+rounded corners, no shadows on the leaf, and no card containers: the rules are
+printed once across the page as a background, and the windows are cut into it.
+
+The visual anti-reference is the thing this replaced and the thing this
+category always ships: a grid of floating rounded cards with elevation
+shadows, a single warm accent, and a sticky pill-shaped filter bar.
+
+**Key Characteristics:**
+
+- Two inks and one ground. A third colour is a defect, not an option.
+- The lattice is printed once, never per card.
+- Every state reads with the colour taken away.
+- Figures are tabular and hold their width while the catalogue streams in.
+- Density is a feature: more windows per screen is always the better answer.
+
+## Colors
+
+Neutrals plus one accent, the classic restrained strategy, because the visitor
+came to operate. The ground is dark by default from the use scene, not the
+category: this is read at a desk at night with the room lights down and the
+covers the only lit thing on the screen. The light leaf is a cool printed
+stock, deliberately not a warm cream.
+
+### Primary
+
+- **Second Ink** (`#ff6a4d` dark / `#b8301a` light): the correction ink of a
+  printed catalogue. It carries arrivals, the matched span of a query, the
+  mounted corner, the checked mark, the load rule, the caret and the selection.
+  Nothing decorative ever wears it.
+
+### Neutral
+
+- **Leaf** (`#0e1013` dark / `#e7e9ec` light): the page. Body ground and the
+  window ground behind a cover that failed to load.
+- **Leaf Raised** (`#14171b` / `#f3f5f7`): the head band and the shops panel,
+  the two surfaces that sit above the page rather than on it.
+- **Rule** (`#262c33` / `#c8ced5`): the printed lattice, the hairline under a
+  window, the box around a purchase mark.
+- **Rule Strong** (`#3a434d` / `#9aa4ae`): the baseline under a form field,
+  the border of a control, the scrollbar thumb.
+- **Ink** (`#e9ebee` / `#14171b`): titles, control text, the focus ring.
+- **Ink Faint** (`#9aa3ad` / `#545c66`): sellers, tallies, purchase marks,
+  placeholders. Both values clear 4.5:1 on their own leaf.
+
+### Named Rules
+
+**The Two Ink Rule.** The chrome uses the leaf, the ink and one second ink.
+Every other colour on the screen is a photograph. A platform that wants its
+own brand colour, a status that wants amber, a category that wants a hue: all
+of them are refused, and the state finds a shape instead.
+
+**The Cover Sovereignty Rule.** Nothing is painted over a cover that is not
+load-bearing. Today that is exactly three marks: the arrival tag, the
+duplicate count, and the corner mount. Adding a fourth requires removing one.
+
+## Typography
+
+**Body Font:** the platform UI stack (`system-ui`, `-apple-system`,
+`Segoe UI`, sans-serif)
+**Label/Mono Font:** the platform mono stack (`ui-monospace`, `Cascadia Mono`,
+`Segoe UI Mono`, `Menlo`, monospace)
+
+**Character:** a working catalogue, not a printed one. The system stack is a
+constraint recorded honestly rather than a choice: the viewer ships with no
+build step, no bundler and no external requests, so a self-hosted face would
+be a binary in a repository whose whole claim is that it has no dependencies.
+The printed register is carried by the mono figures, the tracked uppercase
+labels and the rules, not by a text face.
+
+There is no display voice on this page, by design. A leaf of specimens has no
+headline.
+
+### Hierarchy
+
+- **Note** (400, 22px, 1.5): the empty and loading states, the only place the
+  page speaks a sentence.
+- **Body / Title** (400, 14px, 1.32 to 1.45): captions, controls, panel links.
+  Card titles clamp to two lines, one on narrow.
+- **Label** (400, 11px, mono, tabular): sellers, tallies, purchase marks,
+  duplicate counts, dates, panel headings.
+- **Brand** (700, 11px, uppercase, 0.14em): the name in the head band.
+
+### Named Rules
+
+**The Tabular Figure Rule.** Every number the interface owns is set in the
+mono stack with `font-variant-numeric: tabular-nums`, and any figure that
+changes while the catalogue streams in is held at the width of its largest
+value. A count that widens as it grows moves the controls beside it.
+
+**The Eleven Pixel Floor.** No functional text below 11px, including the marks
+that look decorative. The `sr-only` class is the only exemption.
+
+## Layout
+
+A virtualised absolute-positioned lattice. Card geometry lives in
+`:root` as `--card-w`, `--card-h`, `--cover-h` and `--gap`, and `app.js` reads
+those values back out of the computed style rather than duplicating them, so a
+stylesheet change moves the real layout. Anything that changes the pitch must
+leave it readable from `:root`, and the geometry is re-read on resize and
+whenever the strip page opens.
+
+Three geometries: the lattice at 220 by 288 with a 214 cover and a 10px
+gutter; the narrow lattice at 158 by 202 with a 152 cover and an 8px gutter
+below 720px; and the strip page at 300 by 384 with a 300 cover and a 14px
+gutter, 320 by 300 on narrow.
+
+The lattice itself is two `repeating-linear-gradient` layers on the spacer,
+at the card pitch, so the ruling costs one paint rather than a border on each
+of the hundred-odd nodes in the window. The spacer is exactly as wide as the
+columns it holds and is centred, so the page never rules ground no window can
+sit on.
+
+The head band is sticky above 720px and static below it, where a wrapping
+toolbar would otherwise hold a third of the viewport permanently.
+
+## Elevation & Depth
+
+Flat, with one exception. The leaf has no shadows at all: depth is the ruling
+and the two raised surface tones. The shops panel is the one element that
+physically sits above the page, and it is the one element that casts a shadow.
+
+### Shadow Vocabulary
+
+- **Lift** (`0 2px 4px rgb(0 0 0 / 0.45), 0 12px 28px rgb(0 0 0 / 0.38)` dark;
+  `0 2px 4px rgb(16 20 30 / 0.10), 0 12px 28px rgb(16 20 30 / 0.12)` light):
+  the slide-over panel only.
+
+### Named Rules
+
+**The Printed Page Rule.** A surface on the leaf is distinguished by a rule or
+by a tone, never by a shadow. A shadow on the page means the element is
+physically above it, and only the panel is.
+
+## Shapes
+
+Radius is zero everywhere, without exception. Corners are cut, not rounded:
+that single decision is what separates this page from the card grid it
+replaced, and softening one corner starts the drift back.
+
+Marks are drawn SVG from one sheet of `<symbol>` definitions in `index.html`,
+referenced with `<use>` and stroked at 1.8 from `currentColor`. Symbols carry
+geometry only, never `fill` or `stroke` attributes, because a presentation
+attribute on the path beats the inherited value and the shadow tree cannot be
+reached any other way. No glyph or emoji ever stands in for a mark.
+
+The corner mount is the form's signature: a paper wedge folded over the
+window's top right corner, outlined in the faint ink when the album is not
+kept and filled solid in the second ink when it is.
+
+## Components
+
+- **Window.** No border, no radius, no background of its own beyond the leaf.
+  Hover outlines it in the faint ink, focus outlines it in the ink at a 1px
+  offset so the ring lands in the gutter rather than over the cover. It never
+  moves or grows: a transform here fights the transform that places it.
+- **Cover.** Fills its window edge to edge with a 1px rule beneath. Behind it
+  sits a titled colour block on a stable per-album hue, shown when Yupoo has
+  no cover at all. The hue is set through the CSSOM, never as a style
+  attribute: the page is served under a policy with no `unsafe-inline`, so a
+  style attribute in parsed markup is dropped.
+- **Caption.** A clamped title, then a mono line of seller and purchase marks.
+  The marks keep their width and the seller name gives way, because a
+  truncated seller is readable and a mark clipped mid-word is not. On narrow
+  the seller stands down entirely.
+- **Form field.** A baseline rule rather than a box, thickening into the
+  second ink on focus. Selects carry a drawn caret as a data URI rather than
+  the platform arrow.
+- **Mark box.** The checkbox toggles are a ruled square with a drawn tick;
+  the native input stays in the accessibility tree and keeps the keyboard, and
+  only the paint is ours. The tick is hidden by giving up its stroke, never
+  its opacity, which would take the box with it.
+- **Arrival.** A 2px inset rule in the second ink across the top of the window
+  plus a `NEW` tag, two carriers so the state survives without colour.
+- **Price.** A catalogue figure printed at the foot of the window, opposite the
+  copy count, on the leaf rather than floating on the cover. It is a figure,
+  not a badge: mono, tabular, no colour of its own.
+- **Export.** A drawn mark and a plain label. Every button in the head band is
+  a ruled rectangle; the second ink is reserved for the two that undo
+  something, and export is not one of them.
+- **Strip page.** A duplicate group leaves the lattice for a wider pitch where
+  the copies stand side by side, each carrying the seller in full ink and the
+  posted date, which are the only fields that differ.
+
+## Do's and Don'ts
+
+**Do** put a new state on a shape, a rule or a mark before reaching for
+colour, and confirm it still reads in greyscale.
+
+**Do** read geometry from `:root` and let `app.js` measure it. Hard-coding a
+pitch anywhere else desynchronises the virtualised placement and overlaps
+rows.
+
+**Do** hold any figure that changes during a load at its maximum width.
+
+**Don't** add a radius, a shadow on the leaf, a gradient, or a third colour.
+
+**Don't** paint anything new over a cover without removing something else.
+
+**Don't** use a glyph, an emoji or an icon font where a mark belongs. Add a
+`<symbol>` to the sheet in `index.html` and stroke it from CSS.
+
+**Don't** add per-card borders, per-card transitions or per-card entrance
+animation. The lattice is one paint and the grid holds forty thousand items.
