@@ -13,7 +13,6 @@ import requests
 
 USER_AGENT = "DiogenesLamp/0.1 (+https://github.com/ryanduguid/DiogenesLamp)"
 _RETRIES = 3
-_BACKOFF = [1.0, 2.0, 4.0]
 _TIMEOUT = 30
 
 
@@ -86,23 +85,23 @@ class Client:
         headers = dict(self._headers)
         if referer:
             headers["Referer"] = referer
-        host = urlparse(url).netloc
+        rate_key = parsed.netloc
         last_error: Exception | None = None
         for attempt in range(_RETRIES):
-            self._limiter.wait(host)
+            self._limiter.wait(rate_key)
             try:
                 response = self._session.get(url, headers=headers, timeout=_TIMEOUT)
             except requests.RequestException as exc:
                 last_error = exc
                 if attempt + 1 < _RETRIES:
-                    self._sleep(_BACKOFF[attempt])
+                    self._sleep(2.0 ** attempt)
                 continue
             if response.status_code in (429, 403):
                 raise BlockedError(response.status_code)
             if 500 <= response.status_code < 600:
                 last_error = FetchError(f"HTTP {response.status_code} for {url}")
                 if attempt + 1 < _RETRIES:
-                    self._sleep(_BACKOFF[attempt])
+                    self._sleep(2.0 ** attempt)
                 continue
             if response.status_code != 200:
                 raise FetchError(f"HTTP {response.status_code} for {url}")
@@ -136,7 +135,7 @@ class Client:
                 # A partial temp file must never be renamed over a good one.
                 tmp.unlink(missing_ok=True)
                 if attempt + 1 < _RETRIES:
-                    self._sleep(_BACKOFF[attempt])
+                    self._sleep(2.0 ** attempt)
                     continue
                 return False
             os.replace(tmp, dest)

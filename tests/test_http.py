@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from lamp.http import _BACKOFF, _RETRIES, BlockedError, Client, FetchError, RateLimiter
+from lamp.http import _RETRIES, BlockedError, Client, FetchError, RateLimiter
 
 
 class FakeClock:
@@ -211,4 +211,4 @@ def test_get_does_not_sleep_before_giving_up():
                     session=session, sleep_fn=clock.sleep)
     with pytest.raises(FetchError):
         client.get("https://x.example/")
-    assert clock.sleeps == _BACKOFF[:-1]  # no sleep after the final attempt
+    assert clock.sleeps == [1.0, 2.0]  # doubling, and no sleep after the final attempt
