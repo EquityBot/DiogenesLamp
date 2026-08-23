@@ -1,79 +1,82 @@
-/* Card geometry is the contract with app.js, which reads these values back
+/* The Stock Book. Two inks on a ruled leaf: the lattice is printed once as a
+   background on the spacer, the windows are cut into it, and the only colour
+   on the page comes from the covers themselves.
+
+   Card geometry is the contract with app.js, which reads these values back
    out of the computed style rather than duplicating the numbers. Anything
    that changes them (including the media queries at the end of this file)
    must leave them readable from :root, and app.js re-reads them on resize. */
 :root {
   color-scheme: light dark;
   --card-w: 220px;
-  --card-h: 300px;
-  --cover-h: 200px;
-  --gap: 12px;
-  --radius: 10px;
+  --card-h: 288px;
+  --cover-h: 214px;
+  --gap: 10px;
 
-  --bg: #121316;
-  --panel: #1b1d21;
-  --raised: #24272d;
-  --text: #edeef1;
-  --muted: #a2a9b6;
-  --border: #32363e;
-  --accent: #e8b13a;
-  --accent-ink: #1a1200;
-  --accent-text: #f0c563;
-  --focus: #7fb6ff;
-  --danger: #ff9a8a;
-  --cover-s: 38%;
-  --cover-l: 24%;
-  --cover-ink: #f2eee7;
-  --shadow: 0 1px 2px rgb(0 0 0 / 0.4), 0 4px 12px rgb(0 0 0 / 0.3);
-  /* Fixed in both themes: these sit on a dark scrim painted over the
-     cover photo, not on a themed surface. */
-  --scrim-accent: #f0c04f;
+  /* Three steps and no more. There is no display voice on a leaf of
+     specimens, so the ramp runs from the printed mark to the note. */
+  --t-mark: 11px;
+  --t-body: 14px;
+  --t-note: 22px;
+
+  /* Dark is the default because of the scene, not the category: this is read
+     at a desk at night with the room lights down and the covers the only lit
+     thing on the screen. */
+  --leaf: #0e1013;
+  --leaf-2: #14171b;
+  --rule: #262c33;
+  --rule-strong: #3a434d;
+  --ink: #e9ebee;
+  --ink-2: #9aa3ad;
+  --ink-red: #ff6a4d;
+  /* What is printed on top of the second ink. The red is light on the dark
+     leaf and dark on the light one, so the ink over it has to flip too. */
+  --on-red: #0e1013;
+  /* The panel is the one thing that physically sits above the leaf, so it is
+     the one place a shadow is honest. */
+  --lift: 0 2px 4px rgb(0 0 0 / 0.45), 0 12px 28px rgb(0 0 0 / 0.38);
 }
 
-/* Light theme: same tokens, different values, so nothing below this block
-   needs to know which theme is active. The media query covers the system
-   setting; the attribute wins over it, which is what makes the toggle able
-   to force light while the OS says dark. */
+/* Light leaf: the same two inks printed on a cool stock rather than a warm
+   one. The media query covers the system setting; the attribute wins over
+   it, which is what makes the toggle able to force light while the OS says
+   dark. */
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
     color-scheme: light;
-    --bg: #f4f5f7;
-    --panel: #ffffff;
-    --raised: #eef0f4;
-    --text: #16181d;
-    --muted: #5b6270;
-    --border: #d3d7de;
-    --accent: #8a5a00;
-    --accent-ink: #ffffff;
-    --accent-text: #7a4f00;
-    --focus: #0b5bd3;
-    --danger: #a3231a;
-    --cover-s: 42%;
-    --cover-l: 72%;
-    --cover-ink: #241d10;
-    --shadow: 0 1px 2px rgb(16 20 30 / 0.08), 0 4px 12px rgb(16 20 30 / 0.08);
+    --leaf: #e7e9ec;
+    --leaf-2: #f3f5f7;
+    --rule: #c8ced5;
+    --rule-strong: #9aa4ae;
+    --ink: #14171b;
+    --ink-2: #545c66;
+    --ink-red: #b8301a;
+    --on-red: #ffffff;
+    --lift: 0 2px 4px rgb(16 20 30 / 0.10), 0 12px 28px rgb(16 20 30 / 0.12);
   }
 }
 :root[data-theme="light"] {
   color-scheme: light;
-  --bg: #f4f5f7;
-  --panel: #ffffff;
-  --raised: #eef0f4;
-  --text: #16181d;
-  --muted: #5b6270;
-  --border: #d3d7de;
-  --accent: #8a5a00;
-  --accent-ink: #ffffff;
-  --accent-text: #7a4f00;
-  --focus: #0b5bd3;
-  --danger: #a3231a;
-  --cover-s: 42%;
-  --cover-l: 72%;
-  --cover-ink: #241d10;
-  --shadow: 0 1px 2px rgb(16 20 30 / 0.08), 0 4px 12px rgb(16 20 30 / 0.08);
+  --leaf: #e7e9ec;
+  --leaf-2: #f3f5f7;
+  --rule: #c8ced5;
+  --rule-strong: #9aa4ae;
+  --ink: #14171b;
+  --ink-2: #545c66;
+  --ink-red: #b8301a;
+  --on-red: #ffffff;
+  --lift: 0 2px 4px rgb(16 20 30 / 0.10), 0 12px 28px rgb(16 20 30 / 0.12);
 }
 
 :root[data-theme="dark"] { color-scheme: dark; }
+
+:root {
+  /* The parts nobody draws still carry the design. */
+  scrollbar-color: var(--rule-strong) var(--leaf);
+  scrollbar-width: thin;
+  caret-color: var(--ink-red);
+}
+::selection { background: var(--ink-red); color: var(--on-red); }
 
 * { box-sizing: border-box; }
 
@@ -84,9 +87,26 @@
 
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--text);
-  font: 14px/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+  background: var(--leaf);
+  color: var(--ink);
+  font: var(--t-body)/1.45 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/* Catalogue figures: ids, counts, dates and marks. Tabular so a number that
+   changes while the catalogue streams in cannot reflow what sits beside it. */
+.fig {
+  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
+/* The mark set. Symbols carry geometry only; the stroke and fill come from
+   here, which is the one way a property reaches inside a <use> shadow tree. */
+#marks { position: absolute; width: 0; height: 0; overflow: hidden; }
+.mark {
+  width: 1em; height: 1em; flex: none;
+  fill: none; stroke: currentColor; stroke-width: 1.8;
+  vertical-align: -0.14em;
 }
 
 /* Visible only to assistive technology. Used for the control labels, which
@@ -98,226 +118,394 @@ body {
 }
 
 .skip-link {
-  position: absolute; left: 8px; top: -60px; z-index: 30;
-  background: var(--accent); color: var(--accent-ink);
-  padding: 8px 14px; border-radius: 0 0 var(--radius) var(--radius);
-  font-weight: 600; text-decoration: none;
+  position: absolute; left: 0; top: -60px; z-index: 30;
+  background: var(--ink-red); color: var(--on-red);
+  padding: 8px 14px; font-weight: 600; text-decoration: none;
   transition: top 120ms ease;
 }
 .skip-link:focus { top: 0; }
 
-/* One visible focus treatment for everything. The default outline is nearly
-   invisible against a dark panel, and keyboard users need to see where they
-   are. :focus-visible rather than :focus so a mouse click does not ring. */
+/* One visible focus treatment for everything, ringed in paper so it stays
+   legible where it lands on a cover photo rather than on the leaf. */
 :focus-visible {
-  outline: 2px solid var(--focus);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
+  box-shadow: 0 0 0 4px var(--leaf);
 }
+
+/* ---- head band ---------------------------------------------------------- */
 
 #topbar {
   position: sticky; top: 0; z-index: 10;
-  background: var(--panel);
-  border-bottom: 1px solid var(--border);
+  background: var(--leaf-2);
+  border-bottom: 1px solid var(--rule-strong);
 }
-.topbar-row {
+.band, .rules {
   display: flex; gap: 10px; align-items: center; flex-wrap: wrap;
-  padding: 8px 14px;
+  padding: 7px 14px;
 }
-.topbar-row + .topbar-row { padding-top: 0; }
-#brand { font-weight: 700; color: var(--accent-text); white-space: nowrap; }
-.field { display: flex; }
-.field-grow { flex: 1 1 240px; min-width: 160px; }
+.band { border-bottom: 1px solid var(--rule); }
+#brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  white-space: nowrap; color: var(--ink);
+}
+.mark-brand { width: 19px; height: 19px; color: var(--ink-red); }
+.brand-name {
+  font-size: var(--t-mark); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.14em;
+}
 
-input[type="search"], select {
-  background: var(--bg); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 7px 10px; font: inherit; width: 100%;
+/* The tally holds fixed digit positions, so counts climbing through a load
+   never shift the controls beside them. */
+#status {
+  margin: 0 0 0 auto; color: var(--ink-2); text-align: right;
+  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, monospace;
+  font-variant-numeric: tabular-nums;
+  font-size: var(--t-mark); letter-spacing: 0.01em;
 }
-select { min-width: 8rem; }
-input[type="search"]::placeholder { color: var(--muted); }
+#status .fig-n { display: inline-block; text-align: right; }
+#status .sep { color: var(--rule-strong); margin: 0 6px; }
+
+.field { display: flex; }
+.field-grow { flex: 1 1 220px; min-width: 150px; }
+
+/* Printed form fields: a baseline rule rather than a box, which is what a
+   ruled leaf does with a blank anyone is expected to fill in. */
+input[type="search"], select {
+  background: transparent; color: var(--ink);
+  border: 0; border-bottom: 1px solid var(--rule-strong);
+  border-radius: 0; padding: 6px 2px; font: inherit; width: 100%;
+}
+select {
+  min-width: 9rem; appearance: none; padding-right: 18px;
+  background-repeat: no-repeat; background-position: right 2px center;
+  background-size: 9px 6px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 6'%3E%3Cpath d='M0.5 0.5L4.5 5 8.5 0.5' fill='none' stroke='%239aa3ad' stroke-width='1.2'/%3E%3C/svg%3E");
+}
+:root[data-theme="light"] select,
+:root:not([data-theme="dark"]) select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 9 6'%3E%3Cpath d='M0.5 0.5L4.5 5 8.5 0.5' fill='none' stroke='%23545c66' stroke-width='1.2'/%3E%3C/svg%3E");
+}
+input[type="search"]:hover, select:hover { border-bottom-color: var(--ink-2); }
+input[type="search"]:focus, select:focus {
+  outline: none; border-bottom-color: var(--ink-red); border-bottom-width: 2px;
+  padding-bottom: 5px;
+}
+input[type="search"]::placeholder { color: var(--ink-2); opacity: 1; }
+/* The user agent's clear button is a blue circle nothing here asked for. */
+input[type="search"]::-webkit-search-cancel-button { filter: grayscale(1) opacity(0.7); }
 
 button {
-  font: inherit; cursor: pointer; border-radius: var(--radius);
-  border: 1px solid var(--border); background: var(--raised); color: var(--text);
-  padding: 7px 12px;
+  font: inherit; cursor: pointer; border-radius: 0;
+  border: 1px solid var(--rule-strong); background: transparent; color: var(--ink);
+  padding: 6px 11px;
 }
-button:hover { border-color: var(--accent); color: var(--accent-text); }
-
-#theme-toggle { padding: 7px 10px; line-height: 1; }
+button:hover { border-color: var(--ink); }
+#theme-toggle { padding: 6px 8px; line-height: 0; }
+#export-favs { display: inline-flex; align-items: center; gap: 6px; }
+#theme-toggle .mark { width: 17px; height: 17px; }
 #shops-toggle[aria-expanded="true"] {
-  background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+  background: var(--ink-red); border-color: var(--ink-red); color: var(--on-red);
 }
 
-/* Checkbox and its text are one target, so the label is clickable and the
-   hit area clears the 24px minimum rather than being a 13px box. */
+/* A printed check: the box is ruled, the tick is drawn, and the state reads
+   with the colour taken away. The native input stays in the accessibility
+   tree and keeps the keyboard, it is only the paint that is ours. */
 .toggle {
-  display: inline-flex; align-items: center; gap: 6px;
-  padding: 6px 10px; border: 1px solid var(--border);
-  border-radius: var(--radius); background: var(--raised);
+  position: relative;
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 6px 10px 6px 8px; border: 1px solid transparent;
   cursor: pointer; user-select: none; white-space: nowrap;
+  color: var(--ink-2);
 }
-.toggle:hover { border-color: var(--accent); }
-.toggle:has(input:checked) {
-  background: var(--accent); color: var(--accent-ink); border-color: var(--accent);
+.toggle:hover { color: var(--ink); }
+.toggle input {
+  position: absolute; opacity: 0; margin: 0;
+  width: 16px; height: 16px; left: 8px;
 }
-.toggle input { accent-color: var(--accent); margin: 0; width: 15px; height: 15px; }
-/* :has is recent enough to be worth a fallback: without it the checked state
-   still reads correctly from the checkbox itself. */
-.toggle:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
+/* The tick is hidden by giving up its ink, not its opacity: opacity would
+   take the ruled box with it and leave nothing to tick. */
+.mark-check {
+  width: 15px; height: 15px; stroke-width: 3; stroke: transparent;
+  border: 1px solid var(--rule-strong); padding: 1px;
+}
+.toggle input:checked ~ .mark-check {
+  stroke: var(--ink-red); border-color: var(--ink-red);
+}
+.toggle input:checked ~ span { color: var(--ink); font-weight: 600; }
+.toggle:hover .mark-check { border-color: var(--ink-2); }
+.toggle:focus-within {
+  outline: 2px solid var(--ink); outline-offset: 1px;
+  box-shadow: 0 0 0 4px var(--leaf);
+}
 
 #filters-clear, #group-clear {
-  background: var(--accent); color: var(--accent-ink);
-  border-color: var(--accent); font-weight: 600;
+  border-color: var(--ink-red); color: var(--ink-red);
+  font-weight: 600;
 }
 #filters-clear:hover, #group-clear:hover {
-  filter: brightness(1.08); color: var(--accent-ink);
+  background: var(--ink-red); color: var(--on-red);
 }
 
-#status { margin: 0 0 0 auto; color: var(--muted); text-align: right; }
-
-/* Load progress. A bar rather than <progress> because it spans the header's
-   full width as a hairline, and it is hidden from assistive tech: the status
-   line already announces loaded-seller counts through its live region. */
-#load-progress { height: 2px; background: transparent; }
+/* The load rule fills left to right. Transformed rather than resized: a width
+   transition relayouts the header on every shard that lands. */
+#load-progress { height: 2px; background: var(--rule); }
 #load-progress-bar {
-  height: 100%; width: 0; background: var(--accent);
-  transition: width 200ms ease;
+  height: 100%; width: 100%; background: var(--ink-red);
+  transform: scaleX(0); transform-origin: left center;
+  transition: transform 200ms ease;
 }
+
+/* ---- shops panel -------------------------------------------------------- */
 
 #shops-panel {
   position: fixed; right: 0; top: 0; bottom: 0; width: min(320px, 85vw);
-  overflow-y: auto; background: var(--panel);
-  border-left: 1px solid var(--border); padding: 16px; z-index: 20;
-  box-shadow: var(--shadow);
+  overflow-y: auto; background: var(--leaf-2);
+  border-left: 1px solid var(--rule-strong); padding: 16px; z-index: 20;
+  box-shadow: var(--lift);
 }
 #shops-panel h3 {
-  margin: 14px 0 4px; color: var(--accent-text); font-size: 12px;
-  text-transform: uppercase; letter-spacing: 0.06em;
+  margin: 20px 0 6px; color: var(--ink-2); font-size: var(--t-mark);
+  text-transform: uppercase; letter-spacing: 0.12em;
+  border-bottom: 1px solid var(--rule); padding-bottom: 4px;
 }
 #shops-panel h3:first-child { margin-top: 0; }
 #shops-panel a {
-  display: block; color: var(--text); padding: 6px 8px; border-radius: 6px;
+  display: block; color: var(--ink); padding: 5px 0;
   text-decoration: none; overflow: hidden; text-overflow: ellipsis;
-  white-space: nowrap;
+  white-space: nowrap; border-bottom: 1px solid var(--rule);
 }
-#shops-panel a:hover { background: var(--raised); color: var(--accent-text); }
-#shops-close { margin-bottom: 12px; width: 100%; }
+#shops-panel a:hover { color: var(--ink-red); }
+#shops-close { margin-bottom: 14px; width: 100%; }
+
+/* ---- the leaf ----------------------------------------------------------- */
 
 #grid-container { padding: var(--gap); }
-#grid-spacer { position: relative; }
+
+/* The lattice is printed once, as a background on the spacer, at the pitch
+   app.js places cards on. Ruling every card individually would put a border
+   on each of the hundred-odd nodes in the window instead of on one. */
+#grid-spacer {
+  position: relative; margin-inline: auto;
+  background-image:
+    repeating-linear-gradient(to right,
+      transparent 0,
+      transparent calc(var(--card-w) + var(--gap) / 2 - 1px),
+      var(--rule) calc(var(--card-w) + var(--gap) / 2 - 1px),
+      var(--rule) calc(var(--card-w) + var(--gap) / 2),
+      transparent calc(var(--card-w) + var(--gap) / 2),
+      transparent calc(var(--card-w) + var(--gap))),
+    repeating-linear-gradient(to bottom,
+      transparent 0,
+      transparent calc(var(--card-h) + var(--gap) / 2 - 1px),
+      var(--rule) calc(var(--card-h) + var(--gap) / 2 - 1px),
+      var(--rule) calc(var(--card-h) + var(--gap) / 2),
+      transparent calc(var(--card-h) + var(--gap) / 2),
+      transparent calc(var(--card-h) + var(--gap)));
+}
 #grid {
   position: absolute; inset: 0 auto auto 0; width: 100%;
   scroll-margin-top: calc(var(--topbar-h, 96px) + var(--gap));
 }
 #grid:focus { outline: none; }
-#grid:focus-visible { outline: 2px solid var(--focus); outline-offset: 4px; }
+#grid:focus-visible { outline: 2px solid var(--ink); outline-offset: 4px; }
 
 #grid-message {
-  margin: 40px auto; max-width: 40rem; text-align: center; color: var(--muted);
+  margin: 56px auto; max-width: 34rem; text-align: center; color: var(--ink-2);
+  font-size: var(--t-note); line-height: 1.5;
+  padding: 18px 0; border-top: 1px solid var(--rule);
+  border-bottom: 1px solid var(--rule);
 }
 
+/* A correction slip: what the scrape could not put on the leaf, named. */
 #load-note {
-  display: flex; gap: 12px; align-items: center; flex-wrap: wrap;
-  margin: 0 0 var(--gap); padding: 10px 14px;
-  border: 1px solid var(--border); border-left: 3px solid var(--danger);
-  border-radius: var(--radius); background: var(--panel);
+  display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap;
+  margin: 0 0 var(--gap); padding: 10px 12px;
+  border: 1px solid var(--rule-strong); border-top: 2px solid var(--ink-red);
+  background: var(--leaf-2);
 }
 #load-note p { margin: 0; flex: 1 1 20rem; }
 #load-note-dismiss { margin-left: auto; }
 
+/* ---- windows ------------------------------------------------------------ */
+
 .card {
   position: absolute; width: var(--card-w); height: var(--card-h);
-  background: var(--panel); border: 1px solid var(--border);
-  border-radius: var(--radius); overflow: hidden;
+  background: var(--leaf);
   display: flex; flex-direction: column;
 }
-.card:hover { border-color: var(--accent); box-shadow: var(--shadow); }
-/* The card is a positioned element in a virtualized grid, so it must not
+/* The card is a positioned element in a virtualised grid, so it must not
    grow or move on hover: a transform here would fight the transform that
-   places it. */
-.card:focus-within { border-color: var(--focus); }
+   places it, and an added border would move its own contents. */
+.card:hover { outline: 1px solid var(--ink-2); }
+.card:focus-within { outline: 1px solid var(--ink); }
+.card:focus {
+  outline: 2px solid var(--ink); outline-offset: 1px; box-shadow: none;
+}
 
 .card-cover {
   position: relative; height: var(--cover-h); overflow: hidden; flex: none;
-  background: hsl(var(--cover-hue, 40) var(--cover-s) var(--cover-l));
+  border-bottom: 1px solid var(--rule);
+  background: hsl(var(--cover-hue, 40) 24% 22%);
 }
+:root[data-theme="light"] .card-cover,
+:root:not([data-theme="dark"]) .card-cover {
+  background: hsl(var(--cover-hue, 40) 26% 74%);
+}
+/* Shown through the window when the album has no cover on Yupoo at all, and
+   painted over by any cover that does load. */
 .card-cover-title {
   position: absolute; inset: 0; display: flex; align-items: center;
   justify-content: center; padding: 10px; text-align: center;
-  font-size: 12px; line-height: 1.35; color: var(--cover-ink); overflow: hidden;
+  font-size: var(--t-body); line-height: 1.35; overflow: hidden;
+  /* The block's lightness flips with the theme and so does the ink, so one
+     declaration reads on both. */
+  color: var(--ink); opacity: 0.85;
 }
 .card-thumb {
   position: absolute; inset: 0; width: 100%; height: 100%;
   object-fit: cover; display: block;
 }
+/* An arrival marks itself and holds the mark: a shard landing must never make
+   a window quietly appear among ones already read. The rule carries it at a
+   sweep and the tag carries it with the colour taken away. */
+.card.is-new .card-cover { box-shadow: inset 0 2px 0 var(--ink-red); }
+.tag-new {
+  position: absolute; top: 3px; left: 0; z-index: 2;
+  background: var(--ink-red); color: var(--on-red);
+  font-size: var(--t-mark); font-weight: 700; line-height: 1.5;
+  letter-spacing: 0.08em; padding: 0 6px;
+  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, monospace;
+}
+
+/* The corner mount. Paper folded over the specimen's corner when it is not
+   kept, the second ink when it is, so the state survives the colour being
+   taken away. */
+.fav-btn {
+  position: absolute; top: 0; right: 0; width: 30px; height: 30px;
+  padding: 0; border: 0; background: transparent; line-height: 0; z-index: 2;
+}
+.fav-btn .mark {
+  width: 30px; height: 30px; stroke-width: 1.6;
+  fill: var(--leaf); stroke: var(--ink-2);
+  transform-origin: 100% 0;
+  transition: transform 140ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.fav-btn:hover .mark { stroke: var(--ink); }
+.fav-btn[aria-pressed="true"] .mark {
+  fill: var(--ink-red); stroke: var(--ink-red);
+  transform: scale(1.16);
+}
+
+/* A catalogue figure, at the foot of the window opposite the copy count.
+   Upstream added it as a gold pill floating on the cover; here it is printed
+   on the leaf like every other figure. */
+.badge-price {
+  position: absolute; bottom: 0; right: 0; z-index: 2;
+  background: var(--leaf); color: var(--ink);
+  border-top: 1px solid var(--rule-strong);
+  border-left: 1px solid var(--rule-strong);
+  font-size: var(--t-mark); padding: 1px 8px; font-weight: 600;
+  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, monospace;
+}
+
+.badge-dup {
+  position: absolute; bottom: 0; left: 0;
+  background: var(--leaf); color: var(--ink);
+  border: 0; border-top: 1px solid var(--rule-strong);
+  border-right: 1px solid var(--rule-strong);
+  font-size: var(--t-mark); padding: 1px 8px; z-index: 2;
+  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, monospace;
+}
+.badge-dup:hover { color: var(--ink-red); border-color: var(--ink-red); }
+
+/* ---- caption ------------------------------------------------------------ */
 
 .card-title {
-  padding: 8px 10px 0; font-size: 12px; line-height: 1.35;
+  padding: 6px 8px 0; font-size: var(--t-body); line-height: 1.32;
   flex: 1 1 auto; overflow: hidden;
 }
+.card-title span {
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+/* A typed query has visible consequence: the span it hit is struck in the
+   second ink inside every caption that carries it. */
+.card-title mark {
+  background: transparent; color: var(--ink-red);
+  text-decoration: underline; text-underline-offset: 2px;
+}
+
 .card-meta {
-  display: flex; gap: 6px; align-items: center; padding: 6px 10px 10px;
+  display: flex; gap: 6px; align-items: center; padding: 4px 8px 6px;
   margin-top: auto; flex: none; overflow: hidden;
+  font-size: var(--t-mark);
 }
-/* The purchase chips take their natural width and the seller name gives way,
-   because a truncated seller name is readable while a chip clipped mid-word
-   is not - and with two chips the row used to overrun the Album button
-   rather than shrink. */
-.card-links { display: flex; gap: 6px; flex: 0 0 auto; }
-.card-links a, .card-meta .album-link {
-  font-size: 11px; padding: 3px 8px; border-radius: 6px; text-decoration: none;
-  background: var(--raised); color: var(--text); border: 1px solid var(--border);
-  white-space: nowrap;
+/* The purchase marks take their natural width and the seller name gives way,
+   because a truncated seller name is readable while a mark clipped mid-word
+   is not. Both can shrink in the end: three marks and a long seller name on a
+   narrow window have to clip somewhere rather than run off the caption. */
+.card-links {
+  display: flex; gap: 5px; flex: 0 1 auto; min-width: 0; overflow: hidden;
 }
-.card-links a:hover, .card-meta .album-link:hover { border-color: var(--accent); }
-.card-links a.taobao { border-color: #b35a00; }
-.card-links a.tmall { border-color: #c02626; }
-.card-links a.weidian { border-color: #00916f; }
+.card-links a {
+  font-size: var(--t-mark); padding: 0 5px; text-decoration: none;
+  color: var(--ink-2); border: 1px solid var(--rule);
+  white-space: nowrap; text-transform: uppercase; letter-spacing: 0.04em;
+  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, monospace;
+}
+.card-links a:hover { color: var(--ink-red); border-color: var(--ink-red); }
+
+/* The cover opens the album. A separate link saying so was one more thing in
+   a caption that had no room for it, and a picture in a catalogue is the
+   thing you expect to be able to open. */
+.cover-link { position: absolute; inset: 0; z-index: 1; }
 .seller-tag {
-  font-size: 11px; color: var(--muted); overflow: hidden;
+  color: var(--ink-2); overflow: hidden;
   text-overflow: ellipsis; white-space: nowrap;
   flex: 0 1 auto; min-width: 0; margin-right: auto;
+  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, monospace;
 }
+/* The stock book's strip page: the leaf a collection keeps for its surplus,
+   where copies of one posting stand side by side at a size that lets them be
+   told apart. Only the geometry changes; app.js re-reads it and places the
+   same windows on the wider pitch. */
+:root.group-view {
+  --card-w: 300px;
+  --card-h: 384px;
+  --cover-h: 300px;
+  --gap: 14px;
+}
+.posted {
+  color: var(--ink-2); flex: none; margin-left: auto;
+  font-family: ui-monospace, "Cascadia Mono", "Segoe UI Mono", Menlo, monospace;
+}
+:root.group-view .seller-tag { color: var(--ink); font-weight: 600; }
 
-.badge-new {
-  position: absolute; top: 8px; left: 8px; background: var(--accent);
-  color: var(--accent-ink); font-size: 10px; font-weight: 700;
-  padding: 2px 7px; border-radius: 6px; letter-spacing: 0.04em;
-}
-.badge-price {
-  position: absolute; top: 8px; left: 56px; background: rgb(0 0 0 / 0.72);
-  color: var(--scrim-accent); font-size: 11px; font-weight: 700;
-  padding: 2px 6px; border-radius: 6px; border: 1px solid rgb(232 177 58 / 0.4);
-  letter-spacing: 0.02em;
-}
-/* Anchored to the bottom of the cover it sits in, not to a pixel offset that
-   has to be recalculated whenever the cover height changes. */
-.badge-dup {
-  position: absolute; bottom: 8px; left: 8px; background: rgb(0 0 0 / 0.66);
-  color: #fff; font-size: 11px; font-weight: 700; padding: 3px 8px;
-  border-radius: 6px; border: 1px solid rgb(255 255 255 / 0.35);
-}
-.badge-dup:hover { border-color: var(--scrim-accent); color: var(--scrim-accent); }
+/* ---- narrow ------------------------------------------------------------- */
 
-.fav-btn {
-  position: absolute; top: 4px; right: 4px; background: rgb(0 0 0 / 0.45);
-  border: 1px solid transparent; color: #d8d8d8; font-size: 17px;
-  line-height: 1; padding: 5px 7px; border-radius: 8px;
-}
-.fav-btn:hover { color: var(--scrim-accent); border-color: var(--scrim-accent); }
-.fav-btn[aria-pressed="true"] { color: var(--scrim-accent); }
-
-/* Narrow screens: smaller cards fit more than one column on a phone, and the
-   filter row becomes a horizontal strip rather than five stacked rows. */
+/* Smaller windows fit more than one column on a phone, and the leaf drops the
+   caption's second line before it ever shrinks a window. */
 @media (max-width: 720px) {
-  :root { --card-w: 158px; --card-h: 232px; --cover-h: 148px; --gap: 8px; }
-  .topbar-row { padding: 8px 10px; }
-  #status { margin-left: 0; width: 100%; text-align: left; }
+  :root { --card-w: 158px; --card-h: 202px; --cover-h: 152px; --gap: 8px; }
+  :root.group-view { --card-w: 320px; --card-h: 300px; --cover-h: 220px; }
+  .band, .rules { padding: 7px 10px; }
+  #status { order: 3; margin-left: 0; width: 100%; text-align: left; }
+  /* The mark carries the button on a phone; the name stays on the element,
+     so nothing that reads the page loses it. */
+  #export-favs .btn-label { display: none; }
+  #export-favs { padding: 6px 8px; }
+  .seller-tag { display: none; }
+  .card-links { margin-left: 0; }
+  /* The strip page has the width for it, and the seller is the whole point
+     of standing the copies beside each other. */
+  :root.group-view .seller-tag { display: inline; }
+  :root.group-view .card-links { margin-left: 8px; }
   select { min-width: 0; }
-  .card-title { font-size: 11px; }
-  /* The filter controls wrap to three rows on a phone, where a sticky
-     toolbar would hold 40% of the viewport permanently. It scrolls away
-     instead, which also makes the grid's scroll-margin unnecessary. */
+  .card-title span { -webkit-line-clamp: 1; }
+  /* The controls wrap to three rows on a phone, where a sticky header would
+     hold 40% of the viewport permanently. It scrolls away instead, which also
+     makes the grid's scroll-margin unnecessary. */
   #topbar { position: static; }
   #grid { scroll-margin-top: var(--gap); }
 }
