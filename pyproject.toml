@@ -12,7 +12,6 @@ requires-python = ">=3.11"
 dependencies = [
     "requests==2.34.2",
     "beautifulsoup4==4.15.0",
-    "lxml==6.1.2",
 ]
 
 [project.optional-dependencies]
