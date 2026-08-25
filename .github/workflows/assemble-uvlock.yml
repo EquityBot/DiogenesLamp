@@ -1,0 +1,46 @@
+name: assemble-uvlock
+on:
+  push:
+    branches: [cursor/ponytail-audit-cuts-d043]
+    paths:
+      - ".uvlock-parts/**"
+      - ".github/workflows/assemble-uvlock.yml"
+permissions:
+  contents: write
+jobs:
+  assemble:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Concatenate lockfile parts and commit
+        run: |
+          set -euo pipefail
+          test -d .uvlock-parts
+          missing=0
+          for f in c00 c01 c02 c03 c04 c05 c06 c07; do
+            if [ ! -f ".uvlock-parts/${f}.txt" ]; then
+              echo "missing ${f}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -eq 1 ]; then
+            echo "Not all parts present yet; skip assemble."
+            exit 0
+          fi
+          cat .uvlock-parts/c00.txt .uvlock-parts/c01.txt .uvlock-parts/c02.txt .uvlock-parts/c03.txt \
+              .uvlock-parts/c04.txt .uvlock-parts/c05.txt .uvlock-parts/c06.txt .uvlock-parts/c07.txt > uv.lock
+          size=$(wc -c < uv.lock)
+          echo "assembled size=${size}"
+          test "$size" -eq 133946
+          if grep -q 'name = "lxml"' uv.lock; then
+            echo "lxml still present" >&2
+            exit 1
+          fi
+          test "$(git hash-object uv.lock)" = "58b264456e357e7efbfc167223853421917e04fd"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock
+          git rm -r .uvlock-parts
+          git rm -f .github/workflows/assemble-uvlock.yml
+          git commit -m "Regenerate uv.lock without lxml."
+          git push
