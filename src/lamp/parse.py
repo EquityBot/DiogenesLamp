@@ -71,7 +71,7 @@ class AlbumDetail:
 
 
 def _soup(html: str) -> BeautifulSoup:
-    return BeautifulSoup(html, "lxml")
+    return BeautifulSoup(html, "html.parser")
 
 
 def _absolute(url: str) -> str:
