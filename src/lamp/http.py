@@ -1,19 +1,37 @@
-"""Polite HTTP client: global + per-host rate limits, retries, atomic downloads."""
+"""Polite, rebinding-safe HTTP client with bounded atomic image downloads."""
 
 from __future__ import annotations
 
+import ipaddress
 import os
+import socket
 import threading
 import time
+import warnings
+from collections.abc import Callable, Iterable, Mapping
+from dataclasses import dataclass
 from pathlib import Path
-from urllib.parse import urlparse
-import ipaddress
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import requests
+from PIL import Image, UnidentifiedImageError
+from requests.adapters import HTTPAdapter
 
 USER_AGENT = "DiogenesLamp/0.1 (+https://github.com/ryanduguid/DiogenesLamp)"
 _RETRIES = 3
 _TIMEOUT = 30
+_MAX_REDIRECTS = 5
+_MAX_IMAGE_BYTES = 8 * 1024 * 1024
+_MAX_IMAGE_DIMENSION = 8192
+_MAX_IMAGE_PIXELS = 20_000_000
+_REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
+_IMAGE_MIMES = {
+    "JPEG": frozenset({"image/jpeg", "image/jpg"}),
+    "PNG": frozenset({"image/png"}),
+    "WEBP": frozenset({"image/webp"}),
+}
+_NAT64_WELL_KNOWN = ipaddress.ip_network("64:ff9b::/96")
+_NAT64_LOCAL_USE = ipaddress.ip_network("64:ff9b:1::/48")
 
 
 class FetchError(Exception):
@@ -24,6 +42,14 @@ class BlockedError(FetchError):
     def __init__(self, status: int):
         super().__init__(f"blocked with HTTP {status}")
         self.status = status
+
+
+class _RetryableFetchError(FetchError):
+    pass
+
+
+class _InvalidImageError(FetchError):
+    pass
 
 
 class RateLimiter:
@@ -61,83 +87,370 @@ class RateLimiter:
             self._sleep(delay)
 
 
+@dataclass(frozen=True)
+class _Target:
+    url: str
+    hostname: str
+    connect_ip: str
+    port: int
+
+
+Resolver = Callable[[str, int], Iterable[str]]
+Transport = Callable[
+    [_Target, Mapping[str, str]],
+    tuple[requests.Response, Callable[[], None]],
+]
+
+
+def _host_header(hostname: str) -> str:
+    try:
+        address = ipaddress.ip_address(hostname)
+    except ValueError:
+        return hostname
+    return f"[{hostname}]" if address.version == 6 else hostname
+
+
+def _normalise_url(url: str) -> tuple[str, str, int]:
+    if not isinstance(url, str) or not url:
+        raise FetchError("refusing empty URL")
+    if "\\" in url or any(ord(char) < 32 or ord(char) == 127 for char in url):
+        raise FetchError(f"refusing malformed URL: {url}")
+
+    parts = urlsplit(url)
+    if parts.scheme.lower() != "https":
+        raise FetchError(f"refusing non-https URL: {url}")
+    if parts.username is not None or parts.password is not None:
+        raise FetchError(f"refusing URL with userinfo: {url}")
+    try:
+        port = parts.port or 443
+    except ValueError as exc:
+        raise FetchError(f"refusing invalid port in URL: {url}") from exc
+    if port != 443:
+        raise FetchError(f"refusing non-default HTTPS port: {url}")
+
+    raw_hostname = parts.hostname
+    if not raw_hostname or "%" in raw_hostname:
+        raise FetchError(f"refusing invalid host: {url}")
+    try:
+        literal = ipaddress.ip_address(raw_hostname)
+    except ValueError:
+        try:
+            hostname = raw_hostname.rstrip(".").encode("idna").decode("ascii").lower()
+        except UnicodeError as exc:
+            raise FetchError(f"refusing invalid host: {url}") from exc
+    else:
+        hostname = str(literal)
+    if not hostname or hostname == "localhost" or hostname.endswith(".local"):
+        raise FetchError(f"refusing local host: {url}")
+
+    normalised = urlunsplit(
+        ("https", _host_header(hostname), parts.path or "/", parts.query, "")
+    )
+    return normalised, hostname, port
+
+
+def _default_resolver(hostname: str, port: int) -> tuple[str, ...]:
+    records = socket.getaddrinfo(hostname, port, family=socket.AF_UNSPEC, type=socket.SOCK_STREAM)
+    return tuple(str(record[4][0]) for record in records)
+
+
+def _is_global_route(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if not address.is_global:
+        return False
+    if not isinstance(address, ipaddress.IPv6Address):
+        return True
+
+    # Transition formats can carry a second destination inside an otherwise
+    # global IPv6 address. Validate that embedded route as well. Teredo and the
+    # local-use NAT64 prefix introduce relay or operator-specific routing that
+    # cannot be pinned by this process, so safe fetch rejects them outright.
+    if address.ipv4_mapped is not None:
+        return address.ipv4_mapped.is_global
+    if address.sixtofour is not None:
+        return address.sixtofour.is_global
+    if address.teredo is not None or address in _NAT64_LOCAL_USE:
+        return False
+    if address in _NAT64_WELL_KNOWN:
+        return ipaddress.IPv4Address(int(address) & 0xFFFFFFFF).is_global
+    return True
+
+
+def _validated_target(url: str, resolver: Resolver) -> _Target:
+    normalised, hostname, port = _normalise_url(url)
+    try:
+        answers = tuple(resolver(hostname, port))
+    except (OSError, ValueError) as exc:
+        raise FetchError(f"DNS resolution failed for {hostname}: {exc}") from exc
+    if not answers:
+        raise FetchError(f"DNS returned no addresses for {hostname}")
+
+    validated: list[str] = []
+    for raw_address in answers:
+        address_text = str(raw_address)
+        if "%" in address_text:
+            raise FetchError(f"DNS returned scoped address for {hostname}: {address_text}")
+        try:
+            address = ipaddress.ip_address(address_text)
+        except ValueError as exc:
+            raise FetchError(f"DNS returned invalid address for {hostname}: {address_text}") from exc
+        if not _is_global_route(address):
+            raise FetchError(f"DNS returned non-global address for {hostname}: {address_text}")
+        canonical = str(address)
+        if canonical not in validated:
+            validated.append(canonical)
+
+    return _Target(normalised, hostname, validated[0], port)
+
+
+class _PinnedHTTPSAdapter(HTTPAdapter):
+    """Connect to one validated IP while retaining the URL host for TLS."""
+
+    def __init__(self, connect_ip: str, tls_hostname: str, port: int = 443):
+        self._connect_ip = connect_ip
+        self._tls_hostname = tls_hostname
+        self._port = port
+        super().__init__()
+
+    def get_connection_with_tls_context(self, request, verify, proxies=None, cert=None):
+        if proxies:
+            raise requests.exceptions.ProxyError("safe fetch does not permit proxy routing")
+        _host_params, pool_kwargs = self.build_connection_pool_key_attributes(
+            request,
+            verify,
+            cert,
+        )
+        pool_kwargs["server_hostname"] = self._tls_hostname
+        pool_kwargs["assert_hostname"] = self._tls_hostname
+        return self.poolmanager.connection_from_host(
+            scheme="https",
+            host=self._connect_ip,
+            port=self._port,
+            pool_kwargs=pool_kwargs,
+        )
+
+
+def _open_pinned(
+    target: _Target,
+    headers: Mapping[str, str],
+) -> tuple[requests.Response, Callable[[], None]]:
+    session = requests.Session()
+    # Environment proxy settings would create a second routing decision after
+    # validation, so this boundary always makes the validated direct connection.
+    session.trust_env = False
+    session.mount(
+        "https://",
+        _PinnedHTTPSAdapter(target.connect_ip, target.hostname, target.port),
+    )
+    try:
+        response = session.get(
+            target.url,
+            headers=dict(headers),
+            timeout=_TIMEOUT,
+            allow_redirects=False,
+            stream=True,
+            proxies={},
+        )
+    except Exception:
+        session.close()
+        raise
+
+    closed = False
+
+    def close() -> None:
+        nonlocal closed
+        if not closed:
+            closed = True
+            response.close()
+            session.close()
+
+    return response, close
+
+
+def _content_type(response: requests.Response) -> str:
+    return response.headers.get("Content-Type", "").split(";", 1)[0].strip().lower()
+
+
+def _verify_image(path: Path, mime: str) -> None:
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", Image.DecompressionBombWarning)
+            with Image.open(path) as image:
+                image_format = image.format or ""
+                width, height = image.size
+                if width <= 0 or height <= 0:
+                    raise _InvalidImageError("image has invalid dimensions")
+                if width > _MAX_IMAGE_DIMENSION or height > _MAX_IMAGE_DIMENSION:
+                    raise _InvalidImageError("image dimensions exceed limit")
+                if width * height > _MAX_IMAGE_PIXELS:
+                    raise _InvalidImageError("image pixel count exceeds limit")
+                if mime not in _IMAGE_MIMES.get(image_format, frozenset()):
+                    raise _InvalidImageError("image MIME does not match decoded format")
+                image.verify()
+            # verify() checks structure without decoding the pixels. Re-open and
+            # load within the already-checked pixel bound to reject truncated data.
+            with Image.open(path) as image:
+                image.load()
+    except _InvalidImageError:
+        raise
+    except (
+        Image.DecompressionBombError,
+        Image.DecompressionBombWarning,
+        UnidentifiedImageError,
+        OSError,
+        ValueError,
+    ) as exc:
+        raise _InvalidImageError(f"invalid image: {exc}") from exc
+
+
 class Client:
     def __init__(self, limiter: RateLimiter, user_agent: str = USER_AGENT,
-                 session: requests.Session | None = None, sleep_fn=time.sleep):
+                 resolver: Resolver | None = None, transport: Transport | None = None,
+                 sleep_fn=time.sleep):
         self._limiter = limiter
-        self._session = session or requests.Session()
+        self._resolver = resolver or _default_resolver
+        self._transport = transport or _open_pinned
         self._headers = {"User-Agent": user_agent}
         self._sleep = sleep_fn
 
-    def get(self, url: str, referer: str | None = None) -> requests.Response:
-        parsed = urlparse(url)
-        if parsed.scheme != "https":
-            raise FetchError(f"refusing non-https URL: {url}")
-        host = parsed.hostname or ""
-        try:
-            address = ipaddress.ip_address(host)
-        except ValueError:
-            if host in {"localhost"} or host.endswith(".local"):
-                raise FetchError(f"refusing local host: {url}")
-        else:
-            if not address.is_global:
-                raise FetchError(f"refusing non-global host: {url}")
-        headers = dict(self._headers)
-        if referer:
-            headers["Referer"] = referer
-        rate_key = parsed.netloc
+    def _follow_redirects(
+        self,
+        url: str,
+        referer: str | None,
+    ) -> tuple[requests.Response, Callable[[], None]]:
+        current_url = url
+        for hop in range(_MAX_REDIRECTS + 1):
+            target = _validated_target(current_url, self._resolver)
+            headers = dict(self._headers)
+            headers["Host"] = _host_header(target.hostname)
+            if referer:
+                headers["Referer"] = referer
+            self._limiter.wait(target.hostname)
+            try:
+                response, close = self._transport(target, headers)
+            except requests.RequestException as exc:
+                raise _RetryableFetchError(f"request failed for {target.url}: {exc}") from exc
+            except OSError as exc:
+                raise _RetryableFetchError(f"request failed for {target.url}: {exc}") from exc
+
+            status = response.status_code
+            if status in _REDIRECT_STATUSES:
+                location = response.headers.get("Location", "").strip()
+                close()
+                if not location:
+                    raise FetchError(f"redirect missing Location for {target.url}")
+                if hop >= _MAX_REDIRECTS:
+                    raise FetchError(f"too many redirects for {url}")
+                current_url = urljoin(target.url, location)
+                continue
+            if status in (429, 403):
+                close()
+                raise BlockedError(status)
+            if 500 <= status < 600:
+                close()
+                raise _RetryableFetchError(f"HTTP {status} for {target.url}")
+            if status != 200:
+                close()
+                raise FetchError(f"HTTP {status} for {target.url}")
+            return response, close
+        raise AssertionError("redirect loop exhausted without returning")
+
+    def _fetch(
+        self,
+        url: str,
+        referer: str | None,
+        *,
+        buffer: bool,
+    ) -> tuple[requests.Response, Callable[[], None] | None]:
         last_error: Exception | None = None
         for attempt in range(_RETRIES):
-            self._limiter.wait(rate_key)
             try:
-                response = self._session.get(url, headers=headers, timeout=_TIMEOUT)
-            except requests.RequestException as exc:
+                response, close = self._follow_redirects(url, referer)
+                if not buffer:
+                    return response, close
+                try:
+                    # Reading while the pinned transport is open catches body
+                    # failures before releasing its exact-IP connection pool.
+                    response.content
+                except requests.RequestException as exc:
+                    close()
+                    raise _RetryableFetchError(f"body read failed for {url}: {exc}") from exc
+                close()
+                return response, None
+            except _RetryableFetchError as exc:
                 last_error = exc
                 if attempt + 1 < _RETRIES:
                     self._sleep(2.0 ** attempt)
-                continue
-            if response.status_code in (429, 403):
-                raise BlockedError(response.status_code)
-            if 500 <= response.status_code < 600:
-                last_error = FetchError(f"HTTP {response.status_code} for {url}")
-                if attempt + 1 < _RETRIES:
-                    self._sleep(2.0 ** attempt)
-                continue
-            if response.status_code != 200:
-                raise FetchError(f"HTTP {response.status_code} for {url}")
-            return response
         raise FetchError(f"gave up on {url}: {last_error}")
 
-    def download(self, url: str, dest: Path, referer: str | None = None) -> bool:
-        """Fetch url into dest atomically. True when dest was just written.
+    def get(self, url: str, referer: str | None = None) -> requests.Response:
+        response, _close = self._fetch(url, referer, buffer=True)
+        return response
 
-        False means this attempt failed, NOT that dest is absent: a thumb
-        an earlier scrape stored stays in place, so the viewer keeps showing
-        the older cover rather than losing it to one bad fetch. Callers that
-        need to know whether a file exists must stat it.
+    def _write_bounded_image(self, response: requests.Response, dest: Path) -> bool:
+        mime = _content_type(response)
+        if mime not in {item for values in _IMAGE_MIMES.values() for item in values}:
+            return False
+        declared_raw = response.headers.get("Content-Length")
+        if declared_raw is not None:
+            try:
+                declared = int(declared_raw)
+            except ValueError:
+                return False
+            if declared < 0 or declared > _MAX_IMAGE_BYTES:
+                return False
+
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        tmp = dest.with_name(dest.name + ".tmp")
+        replaced = False
+        try:
+            observed = 0
+            with open(tmp, "wb") as fh:
+                for chunk in response.iter_content(chunk_size=65536):
+                    if not chunk:
+                        continue
+                    observed += len(chunk)
+                    if observed > _MAX_IMAGE_BYTES:
+                        return False
+                    fh.write(chunk)
+            if observed == 0:
+                return False
+            try:
+                _verify_image(tmp, mime)
+            except _InvalidImageError:
+                return False
+            os.replace(tmp, dest)
+            replaced = True
+            return True
+        finally:
+            if not replaced:
+                tmp.unlink(missing_ok=True)
+
+    def download(self, url: str, dest: Path, referer: str | None = None) -> bool:
+        """Fetch a bounded image into dest atomically.
+
+        False means this attempt failed, not that dest is absent: a thumbnail
+        stored by an earlier scrape stays in place after any failed fetch.
         """
-        # Retry the whole GET on a mid-stream break: thumbs are idempotent,
-        # and a flaky hop losing one image per seller run would otherwise
-        # leave permanent gaps in covers until the next full scrape.
+        # Retry a broken stream as a new, independently resolved request. MIME,
+        # size and decode failures are deterministic and return immediately.
         for attempt in range(_RETRIES):
             try:
-                response = self.get(url, referer=referer)
+                response, close = self._fetch(url, referer, buffer=False)
             except BlockedError:
                 raise
             except FetchError:
                 return False
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            tmp = dest.with_name(dest.name + ".tmp")
+            assert close is not None
+            stream_error: requests.RequestException | None = None
             try:
-                with open(tmp, "wb") as fh:
-                    fh.writelines(response.iter_content(chunk_size=65536))
-            except requests.RequestException:
-                # A partial temp file must never be renamed over a good one.
-                tmp.unlink(missing_ok=True)
-                if attempt + 1 < _RETRIES:
-                    self._sleep(2.0 ** attempt)
-                    continue
-                return False
-            os.replace(tmp, dest)
-            return True
+                result = self._write_bounded_image(response, dest)
+            except requests.RequestException as exc:
+                stream_error = exc
+                result = False
+            finally:
+                close()
+            if stream_error is None:
+                return result
+            if attempt + 1 < _RETRIES:
+                self._sleep(2.0 ** attempt)
         return False

@@ -1,7 +1,9 @@
 import threading
+from io import BytesIO
 from pathlib import Path
 
 import pytest
+from PIL import Image
 
 from lamp.http import _RETRIES, BlockedError, Client, FetchError, RateLimiter
 
@@ -91,33 +93,51 @@ def test_rate_limiter_host_delay_does_not_drag_back_global_slot():
 
 
 class FakeResponse:
-    def __init__(self, status_code: int, content: bytes = b"ok"):
+    def __init__(self, status_code: int, content: bytes = b"ok", headers=None):
         self.status_code = status_code
         self.content = content
-        self.text = content.decode()
+        self.headers = headers or {}
+        self.text = content.decode(errors="replace")
 
     def iter_content(self, chunk_size: int):
         yield self.content
 
+    def close(self):
+        pass
 
-class FakeSession:
+
+class FakeTransport:
     def __init__(self, responses):
         self.responses = list(responses)
         self.calls: list[dict] = []
 
-    def get(self, url, headers=None, timeout=None):
-        self.calls.append({"url": url, "headers": headers or {}})
+    def __call__(self, target, headers):
+        self.calls.append({"url": target.url, "headers": headers or {}})
         result = self.responses.pop(0)
         if isinstance(result, Exception):
             raise result
-        return result
+        return result, getattr(result, "close", lambda: None)
 
 
 def _client(responses):
     clock = FakeClock()
     limiter = RateLimiter(time_fn=clock.time, sleep_fn=clock.sleep)
-    session = FakeSession(responses)
-    return Client(limiter, session=session, sleep_fn=clock.sleep), session
+    transport = FakeTransport(responses)
+    return (
+        Client(
+            limiter,
+            resolver=lambda _host, _port: ("8.8.8.8",),
+            transport=transport,
+            sleep_fn=clock.sleep,
+        ),
+        transport,
+    )
+
+
+def _png_bytes() -> bytes:
+    buffer = BytesIO()
+    Image.new("RGB", (2, 2), "red").save(buffer, format="PNG")
+    return buffer.getvalue()
 
 
 def test_get_sets_headers_and_referer():
@@ -151,10 +171,11 @@ def test_get_gives_up_after_retries():
 
 
 def test_download_writes_file_atomically(tmp_path: Path):
-    client, _ = _client([FakeResponse(200, b"jpegbytes")])
+    payload = _png_bytes()
+    client, _ = _client([FakeResponse(200, payload, {"Content-Type": "image/png"})])
     dest = tmp_path / "thumbs" / "s" / "1.jpg"
     assert client.download("https://photo.yupoo.com/x/small.jpg", dest) is True
-    assert dest.read_bytes() == b"jpegbytes"
+    assert dest.read_bytes() == payload
     assert list(dest.parent.iterdir()) == [dest]
 
 
@@ -170,6 +191,7 @@ def test_download_stream_break_returns_false_and_cleans_tmp(tmp_path: Path):
 
     class BrokenStream:
         status_code = 200
+        headers = {"Content-Type": "image/png"}
 
         def iter_content(self, chunk_size):
             yield b"partial"
@@ -189,15 +211,19 @@ def test_download_stream_break_then_success(tmp_path: Path):
 
     class BrokenStream:
         status_code = 200
+        headers = {"Content-Type": "image/png"}
 
         def iter_content(self, chunk_size):
             yield b"partial"
             raise requests.exceptions.ChunkedEncodingError("died mid-body")
 
-    client, _ = _client([BrokenStream(), FakeResponse(200, b"full-bytes")])
+    payload = _png_bytes()
+    client, _ = _client(
+        [BrokenStream(), FakeResponse(200, payload, {"Content-Type": "image/png"})]
+    )
     dest = tmp_path / "1.jpg"
     assert client.download("https://photo.yupoo.com/x.jpg", dest) is True
-    assert dest.read_bytes() == b"full-bytes"
+    assert dest.read_bytes() == payload
 
 
 def test_get_does_not_sleep_before_giving_up():
@@ -206,9 +232,13 @@ def test_get_does_not_sleep_before_giving_up():
     import requests
 
     clock = FakeClock()
-    session = FakeSession([requests.ConnectionError()] * _RETRIES)
-    client = Client(RateLimiter(time_fn=clock.time, sleep_fn=clock.sleep),
-                    session=session, sleep_fn=clock.sleep)
+    transport = FakeTransport([requests.ConnectionError()] * _RETRIES)
+    client = Client(
+        RateLimiter(time_fn=clock.time, sleep_fn=clock.sleep),
+        resolver=lambda _host, _port: ("8.8.8.8",),
+        transport=transport,
+        sleep_fn=clock.sleep,
+    )
     with pytest.raises(FetchError):
         client.get("https://x.example/")
     assert clock.sleeps == [1.0, 2.0]  # doubling, and no sleep after the final attempt
