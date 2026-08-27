@@ -147,6 +147,7 @@ body {
 .band { border-bottom: 1px solid var(--rule); }
 #brand {
   display: inline-flex; align-items: center; gap: 8px;
+  margin: 0; font: inherit;
   white-space: nowrap; color: var(--ink);
 }
 .mark-brand { width: 19px; height: 19px; color: var(--ink-red); }
