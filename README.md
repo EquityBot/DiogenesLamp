@@ -108,8 +108,10 @@ install, and the ci badge above is the release gate.
    albums to a JSON file; it waits until every seller shard has loaded and
    names any it had to leave out. Favourites, your filter selection, the sort
    and the colour theme are all remembered in your browser, so a reload puts
-   you back where you were. **Clear filters** resets them in one go, and the
-   page is an installable PWA (`manifest.json`).
+   you back where you were. **Clear filters** resets them in one go. Filters
+   and an open duplicate group are also reflected in the address, so the
+   current local view can be bookmarked. The page is an installable PWA
+   (`manifest.json`).
 
    The grid is a keyboard surface, not just a keyboard-reachable one. Tab
    reaches it once, then the arrow keys move a cursor from cover to cover

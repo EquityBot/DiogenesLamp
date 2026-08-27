@@ -28,15 +28,12 @@ const state = {
   generatedAt: "",
   dupCounts: new Map(), // dup_key -> group size, valid for current filter pass
   dupHidden: 0,
-  dupGroup: null,      // dup_key being inspected via a x-N badge click
-  preGroupScroll: 0,   // scrollY to restore when leaving group view
   bannedKeys: new Set(), // corpus-global category-label keys, grown per shard
   titleKeyCounts: new Map(), // running t:-key counts feeding bannedKeys
   shardAlbums: new Map(), // seller id -> annotated albums, in fetch order
   failedShards: [],    // sellers whose shard could not be fetched
   categories: new Set(), // every category seen, collected as shards arrive
   filterVersion: 0,    // bumped whenever `filtered` is rebuilt
-  cursor: 0,           // index in `filtered` the keyboard is parked on
 };
 
 const els = {
@@ -66,8 +63,9 @@ const els = {
   themeIcon: document.getElementById("theme-icon"),
 };
 
-// Current control values in the shape filters.js persists.
-function currentFilters() {
+// Read the controls only at the event boundary. All filtering and overlay
+// decisions after that read the pure view state, never the DOM as hidden state.
+function controlFilters() {
   return {
     search: els.search.value,
     seller: els.seller.value,
@@ -80,31 +78,48 @@ function currentFilters() {
   };
 }
 
+function currentFilters() {
+  return { ...viewState.filters };
+}
+
 // Restoring a seller or category that the index no longer offers would leave
 // the control blank while the filter still applied, so only values the
 // dropdown actually holds are written back. The options for both arrive
-// later than this runs, which is why applyStoredFilters is called again as
+// later than this runs, which is why applyViewToControls is called again as
 // they are added.
 function setSelectIfPresent(select, value) {
-  if (!value) return;
+  if (!value) {
+    select.value = "";
+    return;
+  }
   if ([...select.options].some((option) => option.value === value)) {
     select.value = value;
   }
 }
 
 const storedFilters = readFilters(localStorage);
-
-function applyStoredFilters() {
-  els.search.value = storedFilters.search;
-  els.age.value = storedFilters.age;
-  els.sort.value = storedFilters.sort;
-  els.newOnly.checked = storedFilters.newOnly;
-  els.favsOnly.checked = storedFilters.favsOnly;
-  els.hideDups.checked = storedFilters.hideDups;
-  setSelectIfPresent(els.seller, storedFilters.seller);
-  setSelectIfPresent(els.category, storedFilters.category);
+let viewState = createViewState(storedFilters);
+if (hasViewStateParams(window.location.href)) {
+  viewState = nextViewState(viewState, { type: "url", url: window.location.href });
 }
-applyStoredFilters();
+
+function applyViewToControls() {
+  const filters = currentFilters();
+  els.search.value = filters.search;
+  els.age.value = filters.age;
+  els.sort.value = filters.sort;
+  els.newOnly.checked = filters.newOnly;
+  els.favsOnly.checked = filters.favsOnly;
+  els.hideDups.checked = filters.hideDups;
+  setSelectIfPresent(els.seller, filters.seller);
+  setSelectIfPresent(els.category, filters.category);
+}
+applyViewToControls();
+
+function replaceViewUrl() {
+  const url = urlForViewState(window.location.href, viewState);
+  window.history.replaceState(null, "", url);
+}
 
 // A figure in the tally, held at the width its largest value will need. The
 // counts climb the whole time the catalogue streams in, and a number that
@@ -157,7 +172,7 @@ function setStatus() {
   // Announcing an incomplete grid as ready would tell a screen reader to
   // read a list that is still growing under it.
   els.grid.setAttribute("aria-busy", String(loading));
-  els.filtersClear.hidden = !anyFilterActive(currentFilters()) || Boolean(state.dupGroup);
+  els.filtersClear.hidden = !anyFilterActive(currentFilters()) || Boolean(viewState.groupKey);
   setGridMessage(loading);
   setLoadNote(loading);
 }
@@ -245,7 +260,7 @@ async function loadAll() {
 // Spec: filtering to one seller loads that shard first. Re-check the
 // dropdown before every fetch so a mid-load selection jumps the queue.
 function nextShard() {
-  const selected = els.seller.value;
+  const selected = viewState.filters.seller;
   let nextIdx = 0;
   if (selected) {
     const hit = state.pendingShards.findIndex((s) => s.id === selected);
@@ -371,14 +386,15 @@ function refreshCategoryOptions() {
 let markQuery = "";
 
 function applyFilters() {
-  markQuery = els.search.value.trim();
+  const filters = currentFilters();
+  markQuery = filters.search.trim();
   setGroupGeometry();
   state.dupCounts = new Map();
   state.dupHidden = 0;
-  if (state.dupGroup) {
+  if (viewState.groupKey) {
     // Group view: every copy behind one x-N badge, all other filters ignored.
-    const copies = state.albums.filter((a) => a.dup_key === state.dupGroup);
-    state.filtered = sortAlbums(copies, els.sort.value);
+    const copies = state.albums.filter((a) => a.dup_key === viewState.groupKey);
+    state.filtered = sortAlbums(copies, filters.sort);
     state.filterVersion += 1;
     // Say what the group is, not just how big it is: the whole reason to open
     // one is to see which sellers are posting the same thing.
@@ -394,16 +410,16 @@ function applyFilters() {
     return;
   }
   els.groupClear.hidden = true;
-  const query = els.search.value.trim().toLowerCase();
-  const seller = els.seller.value;
-  const category = els.category.value;
-  const newOnly = els.newOnly.checked;
-  const favsOnly = els.favsOnly.checked;
+  const query = filters.search.trim().toLowerCase();
+  const seller = filters.seller;
+  const category = filters.category;
+  const newOnly = filters.newOnly;
+  const favsOnly = filters.favsOnly;
   // Age filter: postings older than the chosen window are likely dead
   // stock. Cutoff uses the real scraped date when a record has one, the
   // album-id estimate otherwise (see age.js), and counts whole days so it
   // agrees with what `lamp scrape --max-age-days` chose to fetch.
-  const maxDays = parseInt(els.age.value, 10) || 0;
+  const maxDays = parseInt(filters.age, 10) || 0;
   const now = Date.now();
   let filtered = state.albums.filter((album) =>
     (!seller || album.seller === seller) &&
@@ -413,7 +429,7 @@ function applyFilters() {
     (!maxDays || ageInDays(album.published_ms, now) <= maxDays) &&
     matchSearch(album.title_lc, query)
   );
-  if (els.hideDups.checked) {
+  if (filters.hideDups) {
     const before = filtered.length;
     const { out, counts } = collapseDups(filtered, state.bannedKeys);
     filtered = out;
@@ -423,7 +439,7 @@ function applyFilters() {
   // Sort last, over the filtered list rather than the corpus: the corpus is
   // rebuilt from shard order every refresh, so sorting it would be thrown
   // away, and the filtered list is the smaller thing to order anyway.
-  state.filtered = sortAlbums(filtered, els.sort.value);
+  state.filtered = sortAlbums(filtered, filters.sort);
   state.filterVersion += 1;
   setStatus();
   // Not a forced rebuild: the render reuses cards by album, and any whose
@@ -439,7 +455,7 @@ function applyFilters() {
 // old geometry and overlaps every row.
 let groupViewOn = false;
 function setGroupGeometry() {
-  const wanted = Boolean(state.dupGroup);
+  const wanted = Boolean(viewState.groupKey);
   if (wanted === groupViewOn) return;
   groupViewOn = wanted;
   document.documentElement.classList.toggle("group-view", wanted);
@@ -592,7 +608,7 @@ function makeCard(album) {
     `<span class="card-links">${links}</span>` +
     // On the strip page the copies differ by seller and date and nothing
     // else, so the date earns its place there and only there.
-    (state.dupGroup ? `<span class="posted">${escapeHtml(postedOn(album))}</span>` : "") +
+    (viewState.groupKey ? `<span class="posted">${escapeHtml(postedOn(album))}</span>` : "") +
     `</div>`;
   // The stylesheet reads the hue from a custom property, and it is set here
   // rather than in the markup above: the page is served under a policy with
@@ -617,8 +633,12 @@ function makeCard(album) {
   const dupBtn = card.querySelector(".badge-dup");
   if (dupBtn) {
     dupBtn.addEventListener("click", () => {
-      state.preGroupScroll = window.scrollY;
-      state.dupGroup = album.dup_key;
+      viewState = nextViewState(viewState, {
+        type: "open-group",
+        groupKey: album.dup_key,
+        scrollY: window.scrollY,
+      });
+      replaceViewUrl();
       window.scrollTo(0, 0);
       applyFilters();
       // the badge just got re-rendered away - park focus on the exit chip
@@ -644,7 +664,7 @@ function toggleFavorite(albumId, button) {
   button.setAttribute("aria-pressed", String(isFav));
   button.setAttribute("aria-label", favLabel(isFav));
   localStorage.setItem("lamp.favorites", JSON.stringify([...state.favorites]));
-  if (els.favsOnly.checked) applyFilters();
+  if (viewState.filters.favsOnly) applyFilters();
 }
 
 // Card geometry lives in style.css and is read from there. Duplicating the
@@ -756,7 +776,7 @@ function renderGrid(force = false) {
     setIfChanged(card, "aria-posinset", String(i + 1));
     // Roving tabindex: one stop for the whole lattice, and the arrows move
     // it. Forty thousand tab stops is not a keyboard interface.
-    setIfChanged(card, "tabindex", i === state.cursor ? "0" : "-1");
+    setIfChanged(card, "tabindex", i === viewState.cursor ? "0" : "-1");
     next.set(key, card);
   }
 
@@ -831,15 +851,16 @@ function headroom() {
 
 function moveCursor(next) {
   if (!state.filtered.length) return;
-  state.cursor = Math.min(Math.max(next, 0), state.filtered.length - 1);
+  const cursor = Math.min(Math.max(next, 0), state.filtered.length - 1);
+  viewState = nextViewState(viewState, { type: "cursor", index: cursor });
   const rowH = rowHeight();
-  const rowTop = els.spacer.offsetTop + Math.floor(state.cursor / columns()) * rowH;
+  const rowTop = els.spacer.offsetTop + Math.floor(viewState.cursor / columns()) * rowH;
   const above = window.scrollY + headroom();
   const below = window.scrollY + window.innerHeight;
   if (rowTop < above) window.scrollTo(0, rowTop - headroom());
   else if (rowTop + rowH > below) window.scrollTo(0, rowTop + rowH - window.innerHeight);
   renderGrid();
-  const card = cardCache.get(cardKey(state.filtered[state.cursor]));
+  const card = cardCache.get(cardKey(state.filtered[viewState.cursor]));
   if (card) card.focus({ preventScroll: true });
 }
 
@@ -855,11 +876,11 @@ els.grid.addEventListener("keydown", (event) => {
   if (!card) return;
   if (GRID_KEYS.has(event.key)) {
     event.preventDefault();
-    moveCursor(gridStep(state.cursor, event.key, columns(),
+    moveCursor(gridStep(viewState.cursor, event.key, columns(),
       state.filtered.length, rowsPerPage()));
     return;
   }
-  const album = state.filtered[state.cursor];
+  const album = state.filtered[viewState.cursor];
   if (!album) return;
   if (event.key === "Enter") {
     event.preventDefault();
@@ -876,7 +897,9 @@ els.grid.addEventListener("focusin", (event) => {
   const card = event.target.closest(".card");
   if (!card) return;
   const at = Number(card.getAttribute("aria-posinset")) - 1;
-  if (Number.isInteger(at) && at >= 0) state.cursor = at;
+  if (Number.isInteger(at) && at >= 0) {
+    viewState = nextViewState(viewState, { type: "cursor", index: at });
+  }
 });
 
 let scrollScheduled = false;
@@ -927,45 +950,32 @@ function renderShops(shops) {
 // User-initiated filter changes route through this wrapper; background shard
 // loads call applyFilters directly, so only user actions snap the viewport
 // to the top.
-// Once the user has touched a control, a late-arriving option must not
-// re-impose the stored value over their choice.
-let userTouchedFilters = false;
-
-function userFilterChange() {
-  userTouchedFilters = true;
-  state.dupGroup = null;
-  state.cursor = 0;
+function userFilterChange(kind = "filter") {
+  viewState = kind === "search"
+    ? nextViewState(viewState, { type: "search", value: els.search.value })
+    : nextViewState(viewState, { type: "filter", filters: controlFilters() });
   writeFilters(localStorage, currentFilters());
+  replaceViewUrl();
   window.scrollTo(0, 0);
   applyFilters();
 }
 
 // Seller and category options are added as the index and shards arrive, so a
 // stored value for either cannot be restored at start-up - the option does
-// not exist yet. Retry as they appear, until the user takes over.
+// not exist yet. Retry as they appear. If the user changes another control
+// first, that event replaces the canonical filter state with what is actually
+// visible, so a stale stored value cannot return later.
 function restoreLateFilters() {
-  if (userTouchedFilters) return;
   const before = `${els.seller.value}|${els.category.value}|${els.sort.value}`;
-  setSelectIfPresent(els.seller, storedFilters.seller);
-  setSelectIfPresent(els.category, storedFilters.category);
-  setSelectIfPresent(els.sort, storedFilters.sort);
+  applyViewToControls();
   return before !== `${els.seller.value}|${els.category.value}|${els.sort.value}`;
 }
 
 function clearFilters() {
-  userTouchedFilters = true;
-  const defaults = defaultFilters();
-  els.search.value = defaults.search;
-  els.seller.value = defaults.seller;
-  els.category.value = defaults.category;
-  els.age.value = defaults.age;
-  els.sort.value = defaults.sort;
-  els.newOnly.checked = defaults.newOnly;
-  els.favsOnly.checked = defaults.favsOnly;
-  els.hideDups.checked = defaults.hideDups;
-  writeFilters(localStorage, defaults);
-  state.dupGroup = null;
-  state.cursor = 0;
+  viewState = nextViewState(viewState, { type: "clear-filters" });
+  applyViewToControls();
+  writeFilters(localStorage, currentFilters());
+  replaceViewUrl();
   window.scrollTo(0, 0);
   applyFilters();
   els.search.focus();
@@ -1033,18 +1043,19 @@ els.exportFavs.addEventListener("click", () => {
 let searchTimer = 0;
 els.search.addEventListener("input", () => {
   clearTimeout(searchTimer);
-  searchTimer = setTimeout(userFilterChange, 150);
+  searchTimer = setTimeout(() => userFilterChange("search"), 150);
 });
 for (const el of [els.seller, els.category, els.newOnly, els.favsOnly,
                   els.hideDups, els.age, els.sort]) {
-  el.addEventListener("change", userFilterChange);
+  el.addEventListener("change", () => userFilterChange("filter"));
 }
 
 // Leaving group view is a "peek ended", not a filter change: put the user
 // back where they were browsing instead of snapping to the top.
 function exitGroupView() {
-  state.dupGroup = null;
-  state.cursor = 0;
+  const restoreScroll = viewState.preGroupScroll;
+  viewState = nextViewState(viewState, { type: "close-group" });
+  replaceViewUrl();
   // Order matters twice over. The group view leaves the page one row tall,
   // so scrolling back first would be clamped to the top; the full list has
   // to be restored before the browser will accept the old offset. And
@@ -1052,7 +1063,7 @@ function exitGroupView() {
   // final pass after the scroll or the viewport lands on rows that were
   // never drawn.
   applyFilters();
-  window.scrollTo(0, state.preGroupScroll);
+  window.scrollTo(0, restoreScroll);
   renderGrid();
   els.search.focus({ preventScroll: true });
 }
@@ -1061,16 +1072,25 @@ els.groupClear.addEventListener("click", exitGroupView);
 // The shops panel is a slide-over: it covers content, so it owns focus while
 // open, says so on its toggle, and closes on Escape like any other overlay.
 function setShopsOpen(open) {
-  els.shopsPanel.hidden = !open;
-  els.shopsToggle.setAttribute("aria-expanded", String(open));
-  if (open) {
+  viewState = nextViewState(viewState, { type: "set-shops", open });
+  syncShopsPanel(true);
+}
+
+function syncShopsPanel(moveFocus) {
+  els.shopsPanel.hidden = !viewState.shopsOpen;
+  els.shopsToggle.setAttribute("aria-expanded", String(viewState.shopsOpen));
+  if (!moveFocus) return;
+  if (viewState.shopsOpen) {
     const first = els.shopsPanel.querySelector("button, a");
     if (first) first.focus();
   } else {
     els.shopsToggle.focus();
   }
 }
-els.shopsToggle.addEventListener("click", () => setShopsOpen(els.shopsPanel.hidden));
+els.shopsToggle.addEventListener("click", () => {
+  viewState = nextViewState(viewState, { type: "toggle-shops" });
+  syncShopsPanel(true);
+});
 
 window.addEventListener("keydown", (event) => {
   if (isSearchShortcut(event.key, document.activeElement && document.activeElement.tagName)) {
@@ -1082,8 +1102,28 @@ window.addEventListener("keydown", (event) => {
   if (event.key !== "Escape") return;
   // Innermost overlay first: a group view opened from inside the panel
   // should not close both at once.
-  if (!els.shopsPanel.hidden) setShopsOpen(false);
-  else if (state.dupGroup) exitGroupView();
+  const before = viewState;
+  viewState = nextViewState(viewState, { type: "escape" });
+  if (viewState === before) return;
+  if (before.shopsOpen) {
+    syncShopsPanel(true);
+  } else if (before.groupKey) {
+    const restoreScroll = before.preGroupScroll;
+    replaceViewUrl();
+    applyFilters();
+    window.scrollTo(0, restoreScroll);
+    renderGrid();
+    els.search.focus({ preventScroll: true });
+  }
+});
+
+window.addEventListener("popstate", () => {
+  viewState = nextViewState(viewState, { type: "url", url: window.location.href });
+  applyViewToControls();
+  syncShopsPanel(false);
+  writeFilters(localStorage, currentFilters());
+  window.scrollTo(0, 0);
+  applyFilters();
 });
 
 els.noteDismiss.addEventListener("click", () => {
