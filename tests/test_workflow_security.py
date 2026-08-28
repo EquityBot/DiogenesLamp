@@ -81,10 +81,10 @@ EXPECTED_CI = "\n".join(
         _uses("actions/setup-node", "      - uses: "),
         "        with:",
         '          node-version: "22"',
-        "      - run: pip install -e '.[dev]'",
-        "      - run: ruff check .",
-        "      - run: mypy src/lamp",
-        "      - run: pytest",
+        '      - run: python -m pip install "uv==0.12.0"',
+        "      - run: uv run --locked --extra dev ruff check .",
+        "      - run: uv run --locked --extra dev mypy src/lamp",
+        "      - run: uv run --locked --extra dev pytest",
         "",
     ]
 )
@@ -162,7 +162,7 @@ updates:
         patterns:
           - "github/codeql-action*"
 
-  - package-ecosystem: pip
+  - package-ecosystem: uv
     directory: /
     schedule:
       interval: weekly
@@ -354,8 +354,8 @@ def test_workflow_inventory_rejects_an_extra_file():
         _replace_once(EXPECTED_DEPENDABOT, "updates:\n", "updates:\nitems:\n"),
         _replace_once(
             EXPECTED_DEPENDABOT,
-            "  - package-ecosystem: pip\n    directory: /\n",
-            "  - package-ecosystem: pip\n    directory: /\n    directory: /\n",
+            "  - package-ecosystem: uv\n    directory: /\n",
+            "  - package-ecosystem: uv\n    directory: /\n    directory: /\n",
         ),
         _replace_once(
             EXPECTED_DEPENDABOT,
@@ -366,9 +366,9 @@ def test_workflow_inventory_rejects_an_extra_file():
         ),
         _replace_once(
             EXPECTED_DEPENDABOT,
-            "  - package-ecosystem: pip\n    directory: /\n"
+            "  - package-ecosystem: uv\n    directory: /\n"
             "    schedule:\n      interval: weekly\n    cooldown:\n      default-days: 7\n",
-            "  - package-ecosystem: pip\n    directory: /\n"
+            "  - package-ecosystem: uv\n    directory: /\n"
             "    schedule:\n      interval: weekly\n    cooldown:\n      default-days: 0\n",
         ),
         _replace_once(EXPECTED_DEPENDABOT, '          - "github/codeql-action*"\n', ""),
