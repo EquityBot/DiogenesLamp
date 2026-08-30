@@ -32,10 +32,12 @@ def estimate_published(album_id: int) -> date:
 
     Clamps below the first anchor; past the last anchor it extrapolates at the
     final segment's rate, so ids minted after the table was measured still
-    date sensibly. The extrapolation is capped at today's date: ids far past
-    the last anchor would otherwise overflow date's range entirely (a
-    trillion-scale junk id reached year 23904), and an id whose implied date
-    is in the future is simply "newer than the table knows".
+    date sensibly. The extrapolation is capped at the newest representable
+    date, date.max: ids far past the last anchor would otherwise overflow
+    date's range entirely (a trillion-scale junk id reached year 23904), and
+    an id whose implied date is that far out is simply "newer than the table
+    knows". An implied date merely in the future is left alone - it is
+    already never stale.
     """
     if album_id <= ANCHORS[0][0]:
         return ANCHORS[0][1]

@@ -4,9 +4,12 @@
 // A corrupt value must not throw here: this runs while the module body is
 // still executing, so an exception would leave no listeners bound and no
 // catalog loaded - a blank page recoverable only by clearing site data.
+// That covers the read itself as well as the parse, which is why the key is
+// fetched through readStored: with site data blocked for the origin,
+// getItem raises before there is anything to parse.
 function loadFavorites() {
   for (const key of ["lamp.favorites", "candle.favorites"]) {
-    const raw = localStorage.getItem(key);
+    const raw = readStored(localStorage, key);
     if (!raw) continue;
     try {
       const parsed = JSON.parse(raw);
@@ -380,6 +383,9 @@ function applyFilters() {
     const copies = state.albums.filter((a) => a.dup_key === state.dupGroup);
     state.filtered = sortAlbums(copies, els.sort.value);
     state.filterVersion += 1;
+    // A badge clicked deep in the lattice leaves the cursor thousands of
+    // cards past the end of a three-card strip; see the clamp below.
+    state.cursor = clampCursor(state.cursor, state.filtered.length);
     // Say what the group is, not just how big it is: the whole reason to open
     // one is to see which sellers are posting the same thing.
     const sellers = new Set(copies.map((a) => a.seller)).size;
@@ -425,6 +431,13 @@ function applyFilters() {
   // away, and the filtered list is the smaller thing to order anyway.
   state.filtered = sortAlbums(filtered, els.sort.value);
   state.filterVersion += 1;
+  // renderGrid stamps the one tab stop on the card whose index is the
+  // cursor, so every pass that shrinks the list has to pull the cursor back
+  // inside it. Otherwise no card carries the stop and the grid cannot be
+  // entered from the keyboard at all - which is what un-starring the last
+  // card of a favourites-only view did, since toggleFavorite refilters
+  // without going through userFilterChange.
+  state.cursor = clampCursor(state.cursor, state.filtered.length);
   setStatus();
   // Not a forced rebuild: the render reuses cards by album, and any whose
   // duplicate badge no longer matches is rebuilt individually. During a
@@ -643,7 +656,7 @@ function toggleFavorite(albumId, button) {
   const isFav = state.favorites.has(albumId);
   button.setAttribute("aria-pressed", String(isFav));
   button.setAttribute("aria-label", favLabel(isFav));
-  localStorage.setItem("lamp.favorites", JSON.stringify([...state.favorites]));
+  writeStored(localStorage, "lamp.favorites", JSON.stringify([...state.favorites]));
   if (els.favsOnly.checked) applyFilters();
 }
 
@@ -683,8 +696,12 @@ let lastRange = { start: -1, end: -1, cols: -1, count: -1, version: -1 };
 // through renderGrid(force = true), which rebuilds from scratch.
 // Keyed by seller and id together: an id repeated in one view would
 // otherwise claim the same node twice and strand a card in the DOM.
+// The separator is written as an escape, the way links.py writes its own
+// control characters: a literal NUL in a source file is invisible to the
+// next reader and makes the file binary to grep and ripgrep, which then
+// report "binary file matches" and print no lines at all.
 let cardCache = new Map();
-const cardKey = (album) => `${album.seller} ${album.id}`;
+const cardKey = (album) => `${album.seller}\u0000${album.id}`;
 
 function renderGrid(force = false) {
   const cols = columns();
@@ -756,7 +773,7 @@ function renderGrid(force = false) {
     setIfChanged(card, "aria-posinset", String(i + 1));
     // Roving tabindex: one stop for the whole lattice, and the arrows move
     // it. Forty thousand tab stops is not a keyboard interface.
-    setIfChanged(card, "tabindex", i === state.cursor ? "0" : "-1");
+    setCardTabStop(card, i === state.cursor);
     next.set(key, card);
   }
 
@@ -788,6 +805,25 @@ function setIfChanged(el, name, value) {
   if (el.getAttribute(name) !== value) el.setAttribute(name, value);
 }
 
+// Everything on a card that the browser makes focusable in its own right.
+// Stamping the tabindex on the card alone leaves all of these in the tab
+// order, and a card carries a cover link, a star, sometimes a duplicate
+// badge and up to three purchase links: at ~54 cards in the render window
+// that is several hundred stops to tab past the grid, which is the outcome
+// the roving tabindex exists to prevent. A card added to makeCard with a
+// new focusable element has to be added here too.
+const CARD_STOPS = ".cover-link, .fav-btn, .badge-dup, .card-links a";
+
+// The card under the cursor is the stop, and its own controls follow it, so
+// they stay reachable by Tab without every other card offering them too.
+function setCardTabStop(card, isCursor) {
+  const value = isCursor ? "0" : "-1";
+  setIfChanged(card, "tabindex", value);
+  for (const el of card.querySelectorAll(CARD_STOPS)) {
+    setIfChanged(el, "tabindex", value);
+  }
+}
+
 // Focus follows the user, so hand it to the same control on the card that
 // took the removed one's place; failing that, park it on the grid itself,
 // which is focusable for the skip link anyway. preventScroll throughout:
@@ -817,8 +853,10 @@ function rescueFocus(departed, survivors) {
 const GRID_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown",
   "Home", "End", "PageUp", "PageDown"]);
 
-function rowsPerPage() {
-  return Math.max(1, Math.floor(window.innerHeight / rowHeight()));
+// A Page move travels a screenful. The arithmetic lives in catalogue.js so
+// it can be tested without a DOM; this only measures.
+function albumsPerPage() {
+  return pageStep(window.innerHeight, rowHeight(), columns());
 }
 
 // How much of the top of the page the header is covering. Nothing but the
@@ -856,7 +894,7 @@ els.grid.addEventListener("keydown", (event) => {
   if (GRID_KEYS.has(event.key)) {
     event.preventDefault();
     moveCursor(gridStep(state.cursor, event.key, columns(),
-      state.filtered.length, rowsPerPage()));
+      state.filtered.length, albumsPerPage()));
     return;
   }
   const album = state.filtered[state.cursor];
@@ -1115,16 +1153,12 @@ function applyTheme(theme) {
   els.themeToggle.title = THEME_LABEL[theme];
 }
 
-let theme = THEME_CYCLE.includes(localStorage.getItem("lamp.theme"))
-  ? localStorage.getItem("lamp.theme") : "system";
+const storedTheme = readStored(localStorage, "lamp.theme");
+let theme = THEME_CYCLE.includes(storedTheme) ? storedTheme : "system";
 applyTheme(theme);
 els.themeToggle.addEventListener("click", () => {
   theme = THEME_CYCLE[(THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length];
-  try {
-    localStorage.setItem("lamp.theme", theme);
-  } catch {
-    // Persistence is a convenience; the session still honours the choice.
-  }
+  writeStored(localStorage, "lamp.theme", theme);
   applyTheme(theme);
 });
 

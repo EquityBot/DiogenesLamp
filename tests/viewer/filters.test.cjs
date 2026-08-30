@@ -5,8 +5,9 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 
 const { FILTER_STORAGE_KEY, defaultFilters, normalizeFilters, anyFilterActive,
-  serializeFilters, readFilters, writeFilters, matchSearch, sortAlbums,
-  formatPrice, isSearchShortcut, favouritesExportPlan } =
+  serializeFilters, readStored, writeStored, readFilters, writeFilters,
+  matchSearch, sortAlbums, formatPrice, isSearchShortcut,
+  favouritesExportPlan } =
   require(path.join(__dirname, "..", "..", "viewer", "filters.js"));
 
 // Minimal stand-in for localStorage. `fail` makes both accessors throw, which
@@ -87,6 +88,25 @@ test("unreadable storage yields defaults instead of throwing", () => {
 
 test("a failed write is swallowed", () => {
   assert.doesNotThrow(() => writeFilters(fakeStorage({}, true), defaultFilters()));
+});
+
+test("blocked storage yields no value rather than throwing out of the accessor", () => {
+  // app.js reads the favourites and the colour theme through these while its
+  // module body is still executing. A browser with site data blocked throws
+  // from getItem itself, before there is anything to parse, so a guard around
+  // the parse alone still leaves no listeners bound and a blank page.
+  assert.equal(readStored(fakeStorage({}, true), "lamp.favorites"), null);
+  assert.equal(readStored(fakeStorage({}, true), "lamp.theme"), null);
+  assert.doesNotThrow(() => writeStored(fakeStorage({}, true), "lamp.theme", "dark"));
+  assert.doesNotThrow(() =>
+    writeStored(fakeStorage({}, true), "lamp.favorites", "[\"1\"]"));
+});
+
+test("the shared accessors round-trip a value and report a missing key as null", () => {
+  const storage = fakeStorage();
+  writeStored(storage, "lamp.theme", "dark");
+  assert.equal(readStored(storage, "lamp.theme"), "dark");
+  assert.equal(readStored(storage, "lamp.favorites"), null);
 });
 
 test("matchSearch supports multi-term whitespace-separated matching in any order", () => {

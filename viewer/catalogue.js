@@ -51,6 +51,25 @@ function mergeRanges(ranges) {
   return out;
 }
 
+// How far a Page move travels, measured in albums - the unit gridStep
+// counts in. A screenful is the rows that fit times the columns in each;
+// handing it the row count alone makes a page shorter than a single
+// ArrowDown on any grid with more columns than rows on screen, which is
+// every desktop layout. app.js supplies the measurements.
+function pageStep(viewportHeight, rowHeight, cols) {
+  const rows = Math.max(1, Math.floor(viewportHeight / rowHeight));
+  return rows * Math.max(1, cols);
+}
+
+// Where the cursor sits after a pass that rebuilt the filtered list. The
+// single tab stop in the lattice is stamped on the card whose index is the
+// cursor, so a list that shrank past it would carry no stop at all and the
+// keyboard could not enter the grid again.
+function clampCursor(cursor, count) {
+  if (count <= 0) return 0;
+  return Math.min(Math.max(cursor, 0), count - 1);
+}
+
 // Next index for a keyboard move across the lattice. Returns the same index
 // when the move would leave the catalogue, so holding an arrow at the edge
 // parks rather than wrapping to the far side, which loses the reader's place.
@@ -77,5 +96,5 @@ function gridStep(index, key, cols, count, perPage) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { matchRanges, mergeRanges, gridStep };
+  module.exports = { matchRanges, mergeRanges, pageStep, clampCursor, gridStep };
 }

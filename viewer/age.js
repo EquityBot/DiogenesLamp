@@ -21,9 +21,11 @@ const AGE_ANCHORS = [
 
 // Timestamp (ms) an album with this id was most likely published.
 // Clamps below the first anchor; extrapolates past the last one at the
-// final segment's rate so brand-new albums keep working. Capped at now:
-// junk ids (trillion-scale) would otherwise overflow into Invalid Date,
-// and an implied future date just means "newer than the table knows".
+// final segment's rate so brand-new albums keep working. Capped at the
+// newest instant a Date can hold (see the clamp below): junk ids
+// (trillion-scale) would otherwise overflow into Invalid Date, and an
+// implied date that far out just means "newer than the table knows". A
+// date merely in the future is left alone - it is already never stale.
 function estimatePublishedMs(id) {
   const a = AGE_ANCHORS;
   if (id <= a[0][0]) return a[0][1];

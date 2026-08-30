@@ -1,6 +1,7 @@
 "use strict";
 
-// Filter state is saved so a reload puts the user back where they were.
+// Filter state is saved so a reload puts the user back where they were,
+// and every localStorage access the viewer makes goes through this file.
 // Nothing here touches the DOM: the browser passes in a plain object and
 // gets one back, which is what makes it testable under node.
 
@@ -59,6 +60,28 @@ function serializeFilters(filters) {
     if (state[key] !== fallback) out[key] = state[key];
   }
   return out;
+}
+
+// The accessors themselves throw, not just the parse: a browser with site
+// data blocked for the origin raises SecurityError from getItem and setItem
+// alike. app.js persists favourites and the colour theme under their own
+// keys and reads them at start-up, so those calls need the same guard the
+// filter blob has - an exception there binds no listeners, loads no catalog
+// and leaves a blank page recoverable only by clearing site data.
+function readStored(storage, key) {
+  try {
+    return storage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function writeStored(storage, key, value) {
+  try {
+    storage.setItem(key, value);
+  } catch {
+    // Persistence is a convenience; the session still honours the choice.
+  }
 }
 
 // A corrupt or unparseable blob must not throw: this runs during start-up,
@@ -152,7 +175,7 @@ function favouritesExportPlan({ favoriteIds, albums, loading }) {
 
 if (typeof module !== "undefined") {
   module.exports = { FILTER_STORAGE_KEY, FILTER_DEFAULTS, defaultFilters,
-    normalizeFilters, anyFilterActive, serializeFilters, readFilters,
-    writeFilters, matchSearch, sortAlbums, formatPrice, isSearchShortcut,
-    favouritesExportPlan };
+    normalizeFilters, anyFilterActive, serializeFilters, readStored,
+    writeStored, readFilters, writeFilters, matchSearch, sortAlbums,
+    formatPrice, isSearchShortcut, favouritesExportPlan };
 }
