@@ -14,6 +14,16 @@ LIST_ITEM = """
 </a>
 """
 
+# A card whose only image is Yupoo's own "no image" asset, which parse.py
+# deliberately reports as no cover rather than as a downloadable thumb.
+NO_COVER_LIST_ITEM = """
+<a class="album__main" href="/albums/{aid}?uid=1" title="{title}">
+  <img class="album__img" data-src="https://cdn.example.com/yupoo/album/im_photo_album.png">
+  <span class="album__count">3</span>
+  <div class="album__title">{title}</div>
+</a>
+"""
+
 ALBUM_PAGE = """
 <span class="showalbumheader__gallerytitle" data-name="{title}">{title}</span>
 <div class="showalbumheader__gallerysubtitle">{desc}</div>
@@ -265,6 +275,27 @@ def test_thumb_block_streak_disables_thumbs_for_rest_of_seller(tmp_path: Path):
     # thumb field still set to the expected path even though the download
     # never happened - the viewer falls back to a placeholder.
     assert shard["105"]["thumb"] == "thumbs/sellerx/105.jpg"
+
+
+def test_an_album_with_no_cover_records_no_thumb_path(tmp_path: Path):
+    """Yupoo has no cover image for some albums at all.
+
+    parse_album_list reports its placeholder asset as no thumb, and nothing
+    is downloaded for those. Recording a path anyway pointed the viewer's
+    <img> at a file that can never exist - a 404 per card, re-issued on
+    every scroll-in because serve.py sends no-store on 404s - and the titled
+    colour block the viewer draws instead never appeared.
+    """
+    client = FakeClient({
+        "albums?page=1": NO_COVER_LIST_ITEM.format(aid="501", title="No cover"),
+        "albums?page=2": EMPTY_PAGE,
+        "/albums/501": ALBUM_PAGE.format(title="No cover", desc="plain text"),
+    })
+    summary = scrape_seller(client, SELLER, tmp_path, "2026-08-17T12:00:00+10:00")
+    assert summary.scraped == 1
+    assert client.download_calls == []
+    assert load_shard(tmp_path, "sellerx")["501"]["thumb"] == ""
+    assert not (tmp_path / "thumbs").exists()
 
 
 def test_thumb_block_streak_resets_on_success(tmp_path: Path):

@@ -182,7 +182,21 @@ def main(argv: list[str] | None = None) -> int:
                 f"an empty catalog until 'lamp scrape' writes one",
                 file=sys.stderr
             )
+        # Only an editable install puts the viewer beside the package:
+        # pyproject ships the `lamp` package alone, no package-data, so after
+        # a plain `pip install .` this points inside site-packages at nothing.
         viewer_dir = Path(__file__).resolve().parents[2] / "viewer"
+        if not viewer_dir.is_dir():
+            # Without this the server starts, opens a browser and answers 404
+            # to every request with nothing said anywhere - the one failure
+            # the operator cannot diagnose from the page in front of them.
+            print(
+                f"error: viewer files not found at {viewer_dir} - the viewer is "
+                f"served out of the source tree, so install from a clone with "
+                f"'pip install -e .'",
+                file=sys.stderr
+            )
+            return 1
         serve(viewer_dir, args.data, port=args.port, open_browser=not args.no_browser)
         return 0
     raise AssertionError("unreachable")

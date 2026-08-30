@@ -4,6 +4,7 @@ import pytest
 
 from lamp.parse import parse_album_list, parse_album_page
 
+ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = Path(__file__).parent / "fixtures"
 
 
@@ -118,10 +119,24 @@ def test_parse_album_page_dates_collected_across_blocks():
 
 @pytest.mark.manual
 def test_live_album_list_parses():
-    """Run manually: pytest -m manual tests/test_parse.py -v
-    Requires data/debug/sample-list.html from Task 6 Step 1."""
-    sample = Path("data/debug/sample-list.html")
-    assert sample.exists(), "fetch a sample first (Task 6 Step 1)"
+    """Canary against real markup: pytest -m manual tests/test_parse.py -v
+
+    The sample has to be saved by hand, and nothing in the repo does it for
+    you: a scrape writes data/debug/<seller>-page1.html only for a page it
+    could *not* parse, which is the one page this canary must never be
+    pointed at. Save a page that works, from any seller in sources.toml,
+    sending the project's own User-Agent (lamp.http.USER_AGENT):
+
+        mkdir -p data/debug
+        curl -A "$(python -c 'from lamp.http import USER_AGENT as u; print(u)')" \\
+          "https://<seller>.x.yupoo.com/albums?page=1" \\
+          -o data/debug/sample-list.html
+
+    Resolved from the repo root rather than the working directory, so it
+    finds the same file whichever directory pytest was started in.
+    """
+    sample = ROOT / "data" / "debug" / "sample-list.html"
+    assert sample.exists(), f"save a live list page to {sample} first - see this docstring"
     stubs = parse_album_list(sample.read_text(encoding="utf-8", errors="replace"))
     assert stubs, "selectors no longer match live Yupoo markup"
     assert all(s.id and s.thumb_url for s in stubs)
