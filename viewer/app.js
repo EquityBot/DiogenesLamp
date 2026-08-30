@@ -5,11 +5,13 @@
 // still executing, so an exception would leave no listeners bound and no
 // catalog loaded - a blank page recoverable only by clearing site data.
 // That covers the read itself as well as the parse, which is why the key is
-// fetched through readStored: with site data blocked for the origin,
-// getItem raises before there is anything to parse.
+// fetched through readStored: with site data blocked for the origin, the
+// accessor raises before there is anything to parse. The window is what is
+// handed over, never the Storage - reaching for the Storage here would
+// evaluate the throwing getter at this call site, outside readStored's try.
 function loadFavorites() {
   for (const key of ["lamp.favorites", "candle.favorites"]) {
-    const raw = readStored(localStorage, key);
+    const raw = readStored(window, key);
     if (!raw) continue;
     try {
       const parsed = JSON.parse(raw);
@@ -95,7 +97,7 @@ function setSelectIfPresent(select, value) {
   }
 }
 
-const storedFilters = readFilters(localStorage);
+const storedFilters = readFilters(window);
 
 function applyStoredFilters() {
   els.search.value = storedFilters.search;
@@ -385,7 +387,7 @@ function applyFilters() {
     state.filterVersion += 1;
     // A badge clicked deep in the lattice leaves the cursor thousands of
     // cards past the end of a three-card strip; see the clamp below.
-    state.cursor = clampCursor(state.cursor, state.filtered.length);
+    setCursor(clampCursor(state.cursor, state.filtered.length));
     // Say what the group is, not just how big it is: the whole reason to open
     // one is to see which sellers are posting the same thing.
     const sellers = new Set(copies.map((a) => a.seller)).size;
@@ -437,7 +439,7 @@ function applyFilters() {
   // entered from the keyboard at all - which is what un-starring the last
   // card of a favourites-only view did, since toggleFavorite refilters
   // without going through userFilterChange.
-  state.cursor = clampCursor(state.cursor, state.filtered.length);
+  setCursor(clampCursor(state.cursor, state.filtered.length));
   setStatus();
   // Not a forced rebuild: the render reuses cards by album, and any whose
   // duplicate badge no longer matches is rebuilt individually. During a
@@ -656,7 +658,7 @@ function toggleFavorite(albumId, button) {
   const isFav = state.favorites.has(albumId);
   button.setAttribute("aria-pressed", String(isFav));
   button.setAttribute("aria-label", favLabel(isFav));
-  writeStored(localStorage, "lamp.favorites", JSON.stringify([...state.favorites]));
+  writeStored(window, "lamp.favorites", JSON.stringify([...state.favorites]));
   if (els.favsOnly.checked) applyFilters();
 }
 
@@ -689,7 +691,7 @@ function placeCard(i) {
 
 // Windowed rendering: only rows near the viewport exist in the DOM.
 const OVERSCAN_ROWS = 3;
-let lastRange = { start: -1, end: -1, cols: -1, count: -1, version: -1 };
+let lastRange = { start: -1, end: -1, cols: -1, count: -1, version: -1, cursor: -1 };
 // Cards currently in the grid. Scroll-driven renders keep them (same nodes,
 // listeners, decoded thumbs) and touch only the rows entering and leaving
 // the window; anything that can change card content or membership goes
@@ -725,14 +727,13 @@ function renderGrid(force = false) {
   );
   // filterVersion is part of the key: two different filters can produce the
   // same row range and the same count, and without it the second would be
-  // mistaken for a no-op and never drawn.
-  if (!force && firstRow === lastRange.start && lastRow === lastRange.end &&
-      cols === lastRange.cols && state.filtered.length === lastRange.count &&
-      state.filterVersion === lastRange.version) {
-    return;
-  }
-  lastRange = { start: firstRow, end: lastRow, cols, count: state.filtered.length,
-                version: state.filterVersion };
+  // mistaken for a no-op and never drawn. So is the cursor, since the pass
+  // below is what stamps the tab stop - sameRenderWindow says why.
+  const wanted = { start: firstRow, end: lastRow, cols,
+                   count: state.filtered.length, version: state.filterVersion,
+                   cursor: state.cursor };
+  if (!force && sameRenderWindow(lastRange, wanted)) return;
+  lastRange = wanted;
 
   if (force) {
     els.grid.replaceChildren();
@@ -783,6 +784,13 @@ function renderGrid(force = false) {
   // happens both when they scroll a focused card out of the window and when
   // un-favouriting a card removes it from a favourites-only view.
   const departed = [...cardCache.values()];
+  // Published before rescueFocus, not after: the focus it hands out fires
+  // focusin, which moves the cursor and restamps the tab stop across the
+  // window. Left until the end of the function, that restamp would run over
+  // the window this pass is replacing and leave the stop on a card already
+  // on its way out. `departed` is a snapshot, so nothing below needs the old
+  // map back.
+  cardCache = next;
   rescueFocus(departed, next);
   for (const node of departed) node.remove();
 
@@ -798,7 +806,6 @@ function renderGrid(force = false) {
     }
     previous = card;
   }
-  cardCache = next;
 }
 
 function setIfChanged(el, name, value) {
@@ -822,6 +829,23 @@ function setCardTabStop(card, isCursor) {
   for (const el of card.querySelectorAll(CARD_STOPS)) {
     setIfChanged(el, "tabindex", value);
   }
+}
+
+// The only place state.cursor is written. The stop has to move with it, and
+// a render cannot be relied on to do that: focusin - a click on a card, or a
+// Tab into one - moves the cursor and renders nothing at all. So the window
+// is restamped here and now.
+//
+// Restamped across the whole window rather than handed from one card to
+// another, because applyFilters rebuilds state.filtered before it clamps the
+// cursor, so the outgoing index no longer names the outgoing card. The window
+// holds a few dozen cards and setIfChanged writes only what actually differs,
+// which is what the render loop does on every pass anyway.
+function setCursor(next) {
+  state.cursor = next;
+  const album = state.filtered[next];
+  const key = album ? cardKey(album) : null;
+  for (const [id, card] of cardCache) setCardTabStop(card, id === key);
 }
 
 // Focus follows the user, so hand it to the same control on the card that
@@ -869,7 +893,7 @@ function headroom() {
 
 function moveCursor(next) {
   if (!state.filtered.length) return;
-  state.cursor = Math.min(Math.max(next, 0), state.filtered.length - 1);
+  setCursor(Math.min(Math.max(next, 0), state.filtered.length - 1));
   const rowH = rowHeight();
   const rowTop = els.spacer.offsetTop + Math.floor(state.cursor / columns()) * rowH;
   const above = window.scrollY + headroom();
@@ -914,7 +938,7 @@ els.grid.addEventListener("focusin", (event) => {
   const card = event.target.closest(".card");
   if (!card) return;
   const at = Number(card.getAttribute("aria-posinset")) - 1;
-  if (Number.isInteger(at) && at >= 0) state.cursor = at;
+  if (Number.isInteger(at) && at >= 0) setCursor(at);
 });
 
 let scrollScheduled = false;
@@ -972,8 +996,8 @@ let userTouchedFilters = false;
 function userFilterChange() {
   userTouchedFilters = true;
   state.dupGroup = null;
-  state.cursor = 0;
-  writeFilters(localStorage, currentFilters());
+  setCursor(0);
+  writeFilters(window, currentFilters());
   window.scrollTo(0, 0);
   applyFilters();
 }
@@ -1001,9 +1025,9 @@ function clearFilters() {
   els.newOnly.checked = defaults.newOnly;
   els.favsOnly.checked = defaults.favsOnly;
   els.hideDups.checked = defaults.hideDups;
-  writeFilters(localStorage, defaults);
+  writeFilters(window, defaults);
   state.dupGroup = null;
-  state.cursor = 0;
+  setCursor(0);
   window.scrollTo(0, 0);
   applyFilters();
   els.search.focus();
@@ -1082,7 +1106,7 @@ for (const el of [els.seller, els.category, els.newOnly, els.favsOnly,
 // back where they were browsing instead of snapping to the top.
 function exitGroupView() {
   state.dupGroup = null;
-  state.cursor = 0;
+  setCursor(0);
   // Order matters twice over. The group view leaves the page one row tall,
   // so scrolling back first would be clamped to the top; the full list has
   // to be restored before the browser will accept the old offset. And
@@ -1153,12 +1177,12 @@ function applyTheme(theme) {
   els.themeToggle.title = THEME_LABEL[theme];
 }
 
-const storedTheme = readStored(localStorage, "lamp.theme");
+const storedTheme = readStored(window, "lamp.theme");
 let theme = THEME_CYCLE.includes(storedTheme) ? storedTheme : "system";
 applyTheme(theme);
 els.themeToggle.addEventListener("click", () => {
   theme = THEME_CYCLE[(THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length];
-  writeStored(localStorage, "lamp.theme", theme);
+  writeStored(window, "lamp.theme", theme);
   applyTheme(theme);
 });
 

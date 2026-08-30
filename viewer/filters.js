@@ -62,33 +62,42 @@ function serializeFilters(filters) {
   return out;
 }
 
-// The accessors themselves throw, not just the parse: a browser with site
-// data blocked for the origin raises SecurityError from getItem and setItem
-// alike. app.js persists favourites and the colour theme under their own
-// keys and reads them at start-up, so those calls need the same guard the
-// filter blob has - an exception there binds no listeners, loads no catalog
-// and leaves a blank page recoverable only by clearing site data.
-function readStored(storage, key) {
+// These take the host - the window, or any object carrying a localStorage -
+// rather than a Storage, and reach the accessor themselves. The reason is
+// that `window.localStorage` is a getter, and a browser with site data
+// blocked for the origin raises SecurityError from the getter, before
+// getItem is ever reached. An argument is evaluated at the call site, so
+// `readStored(localStorage, key)` throws there, outside this function's try,
+// and guards nothing; only the host survives the trip. A host carrying no
+// storage at all reads as "no value" instead of throwing, the same as a
+// blocked one.
+//
+// app.js persists favourites, the filter blob and the colour theme, and
+// reads all three while its module body is still executing - an exception
+// there binds no listeners, loads no catalog and leaves a blank page
+// recoverable only by clearing site data.
+function readStored(host, key) {
   try {
-    return storage.getItem(key);
+    return host.localStorage.getItem(key);
   } catch {
     return null;
   }
 }
 
-function writeStored(storage, key, value) {
+function writeStored(host, key, value) {
   try {
-    storage.setItem(key, value);
+    host.localStorage.setItem(key, value);
   } catch {
     // Persistence is a convenience; the session still honours the choice.
   }
 }
 
 // A corrupt or unparseable blob must not throw: this runs during start-up,
-// and an exception here would leave the viewer with no listeners bound.
-function readFilters(storage) {
+// and an exception here would leave the viewer with no listeners bound. The
+// host is passed rather than the Storage for the reason given above.
+function readFilters(host) {
   try {
-    const raw = storage.getItem(FILTER_STORAGE_KEY);
+    const raw = host.localStorage.getItem(FILTER_STORAGE_KEY);
     if (!raw) return defaultFilters();
     return normalizeFilters(JSON.parse(raw));
   } catch {
@@ -96,9 +105,9 @@ function readFilters(storage) {
   }
 }
 
-function writeFilters(storage, filters) {
+function writeFilters(host, filters) {
   try {
-    storage.setItem(FILTER_STORAGE_KEY, JSON.stringify(serializeFilters(filters)));
+    host.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(serializeFilters(filters)));
   } catch {
     // A full or blocked quota costs the user persistence, not the session.
   }

@@ -70,6 +70,25 @@ function clampCursor(cursor, count) {
   return Math.min(Math.max(cursor, 0), count - 1);
 }
 
+// Whether the window already drawn is still the window that should be drawn.
+// renderGrid skips its pass when this holds, which is what keeps a scroll
+// step from re-walking a window nothing changed in.
+//
+// The cursor is part of the comparison because a skipped render is a render
+// that does not stamp the roving tab stop. An ArrowRight inside the visible
+// row moves the cursor and leaves the row range, the column count, the
+// filtered length and the filter version all identical, so without the
+// cursor here the pass was skipped and tabindex="0" stayed on the card the
+// user had just left - Tab then jumped backwards to it, which is the whole
+// behaviour the roving tabindex exists to provide. app.js supplies the
+// measurements; the comparison lives here so it can be tested without a DOM.
+const RENDER_WINDOW_KEYS = ["start", "end", "cols", "count", "version", "cursor"];
+
+function sameRenderWindow(drawn, wanted) {
+  if (!drawn || !wanted) return false;
+  return RENDER_WINDOW_KEYS.every((key) => drawn[key] === wanted[key]);
+}
+
 // Next index for a keyboard move across the lattice. Returns the same index
 // when the move would leave the catalogue, so holding an arrow at the edge
 // parks rather than wrapping to the far side, which loses the reader's place.
@@ -96,5 +115,6 @@ function gridStep(index, key, cols, count, perPage) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { matchRanges, mergeRanges, pageStep, clampCursor, gridStep };
+  module.exports = { matchRanges, mergeRanges, pageStep, clampCursor, gridStep,
+    RENDER_WINDOW_KEYS, sameRenderWindow };
 }

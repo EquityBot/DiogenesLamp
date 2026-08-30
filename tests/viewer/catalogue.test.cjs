@@ -4,7 +4,8 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const path = require("node:path");
 
-const { matchRanges, mergeRanges, pageStep, clampCursor, gridStep } =
+const { matchRanges, mergeRanges, pageStep, clampCursor, gridStep,
+  RENDER_WINDOW_KEYS, sameRenderWindow } =
   require(path.join(__dirname, "..", "..", "viewer", "catalogue.js"));
 
 test("no query marks nothing", () => {
@@ -113,4 +114,38 @@ test("an empty or unmeasured grid answers with the first index", () => {
 test("a cursor left past the end by a shrinking filter is pulled back in", () => {
   assert.equal(gridStep(99, "ArrowLeft", 4, 10), 8);
   assert.equal(gridStep(-5, "ArrowRight", 4, 10), 1);
+});
+
+// A render that renderGrid skips is a render that does not stamp the roving
+// tab stop, so anything that should move the stop has to invalidate here.
+function drawnWindow(extra = {}) {
+  return { start: 0, end: 8, cols: 4, count: 400, version: 7, cursor: 3, ...extra };
+}
+
+test("an unchanged window is still the window that was drawn", () => {
+  assert.equal(sameRenderWindow(drawnWindow(), drawnWindow()), true);
+  // Nothing to compare against on the first pass.
+  assert.equal(sameRenderWindow(null, drawnWindow()), false);
+  assert.equal(sameRenderWindow(drawnWindow(), null), false);
+});
+
+test("a moved cursor invalidates the window even when nothing else changed", () => {
+  // ArrowRight inside the visible row: same rows, same columns, same filtered
+  // length, same filter version. Skipping this pass left tabindex="0" on the
+  // card the user had just left, and Tab jumped backwards to it.
+  assert.equal(sameRenderWindow(drawnWindow(), drawnWindow({ cursor: 4 })), false);
+  // A pointer click far down the same window, via focusin.
+  assert.equal(sameRenderWindow(drawnWindow(), drawnWindow({ cursor: 51 })), false);
+});
+
+test("every field of the render key invalidates on its own", () => {
+  // The cursor is one of them, and none of the others may be dropped in
+  // trying to keep it cheap.
+  assert.deepEqual(RENDER_WINDOW_KEYS,
+    ["start", "end", "cols", "count", "version", "cursor"]);
+  for (const key of RENDER_WINDOW_KEYS) {
+    const moved = drawnWindow({ [key]: drawnWindow()[key] + 1 });
+    assert.equal(sameRenderWindow(drawnWindow(), moved), false,
+      `${key} changed and the render was skipped anyway`);
+  }
 });
