@@ -4,9 +4,14 @@
 // A corrupt value must not throw here: this runs while the module body is
 // still executing, so an exception would leave no listeners bound and no
 // catalog loaded - a blank page recoverable only by clearing site data.
+// That covers the read itself as well as the parse, which is why the key is
+// fetched through readStored: with site data blocked for the origin, the
+// accessor raises before there is anything to parse. The window is what is
+// handed over, never the Storage - reaching for the Storage here would
+// evaluate the throwing getter at this call site, outside readStored's try.
 function loadFavorites() {
   for (const key of ["lamp.favorites", "candle.favorites"]) {
-    const raw = localStorage.getItem(key);
+    const raw = readStored(window, key);
     if (!raw) continue;
     try {
       const parsed = JSON.parse(raw);
@@ -92,7 +97,7 @@ function setSelectIfPresent(select, value) {
   }
 }
 
-const storedFilters = readFilters(localStorage);
+const storedFilters = readFilters(window);
 
 function applyStoredFilters() {
   els.search.value = storedFilters.search;
@@ -380,6 +385,9 @@ function applyFilters() {
     const copies = state.albums.filter((a) => a.dup_key === state.dupGroup);
     state.filtered = sortAlbums(copies, els.sort.value);
     state.filterVersion += 1;
+    // A badge clicked deep in the lattice leaves the cursor thousands of
+    // cards past the end of a three-card strip; see the clamp below.
+    setCursor(clampCursor(state.cursor, state.filtered.length));
     // Say what the group is, not just how big it is: the whole reason to open
     // one is to see which sellers are posting the same thing.
     const sellers = new Set(copies.map((a) => a.seller)).size;
@@ -425,6 +433,13 @@ function applyFilters() {
   // away, and the filtered list is the smaller thing to order anyway.
   state.filtered = sortAlbums(filtered, els.sort.value);
   state.filterVersion += 1;
+  // renderGrid stamps the one tab stop on the card whose index is the
+  // cursor, so every pass that shrinks the list has to pull the cursor back
+  // inside it. Otherwise no card carries the stop and the grid cannot be
+  // entered from the keyboard at all - which is what un-starring the last
+  // card of a favourites-only view did, since toggleFavorite refilters
+  // without going through userFilterChange.
+  setCursor(clampCursor(state.cursor, state.filtered.length));
   setStatus();
   // Not a forced rebuild: the render reuses cards by album, and any whose
   // duplicate badge no longer matches is rebuilt individually. During a
@@ -643,7 +658,7 @@ function toggleFavorite(albumId, button) {
   const isFav = state.favorites.has(albumId);
   button.setAttribute("aria-pressed", String(isFav));
   button.setAttribute("aria-label", favLabel(isFav));
-  localStorage.setItem("lamp.favorites", JSON.stringify([...state.favorites]));
+  writeStored(window, "lamp.favorites", JSON.stringify([...state.favorites]));
   if (els.favsOnly.checked) applyFilters();
 }
 
@@ -676,15 +691,19 @@ function placeCard(i) {
 
 // Windowed rendering: only rows near the viewport exist in the DOM.
 const OVERSCAN_ROWS = 3;
-let lastRange = { start: -1, end: -1, cols: -1, count: -1, version: -1 };
+let lastRange = { start: -1, end: -1, cols: -1, count: -1, version: -1, cursor: -1 };
 // Cards currently in the grid. Scroll-driven renders keep them (same nodes,
 // listeners, decoded thumbs) and touch only the rows entering and leaving
 // the window; anything that can change card content or membership goes
 // through renderGrid(force = true), which rebuilds from scratch.
 // Keyed by seller and id together: an id repeated in one view would
 // otherwise claim the same node twice and strand a card in the DOM.
+// The separator is written as an escape, the way links.py writes its own
+// control characters: a literal NUL in a source file is invisible to the
+// next reader and makes the file binary to grep and ripgrep, which then
+// report "binary file matches" and print no lines at all.
 let cardCache = new Map();
-const cardKey = (album) => `${album.seller} ${album.id}`;
+const cardKey = (album) => `${album.seller}\u0000${album.id}`;
 
 function renderGrid(force = false) {
   const cols = columns();
@@ -708,14 +727,13 @@ function renderGrid(force = false) {
   );
   // filterVersion is part of the key: two different filters can produce the
   // same row range and the same count, and without it the second would be
-  // mistaken for a no-op and never drawn.
-  if (!force && firstRow === lastRange.start && lastRow === lastRange.end &&
-      cols === lastRange.cols && state.filtered.length === lastRange.count &&
-      state.filterVersion === lastRange.version) {
-    return;
-  }
-  lastRange = { start: firstRow, end: lastRow, cols, count: state.filtered.length,
-                version: state.filterVersion };
+  // mistaken for a no-op and never drawn. So is the cursor, since the pass
+  // below is what stamps the tab stop - sameRenderWindow says why.
+  const wanted = { start: firstRow, end: lastRow, cols,
+                   count: state.filtered.length, version: state.filterVersion,
+                   cursor: state.cursor };
+  if (!force && sameRenderWindow(lastRange, wanted)) return;
+  lastRange = wanted;
 
   if (force) {
     els.grid.replaceChildren();
@@ -756,7 +774,7 @@ function renderGrid(force = false) {
     setIfChanged(card, "aria-posinset", String(i + 1));
     // Roving tabindex: one stop for the whole lattice, and the arrows move
     // it. Forty thousand tab stops is not a keyboard interface.
-    setIfChanged(card, "tabindex", i === state.cursor ? "0" : "-1");
+    setCardTabStop(card, i === state.cursor);
     next.set(key, card);
   }
 
@@ -766,6 +784,13 @@ function renderGrid(force = false) {
   // happens both when they scroll a focused card out of the window and when
   // un-favouriting a card removes it from a favourites-only view.
   const departed = [...cardCache.values()];
+  // Published before rescueFocus, not after: the focus it hands out fires
+  // focusin, which moves the cursor and restamps the tab stop across the
+  // window. Left until the end of the function, that restamp would run over
+  // the window this pass is replacing and leave the stop on a card already
+  // on its way out. `departed` is a snapshot, so nothing below needs the old
+  // map back.
+  cardCache = next;
   rescueFocus(departed, next);
   for (const node of departed) node.remove();
 
@@ -781,11 +806,46 @@ function renderGrid(force = false) {
     }
     previous = card;
   }
-  cardCache = next;
 }
 
 function setIfChanged(el, name, value) {
   if (el.getAttribute(name) !== value) el.setAttribute(name, value);
+}
+
+// Everything on a card that the browser makes focusable in its own right.
+// Stamping the tabindex on the card alone leaves all of these in the tab
+// order, and a card carries a cover link, a star, sometimes a duplicate
+// badge and up to three purchase links: at ~54 cards in the render window
+// that is several hundred stops to tab past the grid, which is the outcome
+// the roving tabindex exists to prevent. A card added to makeCard with a
+// new focusable element has to be added here too.
+const CARD_STOPS = ".cover-link, .fav-btn, .badge-dup, .card-links a";
+
+// The card under the cursor is the stop, and its own controls follow it, so
+// they stay reachable by Tab without every other card offering them too.
+function setCardTabStop(card, isCursor) {
+  const value = isCursor ? "0" : "-1";
+  setIfChanged(card, "tabindex", value);
+  for (const el of card.querySelectorAll(CARD_STOPS)) {
+    setIfChanged(el, "tabindex", value);
+  }
+}
+
+// The only place state.cursor is written. The stop has to move with it, and
+// a render cannot be relied on to do that: focusin - a click on a card, or a
+// Tab into one - moves the cursor and renders nothing at all. So the window
+// is restamped here and now.
+//
+// Restamped across the whole window rather than handed from one card to
+// another, because applyFilters rebuilds state.filtered before it clamps the
+// cursor, so the outgoing index no longer names the outgoing card. The window
+// holds a few dozen cards and setIfChanged writes only what actually differs,
+// which is what the render loop does on every pass anyway.
+function setCursor(next) {
+  state.cursor = next;
+  const album = state.filtered[next];
+  const key = album ? cardKey(album) : null;
+  for (const [id, card] of cardCache) setCardTabStop(card, id === key);
 }
 
 // Focus follows the user, so hand it to the same control on the card that
@@ -817,8 +877,10 @@ function rescueFocus(departed, survivors) {
 const GRID_KEYS = new Set(["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown",
   "Home", "End", "PageUp", "PageDown"]);
 
-function rowsPerPage() {
-  return Math.max(1, Math.floor(window.innerHeight / rowHeight()));
+// A Page move travels a screenful. The arithmetic lives in catalogue.js so
+// it can be tested without a DOM; this only measures.
+function albumsPerPage() {
+  return pageStep(window.innerHeight, rowHeight(), columns());
 }
 
 // How much of the top of the page the header is covering. Nothing but the
@@ -831,7 +893,7 @@ function headroom() {
 
 function moveCursor(next) {
   if (!state.filtered.length) return;
-  state.cursor = Math.min(Math.max(next, 0), state.filtered.length - 1);
+  setCursor(Math.min(Math.max(next, 0), state.filtered.length - 1));
   const rowH = rowHeight();
   const rowTop = els.spacer.offsetTop + Math.floor(state.cursor / columns()) * rowH;
   const above = window.scrollY + headroom();
@@ -856,7 +918,7 @@ els.grid.addEventListener("keydown", (event) => {
   if (GRID_KEYS.has(event.key)) {
     event.preventDefault();
     moveCursor(gridStep(state.cursor, event.key, columns(),
-      state.filtered.length, rowsPerPage()));
+      state.filtered.length, albumsPerPage()));
     return;
   }
   const album = state.filtered[state.cursor];
@@ -876,7 +938,7 @@ els.grid.addEventListener("focusin", (event) => {
   const card = event.target.closest(".card");
   if (!card) return;
   const at = Number(card.getAttribute("aria-posinset")) - 1;
-  if (Number.isInteger(at) && at >= 0) state.cursor = at;
+  if (Number.isInteger(at) && at >= 0) setCursor(at);
 });
 
 let scrollScheduled = false;
@@ -934,8 +996,8 @@ let userTouchedFilters = false;
 function userFilterChange() {
   userTouchedFilters = true;
   state.dupGroup = null;
-  state.cursor = 0;
-  writeFilters(localStorage, currentFilters());
+  setCursor(0);
+  writeFilters(window, currentFilters());
   window.scrollTo(0, 0);
   applyFilters();
 }
@@ -963,9 +1025,9 @@ function clearFilters() {
   els.newOnly.checked = defaults.newOnly;
   els.favsOnly.checked = defaults.favsOnly;
   els.hideDups.checked = defaults.hideDups;
-  writeFilters(localStorage, defaults);
+  writeFilters(window, defaults);
   state.dupGroup = null;
-  state.cursor = 0;
+  setCursor(0);
   window.scrollTo(0, 0);
   applyFilters();
   els.search.focus();
@@ -1044,7 +1106,7 @@ for (const el of [els.seller, els.category, els.newOnly, els.favsOnly,
 // back where they were browsing instead of snapping to the top.
 function exitGroupView() {
   state.dupGroup = null;
-  state.cursor = 0;
+  setCursor(0);
   // Order matters twice over. The group view leaves the page one row tall,
   // so scrolling back first would be clamped to the top; the full list has
   // to be restored before the browser will accept the old offset. And
@@ -1115,16 +1177,12 @@ function applyTheme(theme) {
   els.themeToggle.title = THEME_LABEL[theme];
 }
 
-let theme = THEME_CYCLE.includes(localStorage.getItem("lamp.theme"))
-  ? localStorage.getItem("lamp.theme") : "system";
+const storedTheme = readStored(window, "lamp.theme");
+let theme = THEME_CYCLE.includes(storedTheme) ? storedTheme : "system";
 applyTheme(theme);
 els.themeToggle.addEventListener("click", () => {
   theme = THEME_CYCLE[(THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length];
-  try {
-    localStorage.setItem("lamp.theme", theme);
-  } catch {
-    // Persistence is a convenience; the session still honours the choice.
-  }
+  writeStored(window, "lamp.theme", theme);
   applyTheme(theme);
 });
 
