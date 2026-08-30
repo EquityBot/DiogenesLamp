@@ -197,7 +197,14 @@ def scrape_seller(client, source: Source, data_dir: Path,
             "seller": source.id,
             "title": title,
             "list_title": stub.title,
-            "thumb": thumb_rel,
+            # No path when Yupoo has no cover for the album at all (parse.py
+            # reports its placeholder asset as no thumb). Recording one
+            # anyway points the viewer's <img> at a file that can never
+            # exist, which is a 404 per card on every scroll-in; the titled
+            # colour block is the intended fallback. A cover that exists but
+            # whose download was blocked keeps its path - the file can still
+            # arrive on a later run.
+            "thumb": thumb_rel if stub.thumb_url else "",
             "album_url": album_url,
             "links": [{"platform": link.platform, "url": link.url} for link in links],
             "category": detail.category,

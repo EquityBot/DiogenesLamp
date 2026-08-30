@@ -112,10 +112,12 @@ install, and the ci badge above is the release gate.
    page is an installable PWA (`manifest.json`).
 
    The grid is a keyboard surface, not just a keyboard-reachable one. Tab
-   reaches it once, then the arrow keys move a cursor from cover to cover
-   (Home, End, Page Up and Page Down included), Enter opens the album under
-   the cursor, and `f` keeps it. The cursor scrolls the grid to follow itself,
-   so it works the same at album 12 and album 40,000.
+   reaches one card - the one under the cursor, whose own cover link, star and
+   purchase links follow it, while every other card is skipped - then the
+   arrow keys move that cursor from cover to cover (Home, End, Page Up and
+   Page Down included), Enter opens the album under the cursor, and `f` keeps
+   it. The cursor scrolls the grid to follow itself, so it works the same at
+   album 12 and album 40,000.
 
    The theme button cycles system, light and dark. Every control is labelled,
    Escape closes the shops panel or a duplicate group, and a skip link jumps
@@ -157,8 +159,11 @@ your machine.
     pytest              # fixture-based, no network
     pytest -m manual    # canaries against saved live samples
 
-The `manual` tests check the parsers against real pages saved under
-`data/debug/`, so they only run after a scrape has put samples there - on a
+The `manual` tests check the parsers against a real page saved by hand to
+`data/debug/sample-list.html` - fetch a seller's `albums?page=1` there and the
+canary says whether the selectors still match live Yupoo markup (the test's
+docstring has the command). Nothing writes that file for you: a scrape only
+dumps pages it *failed* to parse, which is the opposite of a canary. So on a
 fresh clone they fail by design rather than pass vacuously.
 
 The viewer is dependency-free vanilla JS with no build step - edit
@@ -176,9 +181,9 @@ To work on the viewer without scraping anything, generate synthetic data:
     python tests/make_demo_data.py demo-data
     lamp --data demo-data serve
 
-That writes 5 sellers x 2000 albums, with generated gradient covers for the
-first 300 of each. The rest are left cover-less on purpose, so the viewer's
-titled colour-block fallback is on screen too.
+That writes 5 sellers x 2000 albums, with generated gradient covers for two
+albums in every three, spread across each seller. The rest are left cover-less
+on purpose, so the viewer's titled colour-block fallback is on screen too.
 
 Note that global options come before the subcommand: `lamp --data X serve`,
 not `lamp serve --data X`.

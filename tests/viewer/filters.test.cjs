@@ -5,8 +5,9 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 
 const { FILTER_STORAGE_KEY, defaultFilters, normalizeFilters, anyFilterActive,
-  serializeFilters, readFilters, writeFilters, matchSearch, sortAlbums,
-  formatPrice, isSearchShortcut, favouritesExportPlan } =
+  serializeFilters, readStored, writeStored, readFilters, writeFilters,
+  matchSearch, sortAlbums, formatPrice, isSearchShortcut,
+  favouritesExportPlan } =
   require(path.join(__dirname, "..", "..", "viewer", "filters.js"));
 
 // Minimal stand-in for localStorage. `fail` makes both accessors throw, which
@@ -24,6 +25,28 @@ function fakeStorage(initial = {}, fail = false) {
       data[key] = String(value);
     },
   };
+}
+
+// The helpers take the host, not the Storage, so a plain window stands in.
+function fakeHost(storage) {
+  return { localStorage: storage };
+}
+
+// A host whose localStorage *getter* throws, which is what a browser with
+// site data blocked for the origin actually does: the SecurityError comes
+// from reaching for the Storage, before getItem exists to be called. A guard
+// that takes the Storage as an argument never sees this - the argument is
+// evaluated at the call site, outside the guard's try.
+function blockedHost() {
+  const host = {};
+  Object.defineProperty(host, "localStorage", {
+    get() {
+      const err = new Error("Access is denied for this document.");
+      err.name = "SecurityError";
+      throw err;
+    },
+  });
+  return host;
 }
 
 test("defaults describe an unfiltered view", () => {
@@ -68,8 +91,8 @@ test("a blob from an older build leaves unknown fields at their default", () => 
 test("write then read round-trips the active filters", () => {
   const storage = fakeStorage();
   const filters = { ...defaultFilters(), search: "tee", age: "180", favsOnly: true };
-  writeFilters(storage, filters);
-  assert.deepEqual(readFilters(storage), filters);
+  writeFilters(fakeHost(storage), filters);
+  assert.deepEqual(readFilters(fakeHost(storage)), filters);
   // Defaults are not stored, so the blob stays small.
   assert.deepEqual(JSON.parse(storage.data[FILTER_STORAGE_KEY]),
     { search: "tee", age: "180", favsOnly: true });
@@ -78,15 +101,76 @@ test("write then read round-trips the active filters", () => {
 test("unreadable storage yields defaults instead of throwing", () => {
   // This runs during start-up: an exception here binds no listeners and
   // leaves a blank page.
-  assert.deepEqual(readFilters(fakeStorage({}, true)), defaultFilters());
-  assert.deepEqual(readFilters(fakeStorage({ [FILTER_STORAGE_KEY]: "{not json" })),
+  assert.deepEqual(readFilters(fakeHost(fakeStorage({}, true))), defaultFilters());
+  assert.deepEqual(
+    readFilters(fakeHost(fakeStorage({ [FILTER_STORAGE_KEY]: "{not json" }))),
     defaultFilters());
-  assert.deepEqual(readFilters(fakeStorage({ [FILTER_STORAGE_KEY]: "null" })),
+  assert.deepEqual(
+    readFilters(fakeHost(fakeStorage({ [FILTER_STORAGE_KEY]: "null" }))),
     defaultFilters());
 });
 
 test("a failed write is swallowed", () => {
-  assert.doesNotThrow(() => writeFilters(fakeStorage({}, true), defaultFilters()));
+  assert.doesNotThrow(() =>
+    writeFilters(fakeHost(fakeStorage({}, true)), defaultFilters()));
+});
+
+test("blocked storage yields no value rather than throwing out of the accessor", () => {
+  // app.js reads the favourites and the colour theme through these while its
+  // module body is still executing. A browser with site data blocked throws
+  // from getItem itself, before there is anything to parse, so a guard around
+  // the parse alone still leaves no listeners bound and a blank page.
+  assert.equal(readStored(fakeHost(fakeStorage({}, true)), "lamp.favorites"), null);
+  assert.equal(readStored(fakeHost(fakeStorage({}, true)), "lamp.theme"), null);
+  assert.doesNotThrow(() =>
+    writeStored(fakeHost(fakeStorage({}, true)), "lamp.theme", "dark"));
+  assert.doesNotThrow(() =>
+    writeStored(fakeHost(fakeStorage({}, true)), "lamp.favorites", "[\"1\"]"));
+});
+
+test("the shared accessors round-trip a value and report a missing key as null", () => {
+  const host = fakeHost(fakeStorage());
+  writeStored(host, "lamp.theme", "dark");
+  assert.equal(readStored(host, "lamp.theme"), "dark");
+  assert.equal(readStored(host, "lamp.favorites"), null);
+});
+
+test("a throwing localStorage getter is guarded, not just a throwing getItem", () => {
+  // The failure the guards exist for. Site data blocked for the origin makes
+  // Window.localStorage itself raise, so the Storage never comes into being -
+  // and a helper taking the Storage as its argument is handed that exception
+  // at the call site, before its own try begins. Every one of these reaches
+  // for the Storage inside its own try, which is the only place it is caught.
+  const host = blockedHost();
+  assert.throws(() => host.localStorage, { name: "SecurityError" },
+    "the fixture must throw from the getter, else this proves nothing");
+
+  // Control: the same helpers, on the same shape of host, still reach a real
+  // Storage. Without this, "yields null" would also describe a helper that
+  // never reached through the host at all, and the blocked case below would
+  // pass for the wrong reason.
+  const working = fakeHost(fakeStorage({ "lamp.theme": "dark" }));
+  assert.equal(readStored(working, "lamp.theme"), "dark");
+  assert.equal(readFilters(fakeHost(fakeStorage(
+    { [FILTER_STORAGE_KEY]: '{"search":"tee"}' }))).search, "tee");
+
+  assert.equal(readStored(host, "lamp.favorites"), null);
+  assert.equal(readStored(host, "lamp.theme"), null);
+  assert.deepEqual(readFilters(host), defaultFilters());
+  assert.doesNotThrow(() => writeStored(host, "lamp.theme", "dark"));
+  assert.doesNotThrow(() => writeStored(host, "lamp.favorites", "[\"1\"]"));
+  assert.doesNotThrow(() => writeFilters(host, { ...defaultFilters(), search: "tee" }));
+});
+
+test("a host carrying no storage at all reads as no value", () => {
+  // An embedder or a sandboxed frame can simply not expose one. Absent is not
+  // an error condition for the viewer: it is the same as blocked.
+  for (const host of [{}, { localStorage: null }, { localStorage: undefined }]) {
+    assert.equal(readStored(host, "lamp.theme"), null);
+    assert.deepEqual(readFilters(host), defaultFilters());
+    assert.doesNotThrow(() => writeStored(host, "lamp.theme", "dark"));
+    assert.doesNotThrow(() => writeFilters(host, defaultFilters()));
+  }
 });
 
 test("matchSearch supports multi-term whitespace-separated matching in any order", () => {
