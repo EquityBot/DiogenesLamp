@@ -122,6 +122,7 @@ EXPECTED_CODEQL = "\n".join(
         "    name: Analyze (${{ matrix.language }})",
         "    runs-on: ubuntu-latest",
         "    permissions:",
+        "      actions: read # Read workflow metadata for CodeQL Actions analysis.",
         "      contents: read",
         "      security-events: write # Upload CodeQL results for this job only.",
         "    strategy:",
