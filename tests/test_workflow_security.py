@@ -24,14 +24,14 @@ EXPECTED_ACTIONS = {
         "v7.0.0",
     ),
     "github/codeql-action/init": (
-        "ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd",
+        "db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28",
         "v4",
-        "v4.37.7",
+        "v4.37.8",
     ),
     "github/codeql-action/analyze": (
-        "ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd",
+        "db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28",
         "v4",
-        "v4.37.7",
+        "v4.37.8",
     ),
 }
 
@@ -245,9 +245,9 @@ def test_security_document_is_exact():
 def test_codeql_major_comments_have_reviewed_exact_release_provenance():
     for action in ("github/codeql-action/init", "github/codeql-action/analyze"):
         commit, comment, resolved_release = EXPECTED_ACTIONS[action]
-        assert commit == "ff2f1c621b7f889edc0d3c761ac2e6a3f8cdb0dd"
+        assert commit == "db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28"
         assert comment == "v4"
-        assert resolved_release == "v4.37.7"
+        assert resolved_release == "v4.37.8"
 
 
 @pytest.mark.parametrize(
