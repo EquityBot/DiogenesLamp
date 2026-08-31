@@ -126,6 +126,26 @@ def test_serve_warns_when_no_index_json(tmp_path: Path, capsys, monkeypatch):
     assert "no index.json" in capsys.readouterr().err
 
 
+def test_serve_refuses_when_the_viewer_tree_is_missing(tmp_path: Path, capsys, monkeypatch):
+    """The viewer is served straight out of the source tree, so only an
+    editable install has one. After a plain `pip install .` the path points
+    inside site-packages at nothing, and the server used to start, open a
+    browser and answer 404 to every request without saying a word."""
+    served = []
+    # Stand the package somewhere with no viewer/ beside it, which is exactly
+    # what a non-editable install looks like: the path is derived from the
+    # module's own __file__.
+    monkeypatch.setattr("lamp.cli.__file__", str(tmp_path / "site" / "lamp" / "cli.py"))
+    monkeypatch.setattr("lamp.serve.serve", lambda *a, **k: served.append(a))
+    (tmp_path / "index.json").write_text("{}", encoding="utf-8")
+    rc = main(["--data", str(tmp_path), "serve", "--no-browser"])
+    assert rc == 1
+    assert served == []  # nothing bound a port or opened a browser
+    err = capsys.readouterr().err
+    assert "viewer files not found" in err
+    assert "pip install -e" in err
+
+
 def test_nonsense_numeric_args_are_usage_errors_not_tracebacks(capsys):
     """--workers 0, --rps 0 and --port 99999 used to crash deep inside the
     run (ZeroDivisionError, ValueError) with a raw traceback. argparse must
