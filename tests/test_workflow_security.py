@@ -28,16 +28,6 @@ EXPECTED_ACTIONS = {
         "v10.0.1",
         "v10.0.1",
     ),
-    "github/codeql-action/init": (
-        "db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28",
-        "v4",
-        "v4.37.8",
-    ),
-    "github/codeql-action/analyze": (
-        "db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28",
-        "v4",
-        "v4.37.8",
-    ),
 }
 
 
@@ -97,61 +87,8 @@ EXPECTED_CI = "\n".join(
     ]
 )
 
-EXPECTED_CODEQL = "\n".join(
-    [
-        "name: CodeQL",
-        "",
-        "on:",
-        "  push:",
-        "    branches: [main]",
-        "  pull_request:",
-        "    branches: [main]",
-        "  schedule:",
-        '    - cron: "23 6 * * 1"',
-        "  workflow_dispatch:",
-        "",
-        "permissions:",
-        "  contents: read",
-        "",
-        "concurrency:",
-        "  group: ${{ github.workflow }}-${{ github.ref }}",
-        "  cancel-in-progress: true",
-        "",
-        "jobs:",
-        "  analyze:",
-        "    name: Analyze (${{ matrix.language }})",
-        "    runs-on: ubuntu-latest",
-        "    permissions:",
-        "      actions: read # Read workflow metadata for CodeQL Actions analysis.",
-        "      contents: read",
-        "      security-events: write # Upload CodeQL results for this job only.",
-        "    strategy:",
-        "      fail-fast: false",
-        "      matrix:",
-        "        language: [python, javascript-typescript, actions]",
-        "    steps:",
-        "      - name: Check out source",
-        _uses("actions/checkout", "        uses: "),
-        "        with:",
-        "          persist-credentials: false",
-        "",
-        "      - name: Initialise CodeQL",
-        _uses("github/codeql-action/init", "        uses: "),
-        "        with:",
-        "          languages: ${{ matrix.language }}",
-        "          build-mode: none",
-        "",
-        "      - name: Perform CodeQL analysis",
-        _uses("github/codeql-action/analyze", "        uses: "),
-        "        with:",
-        '          category: "/language:${{ matrix.language }}"',
-        "",
-    ]
-)
-
 EXPECTED_WORKFLOWS = {
     "ci.yml": EXPECTED_CI,
-    "codeql.yml": EXPECTED_CODEQL,
 }
 
 EXPECTED_DEPENDABOT = """\
@@ -163,14 +100,6 @@ updates:
       interval: weekly
     cooldown:
       default-days: 7
-    groups:
-      # init and analyze are separate dependencies to Dependabot but must
-      # move together: a job running one release against the other's config
-      # fails outright. Grouped so the pair can never arrive split.
-      codeql-action:
-        patterns:
-          - "github/codeql-action*"
-
   - package-ecosystem: uv
     directory: /
     schedule:
@@ -233,10 +162,10 @@ def _workflow_documents() -> dict[str, str]:
 
 
 def test_active_workflow_inventory_is_exact():
-    assert sorted(_workflow_documents()) == ["ci.yml", "codeql.yml"]
+    assert sorted(_workflow_documents()) == ["ci.yml"]
 
 
-@pytest.mark.parametrize("filename", ["ci.yml", "codeql.yml"])
+@pytest.mark.parametrize("filename", ["ci.yml"])
 def test_active_workflow_document_is_exact(filename: str):
     _assert_exact(_workflow_documents()[filename], EXPECTED_WORKFLOWS[filename], filename)
 
@@ -249,14 +178,6 @@ def test_dependabot_document_is_exact():
 def test_security_document_is_exact():
     actual = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
     _assert_exact(actual, EXPECTED_SECURITY, "SECURITY.md")
-
-
-def test_codeql_major_comments_have_reviewed_exact_release_provenance():
-    for action in ("github/codeql-action/init", "github/codeql-action/analyze"):
-        commit, comment, resolved_release = EXPECTED_ACTIONS[action]
-        assert commit == "db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28"
-        assert comment == "v4"
-        assert resolved_release == "v4.37.8"
 
 
 @pytest.mark.parametrize(
@@ -309,30 +230,6 @@ def test_codeql_major_comments_have_reviewed_exact_release_provenance():
                 'python-version: ["3.13"]',
             ),
         ),
-        (
-            "codeql.yml",
-            _replace_once(
-                EXPECTED_CODEQL,
-                _uses("github/codeql-action/analyze", "        uses: "),
-                "        uses: github/codeql-action/analyze@main # v4",
-            ),
-        ),
-        (
-            "codeql.yml",
-            _replace_once(EXPECTED_CODEQL, "security-events: write", "security-events: read"),
-        ),
-        (
-            "codeql.yml",
-            _replace_once(EXPECTED_CODEQL, "persist-credentials: false", "true"),
-        ),
-        (
-            "codeql.yml",
-            _replace_once(
-                EXPECTED_CODEQL,
-                "language: [python, javascript-typescript, actions]",
-                "language: [python, javascript-typescript]",
-            ),
-        ),
     ],
 )
 def test_workflow_contracts_reject_pin_permission_trigger_and_matrix_mutations(
@@ -346,7 +243,7 @@ def test_workflow_contracts_reject_pin_permission_trigger_and_matrix_mutations(
 def test_workflow_inventory_rejects_an_extra_file():
     mutated = {**EXPECTED_WORKFLOWS, "extra.yml": "name: unexpected\n"}
     with pytest.raises(AssertionError):
-        assert sorted(mutated) == ["ci.yml", "codeql.yml"]
+        assert sorted(mutated) == ["ci.yml"]
 
 
 @pytest.mark.parametrize(
@@ -380,7 +277,6 @@ def test_workflow_inventory_rejects_an_extra_file():
             "  - package-ecosystem: uv\n    directory: /\n"
             "    schedule:\n      interval: weekly\n    cooldown:\n      default-days: 0\n",
         ),
-        _replace_once(EXPECTED_DEPENDABOT, '          - "github/codeql-action*"\n', ""),
     ],
 )
 def test_dependabot_contract_rejects_extra_cross_wired_or_weakened_entries(mutated: str):
