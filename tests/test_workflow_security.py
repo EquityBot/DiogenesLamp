@@ -23,6 +23,11 @@ EXPECTED_ACTIONS = {
         "v7.0.0",
         "v7.0.0",
     ),
+    "astral-sh/setup-uv": (
+        "20cfd1bf945f4377ade1205e4dbc17946fc9a30d",
+        "v10.0.1",
+        "v10.0.1",
+    ),
     "github/codeql-action/init": (
         "db488ddef3bf6cb639b32c2e9a7c0a7ea8271d28",
         "v4",
@@ -81,7 +86,10 @@ EXPECTED_CI = "\n".join(
         _uses("actions/setup-node", "      - uses: "),
         "        with:",
         '          node-version: "22"',
-        '      - run: python -m pip install "uv==0.12.0"',
+        _uses("astral-sh/setup-uv", "      - uses: "),
+        "        with:",
+        '          version: "0.12.0"',
+        "          enable-cache: true",
         "      - run: uv run --locked --extra dev ruff check .",
         "      - run: uv run --locked --extra dev mypy src/lamp",
         "      - run: uv run --locked --extra dev pytest",
