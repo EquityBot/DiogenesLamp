@@ -1,109 +1,3 @@
----
-name: DiogenesLamp
-description: A local Yupoo catalogue read as a ruled album leaf of mounted specimens.
-colors:
-  leaf: "#0e1013"
-  leaf-raised: "#14171b"
-  rule: "#262c33"
-  rule-strong: "#3a434d"
-  ink: "#e9ebee"
-  ink-faint: "#9aa3ad"
-  ink-second: "#ff6a4d"
-  on-ink-second: "#0e1013"
-  leaf-light: "#e7e9ec"
-  leaf-raised-light: "#f3f5f7"
-  rule-light: "#c8ced5"
-  rule-strong-light: "#9aa4ae"
-  ink-light: "#14171b"
-  ink-faint-light: "#545c66"
-  ink-second-light: "#b8301a"
-  on-ink-second-light: "#ffffff"
-typography:
-  body:
-    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif"
-    fontSize: "14px"
-    fontWeight: 400
-    lineHeight: 1.45
-  title:
-    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif"
-    fontSize: "14px"
-    fontWeight: 400
-    lineHeight: 1.32
-  note:
-    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif"
-    fontSize: "22px"
-    fontWeight: 400
-    lineHeight: 1.5
-  label:
-    fontFamily: "ui-monospace, Cascadia Mono, Segoe UI Mono, Menlo, monospace"
-    fontSize: "11px"
-    fontWeight: 400
-    letterSpacing: "0.01em"
-  brand:
-    fontFamily: "system-ui, -apple-system, Segoe UI, sans-serif"
-    fontSize: "11px"
-    fontWeight: 700
-    letterSpacing: "0.14em"
-rounded:
-  none: "0"
-spacing:
-  gutter: "10px"
-  gutter-narrow: "8px"
-  gutter-strip: "14px"
-  caption: "8px"
-  band: "7px 14px"
-components:
-  button:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.none}"
-    padding: "6px 11px"
-  button-hover:
-    textColor: "{colors.ink}"
-  button-active:
-    backgroundColor: "{colors.ink-second}"
-    textColor: "{colors.on-ink-second}"
-  button-second-ink:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink-second}"
-    rounded: "{rounded.none}"
-    padding: "6px 11px"
-  field:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.none}"
-    padding: "6px 2px"
-  window:
-    backgroundColor: "{colors.leaf}"
-    rounded: "{rounded.none}"
-    width: "220px"
-    height: "288px"
-  window-narrow:
-    width: "158px"
-    height: "202px"
-  window-strip:
-    width: "300px"
-    height: "384px"
-  purchase-mark:
-    backgroundColor: "transparent"
-    textColor: "{colors.ink-faint}"
-    typography: "{typography.label}"
-    rounded: "{rounded.none}"
-    padding: "0 5px"
-  arrival-tag:
-    backgroundColor: "{colors.ink-second}"
-    textColor: "{colors.on-ink-second}"
-    typography: "{typography.label}"
-    rounded: "{rounded.none}"
-    padding: "0 6px"
-  price-mark:
-    backgroundColor: "{colors.leaf}"
-    textColor: "{colors.ink}"
-    typography: "{typography.label}"
-    rounded: "{rounded.none}"
-    padding: "1px 8px"
----
-
 # Design System: DiogenesLamp
 
 ## Overview
@@ -128,19 +22,18 @@ shadows, a single warm accent, and a sticky pill-shaped filter bar.
 
 **Key Characteristics:**
 
-- Two inks and one ground. A third colour is a defect, not an option.
+- Two inks and one ground. A third colour is a defect.
 - The lattice is printed once, never per card.
 - Every state reads with the colour taken away.
 - Figures are tabular and hold their width while the catalogue streams in.
-- Density is a feature: more windows per screen is always the better answer.
+- More windows per screen is always the better answer.
 
 ## Colors
 
-Neutrals plus one accent, the classic restrained strategy, because the visitor
-came to operate. The ground is dark by default from the use scene, not the
-category: this is read at a desk at night with the room lights down and the
-covers the only lit thing on the screen. The light leaf is a cool printed
-stock, deliberately not a warm cream.
+Neutrals plus one accent, because the visitor came to operate. The ground is
+dark by default from the use scene, not the category: this is read at a desk
+at night with the room lights down and the covers the only lit thing on the
+screen. The light leaf is a cool printed stock, deliberately not a warm cream.
 
 ### Primary
 
