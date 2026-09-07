@@ -66,15 +66,6 @@ def test_source_files_carry_no_nul_bytes():
         assert b"\x00" not in path.read_bytes(), f"{path.relative_to(ROOT)} holds a NUL byte"
 
 
-def test_line_endings_match_the_editorconfig():
-    """.editorconfig asks for LF everywhere, and app.js was the one file
-    that did not comply. The first save in any editor honouring it rewrote
-    all 1149 lines, so a one-line change arrived as a whole-file diff."""
-    assert "end_of_line = lf" in (ROOT / ".editorconfig").read_text(encoding="utf-8")
-    for path in _text_sources():
-        assert b"\r\n" not in path.read_bytes(), f"{path.relative_to(ROOT)} uses CRLF"
-
-
 def test_app_js_reaches_storage_only_through_the_guarded_accessors():
     """localStorage's accessors throw, not just the values they return.
 

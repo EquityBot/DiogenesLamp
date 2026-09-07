@@ -1,14 +1,6 @@
 # Viewer performance baseline
 
-`viewer-baseline.cjs` measures the pure catalogue path over 10,000 fabricated albums: duplicate identity, multi-term filtering, global sorting and duplicate collapse. It uses Node 22's stable `perf_hooks` clock and prints 30 post-warm-up samples as JSON, including median, standard deviation and coefficient of variation.
-
-Run it from the repository root:
-
-```bash
-npx --yes node@22 benchmarks/viewer-baseline.cjs
-```
-
-This is measurement-only. It has no pass/fail duration threshold and is not part of CI. Propose a threshold only after repeated runs on a stable runner establish normal dispersion.
+The numbers below measure the pure catalogue path over 10,000 fabricated albums: duplicate identity, multi-term filtering, global sorting and duplicate collapse. Each run took 30 post-warm-up samples from Node 22's stable `perf_hooks` clock, and reported median, standard deviation and coefficient of variation. There is no pass/fail duration threshold and nothing here runs in CI.
 
 ## Baseline recorded 2026-08-28
 
