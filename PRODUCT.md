@@ -88,9 +88,9 @@ unhurried, with no marketing register.
 3. Never lie about state. A blank grid names which blank it is: still loading,
    nothing matched, or nothing scraped yet. A missing seller is named, not
    silently dropped.
-4. Speed is a feature, not an optimisation. Anything that costs a frame during
-   scroll or a re-decode of an already loaded cover is a defect.
-5. Keyboard and screen reader parity is not optional. Every control is
+4. Speed is a feature. Anything that costs a frame during scroll or a
+   re-decode of an already loaded cover is a defect.
+5. Keyboard and screen reader parity is required. Every control is
    labelled and reachable, focus survives virtualised re-renders, and reduced
    motion is honoured.
 

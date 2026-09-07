@@ -111,13 +111,12 @@ install, and the ci badge above is the release gate.
    you back where you were. **Clear filters** resets them in one go, and the
    page is an installable PWA (`manifest.json`).
 
-   The grid is a keyboard surface, not just a keyboard-reachable one. Tab
-   reaches one card - the one under the cursor, whose own cover link, star and
-   purchase links follow it, while every other card is skipped - then the
-   arrow keys move that cursor from cover to cover (Home, End, Page Up and
-   Page Down included), Enter opens the album under the cursor, and `f` keeps
-   it. The cursor scrolls the grid to follow itself, so it works the same at
-   album 12 and album 40,000.
+   The grid is a keyboard surface. Tab reaches one card - the one under the
+   cursor, whose own cover link, star and purchase links follow it, while
+   every other card is skipped - then the arrow keys move that cursor from
+   cover to cover (Home, End, Page Up and Page Down included), Enter opens the
+   album under the cursor, and `f` keeps it. The cursor scrolls the grid to
+   follow itself, so it works the same at album 12 and album 40,000.
 
    The theme button cycles system, light and dark. Every control is labelled,
    Escape closes the shops panel or a duplicate group, and a skip link jumps
@@ -184,9 +183,6 @@ To work on the viewer without scraping anything, generate synthetic data:
 That writes 5 sellers x 2000 albums, with generated gradient covers for two
 albums in every three, spread across each seller. The rest are left cover-less
 on purpose, so the viewer's titled colour-block fallback is on screen too.
-
-Note that global options come before the subcommand: `lamp --data X serve`,
-not `lamp serve --data X`.
 
 Yupoo serves two different list-page templates and the parser handles both.
 When a seller fails, the page is saved to `data/debug/<seller>-page1.html`
