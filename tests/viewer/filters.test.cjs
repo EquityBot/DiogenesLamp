@@ -174,15 +174,25 @@ test("a host carrying no storage at all reads as no value", () => {
 });
 
 test("matchSearch supports multi-term whitespace-separated matching in any order", () => {
-  const title = "Nike Tech Fleece Black Zip Hoodie 2026";
-  assert.equal(matchSearch(title, ""), true);
-  assert.equal(matchSearch(title, "   "), true);
-  assert.equal(matchSearch(title, "nike"), true);
-  assert.equal(matchSearch(title, "NIKE HOODIE"), true);
-  assert.equal(matchSearch(title, "hoodie black 2026"), true);
-  assert.equal(matchSearch(title, "fleece zip nike"), true);
-  assert.equal(matchSearch(title, "adidas"), false);
-  assert.equal(matchSearch(title, "nike adidas"), false);
+  const title = "nike tech fleece black zip hoodie 2026";
+  for (const [query, expected] of [
+    ["", true], ["   ", true], ["nike", true], ["NIKE HOODIE", true],
+    ["hoodie black 2026", true], [" fleece\tzip\nnike ", true],
+    ["adidas", false], ["nike adidas", false],
+  ]) {
+    const matches = matchSearch(query);
+    assert.equal(typeof matches, "function");
+    assert.equal(matches(title), expected, query);
+  }
+});
+
+test("a prepared search can be reused across titles without retaining matches", () => {
+  const matches = matchSearch(" NIKE hoodie ");
+  assert.equal(typeof matches, "function");
+  assert.deepEqual(
+    ["nike hoodie", "nike shoes", "hoodie nike", "", undefined].map(matches),
+    [true, false, true, false, false]);
+  assert.equal(matchSearch("")(undefined), true);
 });
 
 function album(id, extra = {}) {
