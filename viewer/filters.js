@@ -113,14 +113,11 @@ function writeFilters(host, filters) {
   }
 }
 
-// Multi-term title matching: all whitespace-separated terms in query must
-// appear in the title (case-insensitive, in any order).
-function matchSearch(titleLc, query) {
-  if (!query) return true;
-  const terms = query.trim().toLowerCase().split(/\s+/).filter(Boolean);
-  if (!terms.length) return true;
-  const target = (titleLc || "").toLowerCase();
-  return terms.every((term) => target.includes(term));
+// Prepare once per filter pass. Titles are lowercased when their shard loads;
+// all whitespace-separated query terms must appear, in any order.
+function matchSearch(query) {
+  const terms = (query || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
+  return (titleLc) => terms.every((term) => (titleLc || "").includes(term));
 }
 
 // Global sort. "Newest first" must order the whole catalog, not leave albums

@@ -402,7 +402,7 @@ function applyFilters() {
     return;
   }
   els.groupClear.hidden = true;
-  const query = els.search.value.trim().toLowerCase();
+  const matchesSearch = matchSearch(els.search.value);
   const seller = els.seller.value;
   const category = els.category.value;
   const newOnly = els.newOnly.checked;
@@ -419,7 +419,7 @@ function applyFilters() {
     (!newOnly || album.first_seen === state.generatedAt) &&
     (!favsOnly || state.favorites.has(album.id)) &&
     (!maxDays || ageInDays(album.published_ms, now) <= maxDays) &&
-    matchSearch(album.title_lc, query)
+    matchesSearch(album.title_lc)
   );
   if (els.hideDups.checked) {
     const before = filtered.length;
