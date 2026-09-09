@@ -1,5 +1,6 @@
 """Fail-closed contracts for current security-bearing policy files."""
 
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
@@ -92,6 +93,12 @@ EXPECTED_WORKFLOWS = {
     "ci.yml": EXPECTED_CI,
 }
 
+# Pin the reviewed script too, without duplicating its embedded Python here.
+EXPECTED_WORKFLOW_HASHES = {
+    "no-ai-attribution.yml": "6437fb0739038f082325560b7976a6e6cd004f4869c924fdb8a447afef35ea5a",
+}
+EXPECTED_WORKFLOW_NAMES = sorted(EXPECTED_WORKFLOWS.keys() | EXPECTED_WORKFLOW_HASHES.keys())
+
 EXPECTED_DEPENDABOT = """\
 version: 2
 updates:
@@ -163,12 +170,44 @@ def _workflow_documents() -> dict[str, str]:
 
 
 def test_active_workflow_inventory_is_exact():
-    assert sorted(_workflow_documents()) == ["ci.yml"]
+    assert sorted(_workflow_documents()) == EXPECTED_WORKFLOW_NAMES
 
 
 @pytest.mark.parametrize("filename", ["ci.yml"])
 def test_active_workflow_document_is_exact(filename: str):
     _assert_exact(_workflow_documents()[filename], EXPECTED_WORKFLOWS[filename], filename)
+
+
+@pytest.mark.parametrize("filename", EXPECTED_WORKFLOW_HASHES)
+def test_script_workflow_document_is_exact(filename: str):
+    actual = _workflow_documents()[filename]
+    _assert_exact(
+        sha256(actual.encode("utf-8")).hexdigest(),
+        EXPECTED_WORKFLOW_HASHES[filename],
+        filename,
+    )
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("  pull_request:", "  pull_request_target:"),
+        ("  contents: read", "  contents: write"),
+        (EXPECTED_ACTIONS["actions/checkout"][0], "main"),
+        ("              sys.exit(1)", "              sys.exit(0)"),
+    ],
+)
+def test_script_workflow_contract_rejects_security_mutations(old: str, new: str):
+    filename = "no-ai-attribution.yml"
+    actual = _workflow_documents()[filename]
+    assert old in actual
+    mutated = actual.replace(old, new)
+    with pytest.raises(AssertionError):
+        _assert_exact(
+            sha256(mutated.encode("utf-8")).hexdigest(),
+            EXPECTED_WORKFLOW_HASHES[filename],
+            filename,
+        )
 
 
 def test_dependabot_document_is_exact():
@@ -242,9 +281,9 @@ def test_workflow_contracts_reject_pin_permission_trigger_and_matrix_mutations(
 
 
 def test_workflow_inventory_rejects_an_extra_file():
-    mutated = {**EXPECTED_WORKFLOWS, "extra.yml": "name: unexpected\n"}
+    mutated = {**dict.fromkeys(EXPECTED_WORKFLOW_NAMES, ""), "extra.yml": "name: unexpected\n"}
     with pytest.raises(AssertionError):
-        assert sorted(mutated) == ["ci.yml"]
+        assert sorted(mutated) == EXPECTED_WORKFLOW_NAMES
 
 
 @pytest.mark.parametrize(
