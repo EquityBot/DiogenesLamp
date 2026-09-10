@@ -22,8 +22,8 @@ not confirmed in interview.
 Yupoo seller catalogues paginate every 20 or so albums and load slowly. The
 project scrapes album covers, titles and purchase links into a local index
 once, then serves the whole catalogue, across every seller, as one page that
-scrolls, searches and filters instantly. Success is that the operator finds the
-item faster locally than they could on Yupoo, and never waits for a page.
+scrolls, searches and filters locally. Success is that the operator finds the
+item faster locally than they could on Yupoo.
 
 ## Positioning
 
