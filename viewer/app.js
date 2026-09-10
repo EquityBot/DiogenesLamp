@@ -33,15 +33,13 @@ const state = {
   generatedAt: "",
   dupCounts: new Map(), // dup_key -> group size, valid for current filter pass
   dupHidden: 0,
-  dupGroup: null,      // dup_key being inspected via a x-N badge click
-  preGroupScroll: 0,   // scrollY to restore when leaving group view
+  view: null,         // catalogue choices, initialised after reading controls
   bannedKeys: new Set(), // corpus-global category-label keys, grown per shard
   titleKeyCounts: new Map(), // running t:-key counts feeding bannedKeys
   shardAlbums: new Map(), // seller id -> annotated albums, in fetch order
   failedShards: [],    // sellers whose shard could not be fetched
   categories: new Set(), // every category seen, collected as shards arrive
   filterVersion: 0,    // bumped whenever `filtered` is rebuilt
-  cursor: 0,           // index in `filtered` the keyboard is parked on
 };
 
 const els = {
@@ -110,6 +108,7 @@ function applyStoredFilters() {
   setSelectIfPresent(els.category, storedFilters.category);
 }
 applyStoredFilters();
+state.view = createViewState(storedFilters, currentFilters());
 
 // A figure in the tally, held at the width its largest value will need. The
 // counts climb the whole time the catalogue streams in, and a number that
@@ -162,7 +161,7 @@ function setStatus() {
   // Announcing an incomplete grid as ready would tell a screen reader to
   // read a list that is still growing under it.
   els.grid.setAttribute("aria-busy", String(loading));
-  els.filtersClear.hidden = !anyFilterActive(currentFilters()) || Boolean(state.dupGroup);
+  els.filtersClear.hidden = !anyFilterActive(currentFilters()) || Boolean(state.view.groupKey);
   setGridMessage(loading);
   setLoadNote(loading);
 }
@@ -376,75 +375,25 @@ function refreshCategoryOptions() {
 let markQuery = "";
 
 function applyFilters() {
-  markQuery = els.search.value.trim();
+  markQuery = state.view.filters.search.trim();
   setGroupGeometry();
-  state.dupCounts = new Map();
-  state.dupHidden = 0;
-  if (state.dupGroup) {
-    // Group view: every copy behind one x-N badge, all other filters ignored.
-    const copies = state.albums.filter((a) => a.dup_key === state.dupGroup);
-    state.filtered = sortAlbums(copies, els.sort.value);
-    state.filterVersion += 1;
-    // A badge clicked deep in the lattice leaves the cursor thousands of
-    // cards past the end of a three-card strip; see the clamp below.
-    setCursor(clampCursor(state.cursor, state.filtered.length));
-    // Say what the group is, not just how big it is: the whole reason to open
-    // one is to see which sellers are posting the same thing.
-    const sellers = new Set(copies.map((a) => a.seller)).size;
+  const selected = selectCatalogue(state.view, state);
+  state.filtered = selected.filtered;
+  state.dupCounts = selected.dupCounts;
+  state.dupHidden = selected.dupHidden;
+  state.filterVersion += 1;
+  setCursor(selected.cursor);
+  els.groupClear.hidden = !state.view.groupKey;
+  if (state.view.groupKey) {
+    const sellers = new Set(state.filtered.map(a => a.seller)).size;
     els.groupClear.replaceChildren(
       drawnMark("mark-cross"),
-      ` ${copies.length} copies from ` +
+      ` ${state.filtered.length} copies from ` +
       `${sellers} ${sellers === 1 ? "seller" : "sellers"}`
     );
-    els.groupClear.hidden = false;
-    setStatus();
-    renderGrid();
-    return;
   }
-  els.groupClear.hidden = true;
-  const matchesSearch = matchSearch(els.search.value);
-  const seller = els.seller.value;
-  const category = els.category.value;
-  const newOnly = els.newOnly.checked;
-  const favsOnly = els.favsOnly.checked;
-  // Age filter: postings older than the chosen window are likely dead
-  // stock. Cutoff uses the real scraped date when a record has one, the
-  // album-id estimate otherwise (see age.js), and counts whole days so it
-  // agrees with what `lamp scrape --max-age-days` chose to fetch.
-  const maxDays = parseInt(els.age.value, 10) || 0;
-  const now = Date.now();
-  let filtered = state.albums.filter((album) =>
-    (!seller || album.seller === seller) &&
-    (!category || album.category === category) &&
-    (!newOnly || album.first_seen === state.generatedAt) &&
-    (!favsOnly || state.favorites.has(album.id)) &&
-    (!maxDays || ageInDays(album.published_ms, now) <= maxDays) &&
-    matchesSearch(album.title_lc)
-  );
-  if (els.hideDups.checked) {
-    const before = filtered.length;
-    const { out, counts } = collapseDups(filtered, state.bannedKeys);
-    filtered = out;
-    state.dupCounts = counts;
-    state.dupHidden = before - out.length;
-  }
-  // Sort last, over the filtered list rather than the corpus: the corpus is
-  // rebuilt from shard order every refresh, so sorting it would be thrown
-  // away, and the filtered list is the smaller thing to order anyway.
-  state.filtered = sortAlbums(filtered, els.sort.value);
-  state.filterVersion += 1;
-  // renderGrid stamps the one tab stop on the card whose index is the
-  // cursor, so every pass that shrinks the list has to pull the cursor back
-  // inside it. Otherwise no card carries the stop and the grid cannot be
-  // entered from the keyboard at all - which is what un-starring the last
-  // card of a favourites-only view did, since toggleFavorite refilters
-  // without going through userFilterChange.
-  setCursor(clampCursor(state.cursor, state.filtered.length));
   setStatus();
-  // Not a forced rebuild: the render reuses cards by album, and any whose
-  // duplicate badge no longer matches is rebuilt individually. During a
-  // streaming load this runs several times a second, and discarding every
-  // card each time made the browser re-decode covers it already had.
+  // Reuse the existing card window during streaming catalogue refreshes.
   renderGrid();
 }
 
@@ -454,7 +403,7 @@ function applyFilters() {
 // old geometry and overlaps every row.
 let groupViewOn = false;
 function setGroupGeometry() {
-  const wanted = Boolean(state.dupGroup);
+  const wanted = Boolean(state.view.groupKey);
   if (wanted === groupViewOn) return;
   groupViewOn = wanted;
   document.documentElement.classList.toggle("group-view", wanted);
@@ -607,7 +556,7 @@ function makeCard(album) {
     `<span class="card-links">${links}</span>` +
     // On the strip page the copies differ by seller and date and nothing
     // else, so the date earns its place there and only there.
-    (state.dupGroup ? `<span class="posted">${escapeHtml(postedOn(album))}</span>` : "") +
+    (state.view.groupKey ? `<span class="posted">${escapeHtml(postedOn(album))}</span>` : "") +
     `</div>`;
   // The stylesheet reads the hue from a custom property, and it is set here
   // rather than in the markup above: the page is served under a policy with
@@ -632,8 +581,9 @@ function makeCard(album) {
   const dupBtn = card.querySelector(".badge-dup");
   if (dupBtn) {
     dupBtn.addEventListener("click", () => {
-      state.preGroupScroll = window.scrollY;
-      state.dupGroup = album.dup_key;
+      state.view = nextViewState(state.view, {
+        type: "open-group", groupKey: album.dup_key, scrollY: window.scrollY,
+      });
       window.scrollTo(0, 0);
       applyFilters();
       // the badge just got re-rendered away - park focus on the exit chip
@@ -731,7 +681,7 @@ function renderGrid(force = false) {
   // below is what stamps the tab stop - sameRenderWindow says why.
   const wanted = { start: firstRow, end: lastRow, cols,
                    count: state.filtered.length, version: state.filterVersion,
-                   cursor: state.cursor };
+                   cursor: state.view.cursor };
   if (!force && sameRenderWindow(lastRange, wanted)) return;
   lastRange = wanted;
 
@@ -774,7 +724,7 @@ function renderGrid(force = false) {
     setIfChanged(card, "aria-posinset", String(i + 1));
     // Roving tabindex: one stop for the whole lattice, and the arrows move
     // it. Forty thousand tab stops is not a keyboard interface.
-    setCardTabStop(card, i === state.cursor);
+    setCardTabStop(card, i === state.view.cursor);
     next.set(key, card);
   }
 
@@ -831,7 +781,7 @@ function setCardTabStop(card, isCursor) {
   }
 }
 
-// The only place state.cursor is written. The stop has to move with it, and
+// Cursor transitions also update the tab stop. The stop has to move with it, and
 // a render cannot be relied on to do that: focusin - a click on a card, or a
 // Tab into one - moves the cursor and renders nothing at all. So the window
 // is restamped here and now.
@@ -842,8 +792,10 @@ function setCardTabStop(card, isCursor) {
 // holds a few dozen cards and setIfChanged writes only what actually differs,
 // which is what the render loop does on every pass anyway.
 function setCursor(next) {
-  state.cursor = next;
-  const album = state.filtered[next];
+  state.view = nextViewState(state.view, {
+    type: "cursor", index: next, count: state.filtered.length,
+  });
+  const album = state.filtered[state.view.cursor];
   const key = album ? cardKey(album) : null;
   for (const [id, card] of cardCache) setCardTabStop(card, id === key);
 }
@@ -893,15 +845,15 @@ function headroom() {
 
 function moveCursor(next) {
   if (!state.filtered.length) return;
-  setCursor(Math.min(Math.max(next, 0), state.filtered.length - 1));
+  setCursor(next);
   const rowH = rowHeight();
-  const rowTop = els.spacer.offsetTop + Math.floor(state.cursor / columns()) * rowH;
+  const rowTop = els.spacer.offsetTop + Math.floor(state.view.cursor / columns()) * rowH;
   const above = window.scrollY + headroom();
   const below = window.scrollY + window.innerHeight;
   if (rowTop < above) window.scrollTo(0, rowTop - headroom());
   else if (rowTop + rowH > below) window.scrollTo(0, rowTop + rowH - window.innerHeight);
   renderGrid();
-  const card = cardCache.get(cardKey(state.filtered[state.cursor]));
+  const card = cardCache.get(cardKey(state.filtered[state.view.cursor]));
   if (card) card.focus({ preventScroll: true });
 }
 
@@ -917,11 +869,11 @@ els.grid.addEventListener("keydown", (event) => {
   if (!card) return;
   if (GRID_KEYS.has(event.key)) {
     event.preventDefault();
-    moveCursor(gridStep(state.cursor, event.key, columns(),
+    moveCursor(gridStep(state.view.cursor, event.key, columns(),
       state.filtered.length, albumsPerPage()));
     return;
   }
-  const album = state.filtered[state.cursor];
+  const album = state.filtered[state.view.cursor];
   if (!album) return;
   if (event.key === "Enter") {
     event.preventDefault();
@@ -991,13 +943,10 @@ function renderShops(shops) {
 // to the top.
 // Once the user has touched a control, a late-arriving option must not
 // re-impose the stored value over their choice.
-let userTouchedFilters = false;
-
 function userFilterChange() {
-  userTouchedFilters = true;
-  state.dupGroup = null;
-  setCursor(0);
-  writeFilters(window, currentFilters());
+  state.view = nextViewState(state.view, { type: "filter", filters: currentFilters() });
+  setCursor(state.view.cursor);
+  writeFilters(window, state.view.filters);
   window.scrollTo(0, 0);
   applyFilters();
 }
@@ -1006,28 +955,25 @@ function userFilterChange() {
 // stored value for either cannot be restored at start-up - the option does
 // not exist yet. Retry as they appear, until the user takes over.
 function restoreLateFilters() {
-  if (userTouchedFilters) return;
-  const before = `${els.seller.value}|${els.category.value}|${els.sort.value}`;
-  setSelectIfPresent(els.seller, storedFilters.seller);
-  setSelectIfPresent(els.category, storedFilters.category);
-  setSelectIfPresent(els.sort, storedFilters.sort);
-  return before !== `${els.seller.value}|${els.category.value}|${els.sort.value}`;
+  state.view = nextViewState(state.view, {
+    type: "restore-options",
+    options: {
+      seller: [...els.seller.options].map(option => option.value),
+      category: [...els.category.options].map(option => option.value),
+      sort: [...els.sort.options].map(option => option.value),
+    },
+  });
+  // A pending search input still belongs to the control until its debounce.
+  for (const key of ["seller", "category", "sort"]) els[key].value = state.view.filters[key];
 }
 
 function clearFilters() {
-  userTouchedFilters = true;
-  const defaults = defaultFilters();
-  els.search.value = defaults.search;
-  els.seller.value = defaults.seller;
-  els.category.value = defaults.category;
-  els.age.value = defaults.age;
-  els.sort.value = defaults.sort;
-  els.newOnly.checked = defaults.newOnly;
-  els.favsOnly.checked = defaults.favsOnly;
-  els.hideDups.checked = defaults.hideDups;
-  writeFilters(window, defaults);
-  state.dupGroup = null;
-  setCursor(0);
+  state.view = nextViewState(state.view, { type: "clear-filters" });
+  const filters = state.view.filters;
+  for (const key of ["search", "seller", "category", "age", "sort"]) els[key].value = filters[key];
+  for (const key of ["newOnly", "favsOnly", "hideDups"]) els[key].checked = filters[key];
+  writeFilters(window, filters);
+  setCursor(state.view.cursor);
   window.scrollTo(0, 0);
   applyFilters();
   els.search.focus();
@@ -1105,8 +1051,8 @@ for (const el of [els.seller, els.category, els.newOnly, els.favsOnly,
 // Leaving group view is a "peek ended", not a filter change: put the user
 // back where they were browsing instead of snapping to the top.
 function exitGroupView() {
-  state.dupGroup = null;
-  setCursor(0);
+  state.view = nextViewState(state.view, { type: "close-group" });
+  setCursor(state.view.cursor);
   // Order matters twice over. The group view leaves the page one row tall,
   // so scrolling back first would be clamped to the top; the full list has
   // to be restored before the browser will accept the old offset. And
@@ -1114,7 +1060,7 @@ function exitGroupView() {
   // final pass after the scroll or the viewport lands on rows that were
   // never drawn.
   applyFilters();
-  window.scrollTo(0, state.preGroupScroll);
+  window.scrollTo(0, state.view.preGroupScroll);
   renderGrid();
   els.search.focus({ preventScroll: true });
 }
@@ -1145,7 +1091,7 @@ window.addEventListener("keydown", (event) => {
   // Innermost overlay first: a group view opened from inside the panel
   // should not close both at once.
   if (!els.shopsPanel.hidden) setShopsOpen(false);
-  else if (state.dupGroup) exitGroupView();
+  else if (state.view.groupKey) exitGroupView();
 });
 
 els.noteDismiss.addEventListener("click", () => {
