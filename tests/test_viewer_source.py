@@ -134,10 +134,9 @@ def test_the_roving_tab_stop_follows_the_cursor_wherever_it_moves():
     roving tabindex exists to prevent.
 
     There is no DOM harness in this repo, so the contract is pinned at the
-    source, in the same shape as the CARD_STOPS check above: one writer for
-    the cursor, that writer stamps, the handler that renders nothing goes
-    through it, and the render key carries the cursor so a pass that would
-    stamp is never skipped.
+    source for DOM effects: setCursor stamps, focusin goes through it, and
+    the render key carries the cursor. Pure transitions and cursor clamping
+    are covered through view-state.js in the Node suite.
     """
     source = APP_JS.read_text(encoding="utf-8")
 
@@ -146,14 +145,6 @@ def test_the_roving_tab_stop_follows_the_cursor_wherever_it_moves():
     assert "setCardTabStop(" in setter.group(1), \
         "setCursor moves the cursor without moving the tab stop"
 
-    writes = re.findall(r"state\.cursor\s*=(?!=)", source)
-    assert len(writes) == 1, (
-        f"state.cursor is assigned {len(writes)} times: every write has to go "
-        "through setCursor, or the stop is left on the card being left"
-    )
-    assert re.search(r"state\.cursor\s*=(?!=)", setter.group(1)), \
-        "the single write to state.cursor is not the one inside setCursor"
-
     focusin = re.search(r'addEventListener\("focusin".*?\n\}\);', source, re.S)
     assert focusin, "app.js no longer binds focusin on the grid"
     assert "setCursor(" in focusin.group(0), (
@@ -161,7 +152,7 @@ def test_the_roving_tab_stop_follows_the_cursor_wherever_it_moves():
         "nothing that would move it afterwards"
     )
 
-    assert "cursor: state.cursor" in source, (
+    assert "cursor: state.view.cursor" in source, (
         "the render key omits the cursor, so renderGrid skips the very pass "
         "that would stamp the stop on the card the cursor moved to"
     )
