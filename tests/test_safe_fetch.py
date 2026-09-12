@@ -12,12 +12,12 @@ from lamp.http import (
     _MAX_IMAGE_DIMENSION,
     _MAX_IMAGE_PIXELS,
     _MAX_REDIRECTS,
-    _PinnedHTTPSAdapter,
-    _Target,
-    _open_pinned,
     Client,
     FetchError,
     RateLimiter,
+    _open_pinned,
+    _PinnedHTTPSAdapter,
+    _Target,
 )
 
 
