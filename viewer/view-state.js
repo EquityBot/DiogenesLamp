@@ -32,7 +32,8 @@ function nextViewState(view, event) {
       const filters = { ...view.filters };
       for (const key of ["seller", "category", "sort"]) {
         const saved = view.storedFilters[key];
-        if (saved && (event.options[key] || []).includes(saved)) filters[key] = saved;
+        filters[key] = saved && (event.options[key] || []).includes(saved)
+          ? saved : VIEW_HELPERS.defaultFilters()[key];
       }
       return { ...view, filters };
     }

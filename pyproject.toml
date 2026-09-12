@@ -25,7 +25,7 @@ lamp = "lamp.cli:main"
 where = ["src"]
 
 [tool.pytest.ini_options]
-markers = ["manual: live-network tests, excluded from CI"]
+markers = ["manual: parser canaries against saved samples, excluded from CI"]
 addopts = "-m 'not manual'"
 
 [tool.ruff]

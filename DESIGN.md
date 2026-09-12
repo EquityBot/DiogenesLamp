@@ -116,7 +116,7 @@ whenever the strip page opens.
 Three geometries: the lattice at 220 by 288 with a 214 cover and a 10px
 gutter; the narrow lattice at 158 by 202 with a 152 cover and an 8px gutter
 below 720px; and the strip page at 300 by 384 with a 300 cover and a 14px
-gutter, 320 by 300 on narrow.
+gutter, 300 by 300 with an 8px gutter on narrow.
 
 The lattice itself is two `repeating-linear-gradient` layers on the spacer,
 at the card pitch, so the ruling costs one paint rather than a border on each
