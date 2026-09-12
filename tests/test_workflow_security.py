@@ -95,7 +95,7 @@ EXPECTED_WORKFLOWS = {
 
 # Pin the reviewed script too, without duplicating its embedded Python here.
 EXPECTED_WORKFLOW_HASHES = {
-    "no-ai-attribution.yml": "af712976ffc8dfc7bdfecff832c291f4ea16b33577d597f3455d0eaea80301ab",
+    "no-ai-attribution.yml": "e3474e387f8e8b811846c2b7a8fe0c468c0c63db40153ad44fa21538f4f336d7",
 }
 EXPECTED_WORKFLOW_NAMES = sorted(EXPECTED_WORKFLOWS.keys() | EXPECTED_WORKFLOW_HASHES.keys())
 
@@ -193,8 +193,8 @@ def test_script_workflow_document_is_exact(filename: str):
     [
         ("  pull_request:", "  pull_request_target:"),
         ("  contents: read", "  contents: write"),
-        (EXPECTED_ACTIONS["actions/checkout"][0], "main"),
-        ("              sys.exit(1)", "              sys.exit(0)"),
+        ("d8e316fd6642fb132d6fd5b2158e20188a1f3561", "main"),
+        ("job.status == 'success'", "job.status != 'success'"),
     ],
 )
 def test_script_workflow_contract_rejects_security_mutations(old: str, new: str):
