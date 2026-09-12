@@ -22,6 +22,7 @@ _RETRIES = 3
 _TIMEOUT = 30
 _MAX_REDIRECTS = 5
 _MAX_IMAGE_BYTES = 8 * 1024 * 1024
+_MAX_HTML_BYTES = 8 * 1024 * 1024
 _MAX_IMAGE_DIMENSION = 8192
 _MAX_IMAGE_PIXELS = 20_000_000
 _REDIRECT_STATUSES = frozenset({301, 302, 303, 307, 308})
@@ -68,22 +69,19 @@ class RateLimiter:
         self._last_host: dict[str, float] = {}
 
     def wait(self, host: str) -> None:
-        # Reserve the slot under the lock, sleep outside it: a long host gap
-        # for one host must not stall workers waiting on other hosts. The
-        # global slot and the host slot are reserved independently - a host
-        # gap that pushes this call's own ready time out must not also drag
-        # _last_global with it, or every OTHER host gets throttled below the
-        # global cap while this one host is waiting out its own gap.
-        with self._lock:
-            now = self._time()
-            host_gap = self._host_override_gaps.get(host, self._host_gap)
-            global_slot = max(now, self._last_global + self._global_gap)
-            self._last_global = global_slot
-            host_ready = self._last_host.get(host, float("-inf")) + host_gap
-            ready = max(global_slot, host_ready)
-            self._last_host[host] = ready
-        delay = ready - now
-        if delay > 0:
+        # Admit against the clock after every sleep. Other hosts can proceed
+        # while this host waits, so a reserved global slot may no longer fit.
+        while True:
+            with self._lock:
+                now = self._time()
+                host_gap = self._host_override_gaps.get(host, self._host_gap)
+                ready = max(self._last_global + self._global_gap,
+                            self._last_host.get(host, float("-inf")) + host_gap)
+                delay = ready - now
+                if delay <= 0:
+                    self._last_global = now
+                    self._last_host[host] = now
+                    return
             self._sleep(delay)
 
 
@@ -368,13 +366,17 @@ class Client:
                 if not buffer:
                     return response, close
                 try:
-                    # Reading while the pinned transport is open catches body
-                    # failures before releasing its exact-IP connection pool.
-                    response.content
+                    body = bytearray()
+                    for chunk in response.iter_content(chunk_size=65536):
+                        if len(body) + len(chunk) > _MAX_HTML_BYTES:
+                            raise FetchError(f"HTML body exceeds {_MAX_HTML_BYTES}-byte limit")
+                        body.extend(chunk)
+                    response._content = bytes(body)
+                    response._content_consumed = True
                 except requests.RequestException as exc:
-                    close()
                     raise _RetryableFetchError(f"body read failed for {url}: {exc}") from exc
-                close()
+                finally:
+                    close()
                 return response, None
             except _RetryableFetchError as exc:
                 last_error = exc

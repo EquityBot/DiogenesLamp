@@ -22,10 +22,7 @@ class FakeClock:
 
 
 class GatedClock(FakeClock):
-    """FakeClock where one designated sleep() call blocks before it advances
-    the clock, until the test releases it - standing in for a real worker
-    thread that is genuinely asleep (wall-clock barely moved) while another
-    thread's wait() reserves its own slot under the limiter's lock."""
+    """Block one sleeper while other workers advance the shared clock."""
 
     def __init__(self):
         super().__init__()
@@ -34,11 +31,13 @@ class GatedClock(FakeClock):
         self.release = threading.Event()
 
     def sleep(self, seconds: float) -> None:
+        deadline = self.now + seconds
         if self.gate_next_sleep:
             self.gate_next_sleep = False
             self.reserved.set()
             assert self.release.wait(timeout=5), "test deadlocked waiting for release"
-        super().sleep(seconds)
+        self.sleeps.append(seconds)
+        self.now = max(self.now, deadline)
 
 
 def test_rate_limiter_enforces_global_and_host_gaps():
@@ -62,13 +61,7 @@ def test_rate_limiter_host_override_uses_global_gap():
 
 
 def test_rate_limiter_host_delay_does_not_drag_back_global_slot():
-    # The win from decoupling the global and host reservations: host a's
-    # second call reserves a 1.0s host-gap wait but must NOT push
-    # _last_global out to that same 1.0s mark - otherwise every other host
-    # gets throttled below the global cap while host a sleeps out its own
-    # gap. Host b's call, issued while host a's second call is genuinely
-    # still asleep, must see only two global-gap increments (0.5s), not the
-    # old buggy 1.25s (host a's 1.0s ready + one more global gap).
+    # Host b can use the next global slot while host a waits for its own gap.
     clock = GatedClock()
     limiter = RateLimiter(global_rps=4.0, host_rps=1.0, time_fn=clock.time, sleep_fn=clock.sleep)
     limiter.wait("a")  # t=0, first request free, no sleep
@@ -78,18 +71,43 @@ def test_rate_limiter_host_delay_does_not_drag_back_global_slot():
     worker.start()
     assert clock.reserved.wait(timeout=5), "worker never reached its sleep"
 
-    # Host a's second call already reserved its slot (computed a 1.0s sleep)
-    # but is parked before actually sleeping - the clock has not moved.
-    # Host b's reservation happens concurrently with host a's sleep.
-    limiter.wait("b")
-    assert clock.now == pytest.approx(0.5)
-    assert clock.sleeps == pytest.approx([0.5])
-
-    clock.release.set()
-    worker.join(timeout=5)
+    try:
+        limiter.wait("b")
+        assert clock.now == pytest.approx(0.25)
+        assert clock.sleeps == pytest.approx([0.25])
+    finally:
+        clock.release.set()
+        worker.join(timeout=5)
     assert not worker.is_alive()
-    assert clock.now == pytest.approx(1.5)
-    assert clock.sleeps == pytest.approx([0.5, 1.0])
+    assert clock.now == pytest.approx(1.0)
+    assert clock.sleeps == pytest.approx([0.25, 1.0])
+
+
+def test_get_retries_broken_body_and_preserves_decoded_response():
+    import requests
+
+    closed = []
+
+    class BrokenResponse(requests.Response):
+        def iter_content(self, chunk_size):
+            yield b'partial'
+            raise requests.exceptions.ChunkedEncodingError('broken stream')
+
+        def close(self):
+            closed.append(True)
+
+    broken = BrokenResponse()
+    broken.status_code = 200
+    good = requests.Response()
+    good.status_code = 200
+    good.encoding = 'utf-8'
+    good.raw = BytesIO('catalogue café'.encode())
+    client, transport = _client([broken, good])
+    response = client.get('https://example.test/')
+    assert response.content == 'catalogue café'.encode()
+    assert response.text == 'catalogue café'
+    assert closed == [True]
+    assert len(transport.calls) == 2
 
 
 class FakeResponse:
@@ -104,6 +122,46 @@ class FakeResponse:
 
     def close(self):
         pass
+
+
+def test_delayed_host_rechecks_global_gap_when_other_hosts_overtake():
+    clock = GatedClock()
+    limiter = RateLimiter(global_rps=4, host_rps=1, time_fn=clock.time, sleep_fn=clock.sleep)
+    limiter.wait('a')
+    clock.gate_next_sleep = True
+    admitted = []
+    worker = threading.Thread(target=lambda: (limiter.wait('a'), admitted.append(clock.now)))
+    worker.start()
+    try:
+        assert clock.reserved.wait(timeout=5)
+        clock.now = 1.0
+        limiter.wait('b')
+    finally:
+        clock.release.set()
+        worker.join(timeout=5)
+    assert not worker.is_alive()
+    assert admitted == [1.25]
+
+
+def test_get_bounds_stream_and_closes_oversized_response(monkeypatch):
+    import lamp.http as http
+    monkeypatch.setattr(http, '_MAX_HTML_BYTES', 10, raising=False)
+    closed = []
+
+    class LargeResponse(FakeResponse):
+        def iter_content(self, chunk_size):
+            yield b'123456'
+            yield b'789012'
+            pytest.fail('read beyond limit')
+
+        def close(self):
+            closed.append(True)
+
+    client, transport = _client([LargeResponse(200)])
+    with pytest.raises(FetchError, match='HTML.*limit'):
+        client.get('https://example.test/')
+    assert closed == [True]
+    assert len(transport.calls) == 1
 
 
 class FakeTransport:

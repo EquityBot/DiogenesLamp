@@ -149,6 +149,8 @@ your machine.
   hard stop per seller if Yupoo answers 429/403 repeatedly.
 - Covers and metadata only - detail photos are never downloaded; the viewer
   links back to Yupoo for those.
+- HTML responses are limited to 8 MiB after decompression. Larger pages fail
+  with a size-limit error.
 - Public pages only. No login, no paywall, no captcha handling.
 
 ## Development

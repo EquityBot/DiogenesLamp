@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import tomllib
@@ -47,7 +48,11 @@ def classify_url(raw: str) -> Source | None:
     if "://" not in raw:
         raw = "https://" + raw
     parsed = urlparse(raw)
-    host = parsed.netloc.lower()
+    if parsed.scheme.lower() not in {"http", "https"}:
+        return None
+    if parsed.username is not None or parsed.password is not None:
+        return None
+    host = (parsed.hostname or "").lower()
     if not host or "." not in host:
         return None
 
@@ -155,7 +160,7 @@ def merge_sources(
 
 
 def _toml_str(value: str) -> str:
-    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+    return json.dumps(value, ensure_ascii=False).replace("\x7f", "\\u007f")
 
 
 _SAFE_ID = re.compile(r"[A-Za-z0-9_-]+")

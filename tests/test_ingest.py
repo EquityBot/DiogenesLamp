@@ -4,6 +4,23 @@ import pytest
 
 from lamp.ingest import Source, load_sources, merge_sources, parse_dump, write_sources
 
+
+@pytest.mark.parametrize('url', [
+    'ftp://example.test/path', 'javascript://example.test/path',
+    'https://user:password@example.test/path', 'https://user@example.test/path',
+])
+def test_import_refuses_non_web_schemes_and_userinfo(url):
+    from lamp.ingest import classify_url
+    assert classify_url(url) is None
+
+
+def test_source_names_roundtrip_control_characters(tmp_path):
+    name = 'quote" slash\\ tab\t newline\n carriage\r backspace\b formfeed\f nul\x00 del\x7f'
+    source = Source('shop', 'example', 'web', 'https://example.test/', name)
+    path = tmp_path / 'sources.toml'
+    write_sources(path, {'shop:example': source})
+    assert load_sources(path) == {'shop:example': source}
+
 DUMP = """\
 1\thttps://sellerx.x.yupoo.com/
 2\thttps://sellerx.x.yupoo.com/albums
