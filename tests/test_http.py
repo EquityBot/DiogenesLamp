@@ -22,10 +22,7 @@ class FakeClock:
 
 
 class GatedClock(FakeClock):
-    """FakeClock where one designated sleep() call blocks before it advances
-    the clock, until the test releases it - standing in for a real worker
-    thread that is genuinely asleep (wall-clock barely moved) while another
-    thread's wait() reserves its own slot under the limiter's lock."""
+    """Block one sleeper while other workers advance the shared clock."""
 
     def __init__(self):
         super().__init__()
@@ -34,11 +31,13 @@ class GatedClock(FakeClock):
         self.release = threading.Event()
 
     def sleep(self, seconds: float) -> None:
+        deadline = self.now + seconds
         if self.gate_next_sleep:
             self.gate_next_sleep = False
             self.reserved.set()
             assert self.release.wait(timeout=5), "test deadlocked waiting for release"
-        super().sleep(seconds)
+        self.sleeps.append(seconds)
+        self.now = max(self.now, deadline)
 
 
 def test_rate_limiter_enforces_global_and_host_gaps():
@@ -80,7 +79,7 @@ def test_rate_limiter_host_delay_does_not_drag_back_global_slot():
         clock.release.set()
         worker.join(timeout=5)
     assert not worker.is_alive()
-    assert clock.now == pytest.approx(1.25)
+    assert clock.now == pytest.approx(1.0)
     assert clock.sleeps == pytest.approx([0.25, 1.0])
 
 
@@ -126,16 +125,7 @@ class FakeResponse:
 
 
 def test_delayed_host_rechecks_global_gap_when_other_hosts_overtake():
-    class Clock(GatedClock):
-        def sleep(self, seconds):
-            deadline = self.now + seconds
-            if self.gate_next_sleep:
-                self.gate_next_sleep = False
-                self.reserved.set()
-                assert self.release.wait(timeout=5)
-            self.now = max(self.now, deadline)
-
-    clock = Clock()
+    clock = GatedClock()
     limiter = RateLimiter(global_rps=4, host_rps=1, time_fn=clock.time, sleep_fn=clock.sleep)
     limiter.wait('a')
     clock.gate_next_sleep = True
