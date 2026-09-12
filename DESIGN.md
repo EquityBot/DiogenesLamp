@@ -28,7 +28,7 @@ shadows, a single warm accent, and a sticky pill-shaped filter bar.
 - Figures are tabular and hold their width while the catalogue streams in.
 - More windows per screen is always the better answer.
 
-## Colors
+## Colours
 
 Neutrals plus one accent, because the visitor came to operate. The ground is
 dark by default from the use scene, not the category: this is read at a desk
