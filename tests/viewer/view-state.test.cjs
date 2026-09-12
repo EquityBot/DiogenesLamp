@@ -11,6 +11,16 @@ const albums = [
 ];
 const catalogue = { albums, favorites: new Set(["a", "c"]), generatedAt: "today", bannedKeys: new Set() };
 
+test("removed saved options clear filters so the available catalogue stays visible", () => {
+  let view = createViewState({ seller: "removed", category: "removed" });
+  view = nextViewState(view, { type: "restore-options", options: {
+    seller: ["", "one", "two"], category: ["", "shirts", "shoes"],
+  } });
+  assert.equal(view.filters.seller, "");
+  assert.equal(view.filters.category, "");
+  assert.equal(selectCatalogue(view, catalogue).filtered.length, 3);
+});
+
 test("late options restore saved choices until the user changes a filter", () => {
   let view = createViewState({ seller: "two", category: "shirts" }, {});
   view = nextViewState(view, { type: "restore-options", options: { seller: ["", "two"], category: [""] } });

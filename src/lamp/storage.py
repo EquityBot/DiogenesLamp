@@ -84,7 +84,7 @@ def merge_album(old: dict | None, new: dict, run_ts: str) -> dict:
     value when the fresh scrape came up empty.
     """
     merged = dict(new)
-    merged["first_seen"] = old["first_seen"] if old else run_ts
+    merged["first_seen"] = old.get("first_seen", run_ts) if old else run_ts
     merged["updated_at"] = run_ts
     if old:
         for field in _STICKY_FIELDS:

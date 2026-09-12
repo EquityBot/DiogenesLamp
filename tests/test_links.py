@@ -130,7 +130,8 @@ def test_control_and_invisible_characters_never_reach_a_url():
     ):
         for link in extract_links(text):
             assert link.url == link.url.strip()
-            assert all(ord(ch) > 0x7E or 0x20 < ord(ch) for ch in link.url), link.url
+            assert all(ord(ch) > 0x20 and ch not in "\x7f\ufeff\u200b\u200c\u200d\u2060"
+                       for ch in link.url), link.url
 
 
 @pytest.mark.parametrize(

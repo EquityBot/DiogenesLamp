@@ -33,6 +33,11 @@ def test_merge_album_new_gets_run_ts():
     assert merged["updated_at"] == "2026-08-17T12:00:00+10:00"
 
 
+def test_merge_legacy_album_without_first_seen():
+    old = {key: value for key, value in RECORD.items() if key != 'first_seen'}
+    assert merge_album(old, RECORD, 'now')['first_seen'] == 'now'
+
+
 def test_merge_album_existing_keeps_first_seen():
     fresh = dict(RECORD, title="Item A v2", first_seen="", updated_at="")
     merged = merge_album(RECORD, fresh, "2026-08-17T12:00:00+10:00")
