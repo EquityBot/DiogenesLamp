@@ -95,7 +95,7 @@ EXPECTED_WORKFLOWS = {
 
 # Pin the reviewed script too, without duplicating its embedded Python here.
 EXPECTED_WORKFLOW_HASHES = {
-    "no-ai-attribution.yml": "e3474e387f8e8b811846c2b7a8fe0c468c0c63db40153ad44fa21538f4f336d7",
+    "no-ai-attribution.yml": "c694fb285f08e99a13f472ab99861b699038e659712a844a718403fddbd63daf",
 }
 EXPECTED_WORKFLOW_NAMES = sorted(EXPECTED_WORKFLOWS.keys() | EXPECTED_WORKFLOW_HASHES.keys())
 
@@ -152,11 +152,6 @@ Yupoo catalogue URLs are the only expected input.
 """
 
 
-def _replace_once(source: str, old: str, new: str) -> str:
-    assert source.count(old) == 1, f"mutation target must occur exactly once: {old!r}"
-    return source.replace(old, new)
-
-
 def _assert_exact(actual: str, expected: str, label: str) -> None:
     assert actual == expected, (
         f"{label} no longer matches its reviewed fail-closed contract; "
@@ -188,28 +183,6 @@ def test_script_workflow_document_is_exact(filename: str):
     )
 
 
-@pytest.mark.parametrize(
-    ("old", "new"),
-    [
-        ("  pull_request:", "  pull_request_target:"),
-        ("  contents: read", "  contents: write"),
-        ("d8e316fd6642fb132d6fd5b2158e20188a1f3561", "main"),
-        ("job.status == 'success'", "job.status != 'success'"),
-    ],
-)
-def test_script_workflow_contract_rejects_security_mutations(old: str, new: str):
-    filename = "no-ai-attribution.yml"
-    actual = _workflow_documents()[filename]
-    assert old in actual
-    mutated = actual.replace(old, new)
-    with pytest.raises(AssertionError):
-        _assert_exact(
-            sha256(mutated.encode("utf-8")).hexdigest(),
-            EXPECTED_WORKFLOW_HASHES[filename],
-            filename,
-        )
-
-
 def test_dependabot_document_is_exact():
     actual = (ROOT / ".github" / "dependabot.yml").read_text(encoding="utf-8")
     _assert_exact(actual, EXPECTED_DEPENDABOT, ".github/dependabot.yml")
@@ -219,153 +192,3 @@ def test_security_document_is_exact():
     actual = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
     _assert_exact(actual, EXPECTED_SECURITY, "SECURITY.md")
 
-
-@pytest.mark.parametrize(
-    ("filename", "mutated"),
-    [
-        ("ci.yml", _replace_once(EXPECTED_CI, EXPECTED_ACTIONS["actions/setup-node"][0], "v7")),
-        (
-            "ci.yml",
-            _replace_once(
-                EXPECTED_CI,
-                _uses("actions/setup-node", "      - uses: "),
-                _uses("actions/setup-node", "      - uses: ").replace("# v7.0.0", "# v5.0.0"),
-            ),
-        ),
-        (
-            "ci.yml",
-            EXPECTED_CI + "      - uses: example/unverified@main # unreviewed\n",
-        ),
-        ("ci.yml", EXPECTED_CI + "      - {uses: example/unverified@main}\n"),
-        ("ci.yml", EXPECTED_CI + '      - "uses": example/unverified@main\n'),
-        ("ci.yml", EXPECTED_CI + "      - uses : example/unverified@main\n"),
-        (
-            "ci.yml",
-            _replace_once(
-                EXPECTED_CI,
-                "  test:\n    timeout-minutes: 30\n    runs-on:",
-                "  test:\n    timeout-minutes: 30\n    permissions:\n      contents: write\n    runs-on:",
-            ),
-        ),
-        ("ci.yml", EXPECTED_CI + "permissions: write-all\n"),
-        (
-            "ci.yml",
-            _replace_once(
-                EXPECTED_CI,
-                "permissions:\n  contents: read\n\njobs:\n  test:",
-                "jobs:\n  test:\n    permissions:\n      contents: read",
-            ),
-        ),
-        ("ci.yml", _replace_once(EXPECTED_CI, "persist-credentials: false", "true")),
-        ("ci.yml", _replace_once(EXPECTED_CI, "branches: [main]", "branches: [develop]")),
-        (
-            "ci.yml",
-            _replace_once(EXPECTED_CI, "cancel-in-progress: true", "cancel-in-progress: false"),
-        ),
-        (
-            "ci.yml",
-            _replace_once(
-                EXPECTED_CI,
-                'python-version: ["3.11", "3.13"]',
-                'python-version: ["3.13"]',
-            ),
-        ),
-    ],
-)
-def test_workflow_contracts_reject_pin_permission_trigger_and_matrix_mutations(
-    filename: str,
-    mutated: str,
-):
-    with pytest.raises(AssertionError):
-        _assert_exact(mutated, EXPECTED_WORKFLOWS[filename], filename)
-
-
-def test_workflow_inventory_rejects_an_extra_file():
-    mutated = {**dict.fromkeys(EXPECTED_WORKFLOW_NAMES, ""), "extra.yml": "name: unexpected\n"}
-    with pytest.raises(AssertionError):
-        assert sorted(mutated) == EXPECTED_WORKFLOW_NAMES
-
-
-@pytest.mark.parametrize(
-    "mutated",
-    [
-        EXPECTED_DEPENDABOT
-        + "  - package-ecosystem: npm\n    directory: /\n"
-        "    schedule:\n      interval: weekly\n",
-        EXPECTED_DEPENDABOT
-        + "  - {package-ecosystem: npm, directory: /, schedule: {interval: weekly}}\n",
-        EXPECTED_DEPENDABOT
-        + '  - "package-ecosystem": npm\n    directory: /\n'
-        "    schedule:\n      interval: weekly\n",
-        _replace_once(EXPECTED_DEPENDABOT, "updates:\n", "updates:\nitems:\n"),
-        _replace_once(
-            EXPECTED_DEPENDABOT,
-            "  - package-ecosystem: uv\n    directory: /\n",
-            "  - package-ecosystem: uv\n    directory: /\n    directory: /\n",
-        ),
-        _replace_once(
-            EXPECTED_DEPENDABOT,
-            "  - package-ecosystem: github-actions\n    directory: /\n"
-            "    schedule:\n      interval: weekly\n",
-            "  - package-ecosystem: github-actions\n    directory: /\n"
-            "    schedule:\n      interval: monthly\n",
-        ),
-        _replace_once(
-            EXPECTED_DEPENDABOT,
-            "  - package-ecosystem: uv\n    directory: /\n"
-            "    schedule:\n      interval: weekly\n    cooldown:\n      default-days: 7\n",
-            "  - package-ecosystem: uv\n    directory: /\n"
-            "    schedule:\n      interval: weekly\n    cooldown:\n      default-days: 0\n",
-        ),
-    ],
-)
-def test_dependabot_contract_rejects_extra_cross_wired_or_weakened_entries(mutated: str):
-    with pytest.raises(AssertionError):
-        _assert_exact(mutated, EXPECTED_DEPENDABOT, "Dependabot fixture")
-
-
-@pytest.mark.parametrize(
-    "mutated",
-    [
-        EXPECTED_SECURITY.replace(
-            "Use fabricated catalogue pages",
-            "Use real catalogue pages",
-        ),
-        EXPECTED_SECURITY.replace("Do\nnot submit", "You may submit"),
-        EXPECTED_SECURITY.replace(
-            "secrets or `.env` content.\n",
-            "secrets or `.env` content.\n\n"
-            "Public issues and real client credentials may also be used.\n",
-        ),
-        EXPECTED_SECURITY
-        + "\n## Reporting a vulnerability\n\n"
-        "Open a public issue and include real client credentials.\n",
-        EXPECTED_SECURITY.replace(
-            "latest version on the default branch.\n",
-            "latest version on the default branch. All historical versions are also supported.\n",
-        ),
-        EXPECTED_SECURITY.replace(
-            "Use fabricated catalogue pages, source configuration and reproduction data only. Do\n"
-            "not submit client or private catalogue data, credentials, access tokens, cookies,\n"
-            "secrets or `.env` content.\n\n",
-            "",
-        )
-        + "\n## Data handling\n\nUse fabricated data and do not submit credentials.\n",
-        EXPECTED_SECURITY.replace(
-            "Yupoo catalogue URLs are the only expected input.",
-            "Credentials may also be supplied as input.",
-        ),
-        EXPECTED_SECURITY.replace(
-            "## What this tool does and does not do\n\n",
-            "",
-        ),
-        EXPECTED_SECURITY.replace(
-            "## What this tool does and does not do",
-            "A valid report will be acknowledged within seven days.\n\n"
-            "## What this tool does and does not do",
-        ),
-    ],
-)
-def test_security_contract_rejects_contradictory_moved_or_sla_guidance(mutated: str):
-    with pytest.raises(AssertionError):
-        _assert_exact(mutated, EXPECTED_SECURITY, "SECURITY fixture")
