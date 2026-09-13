@@ -71,7 +71,8 @@ unhurried, with no marketing register.
 ## Evidence on hand
 
 - `tests/make_demo_data.py` writes 5 sellers by 2000 albums with generated
-  gradient covers for the first 300 of each, so every viewer state can be seen
+  gradient covers on two albums in every three, spread across each seller, so
+  1,333 covers per seller and 6,665 in all. Every viewer state can be seen
   without scraping anything.
 - `docs/viewer.webp` is the current README screenshot, generated from that
   demo data.
