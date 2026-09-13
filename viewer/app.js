@@ -491,6 +491,17 @@ function fillTitle(el, title, query) {
   el.replaceChildren(...nodes);
 }
 
+// A card outlives the query that built it: the render loop reuses cards when
+// the filter changes, so the marks drawn for the previous query stayed on the
+// title. Refill only when the query actually changed, so scrolling still
+// leaves the cards it reuses alone.
+function refreshCardTitle(card, album, query) {
+  if (card.dataset.markQuery === query) return false;
+  fillTitle(card.querySelector(".card-title span"), album.title, query);
+  card.dataset.markQuery = query;
+  return true;
+}
+
 function makeCard(album) {
   const card = document.createElement("div");
   card.className = "card";
@@ -565,7 +576,7 @@ function makeCard(album) {
   // is unaffected.
   card.firstElementChild.style.setProperty("--cover-hue", String(coverHue(album.id)));
   card.querySelector(".fav-btn").appendChild(drawnMark("mark-mount"));
-  fillTitle(card.querySelector(".card-title span"), album.title, markQuery);
+  refreshCardTitle(card, album, markQuery);
   // An inline onerror attribute did this before. Binding it here keeps the
   // markup free of executable attributes, which is what lets a strict
   // script-src policy apply to this page unchanged.
@@ -708,6 +719,9 @@ function renderGrid(force = false) {
         card.remove();
         card = null;
       }
+      // The title's marks belong to the query that drew them, and the query
+      // can change without the card being rebuilt.
+      if (card) refreshCardTitle(card, album, markQuery);
     }
     if (!card) {
       card = makeCard(album);

@@ -53,5 +53,17 @@ def test_classify_rejects_junk(raw):
     assert classify_url(raw) is None
 
 
+# urlparse and its hostname accessor raise ValueError on these three, which used
+# to escape classify_url and stop the whole import instead of counting one
+# invalid row.
+@pytest.mark.parametrize("raw", [
+    "https://[seller.x.yupoo.com/",
+    "https://[not-an-ipv6]/albums",
+    "https://seller.x.yupoo.com／albums",
+])
+def test_classify_rejects_malformed_authority_without_raising(raw):
+    assert classify_url(raw) is None
+
+
 def test_name_defaults_to_id_for_yupoo():
     assert classify_url("https://sellerx.x.yupoo.com/").name == "sellerx"

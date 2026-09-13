@@ -34,8 +34,9 @@ def has_cover(index: int) -> bool:
 def _png(width: int, height: int, rows: list[bytes]) -> bytes:
     """Minimal 8-bit RGB PNG encoder.
 
-    Written by hand rather than with Pillow: this is a development helper,
-    and the package deliberately carries no image dependency.
+    Written by hand rather than with Pillow: this is a development helper, and
+    it stays on the standard library. The package itself does depend on Pillow,
+    which `lamp.http` uses to validate downloaded images.
     """
     raw = b"".join(b"\x00" + row for row in rows)
 

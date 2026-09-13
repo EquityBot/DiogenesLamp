@@ -156,3 +156,36 @@ def test_the_roving_tab_stop_follows_the_cursor_wherever_it_moves():
         "the render key omits the cursor, so renderGrid skips the very pass "
         "that would stamp the stop on the card the cursor moved to"
     )
+
+
+def test_the_render_loop_refreshes_the_title_of_every_card_it_reuses():
+    """A reused card kept the marks drawn for the previous query.
+
+    fillTitle ran once, from makeCard. A changed query bumps the filter
+    version, so renderGrid does run, but it reuses the cards already in the
+    window and only re-places them. Searching "jacket" and then "jacket grid"
+    therefore left cards showing the earlier mark alone, and clearing the
+    query left the marks on every surviving card.
+
+    The behaviour of refreshCardTitle is covered against an element double in
+    tests/viewer/title-refresh.test.cjs. What no unit test reaches is whether
+    the render loop calls it, so that is pinned here.
+    """
+    source = APP_JS.read_text(encoding="utf-8")
+
+    loop = re.search(r"\nfunction renderGrid\(force = false\) \{\n(.*?)\n\}\n", source, re.S)
+    assert loop, "app.js no longer declares renderGrid"
+    reuse = re.search(r"let card = cardCache\.get\(key\);\n(.*?)\n    if \(!card\) \{", 
+                      loop.group(1), re.S)
+    assert reuse, "renderGrid no longer has a card reuse branch"
+    assert "refreshCardTitle(" in reuse.group(1), (
+        "renderGrid reuses a card without refreshing its title, so the marks "
+        "from the previous query stay on it"
+    )
+
+    maker = re.search(r"\nfunction makeCard\(album\) \{\n(.*?)\n\}\n", source, re.S)
+    assert maker, "app.js no longer declares makeCard"
+    assert "refreshCardTitle(" in maker.group(1), (
+        "makeCard fills the title without stamping the query it used, so the "
+        "reuse branch cannot tell whether a refill is needed"
+    )

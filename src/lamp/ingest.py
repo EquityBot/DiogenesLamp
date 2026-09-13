@@ -47,12 +47,19 @@ def classify_url(raw: str) -> Source | None:
         return None
     if "://" not in raw:
         raw = "https://" + raw
-    parsed = urlparse(raw)
-    if parsed.scheme.lower() not in {"http", "https"}:
+    # A hand-exported dump carries malformed authorities: an unclosed bracket,
+    # a bracketed host that is not an IP address, a fullwidth slash. urlparse
+    # and its hostname accessor raise ValueError on those. One bad row is
+    # invalid input, not a reason to stop the whole import.
+    try:
+        parsed = urlparse(raw)
+        if parsed.scheme.lower() not in {"http", "https"}:
+            return None
+        if parsed.username is not None or parsed.password is not None:
+            return None
+        host = (parsed.hostname or "").lower()
+    except ValueError:
         return None
-    if parsed.username is not None or parsed.password is not None:
-        return None
-    host = (parsed.hostname or "").lower()
     if not host or "." not in host:
         return None
 
