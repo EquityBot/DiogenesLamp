@@ -52,7 +52,7 @@ class _Handler(SimpleHTTPRequestHandler):
         super().send_response(code, message)
 
     def end_headers(self) -> None:
-        # A full catalog holds tens of thousands of thumbs - letting the
+        # A full catalogue holds tens of thousands of thumbs - letting the
         # browser cache them makes reloads near-instant. Thumb files are
         # overwritten in place on re-scrape, so the viewer cache-busts with
         # a version query; the day-long lifetime is safe because the URL
@@ -85,7 +85,7 @@ class _Handler(SimpleHTTPRequestHandler):
         """Never serve a directory listing.
 
         The viewer is reached through its index.html and every data file by
-        an explicit path, so a listing only ever exposes the catalog's file
+        an explicit path, so a listing only ever exposes the catalogue's file
         names - including to a request that reached a directory by an odd
         spelling such as /data/....//x, which Windows collapses onto the
         data directory itself.

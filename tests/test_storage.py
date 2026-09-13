@@ -108,7 +108,7 @@ def test_atomic_write_failure_preserves_original(tmp_path: Path):
     target = tmp_path / "x.json"
     atomic_write_json(target, {"ok": 1})
     with pytest.raises(TypeError):
-        atomic_write_json(target, {"bad": {1, 2}})  # sets are not JSON-serializable
+        atomic_write_json(target, {"bad": {1, 2}})  # sets are not JSON-serialisable
     assert json.loads(target.read_text(encoding="utf-8")) == {"ok": 1}
     assert list(tmp_path.iterdir()) == [target]
 
@@ -118,7 +118,7 @@ def test_atomic_write_retries_a_transient_windows_lock(tmp_path: Path, monkeypat
     viewer serving the shard being re-written) or while AV/indexer holds a
     lock. Those clear in moments, so the replace retries; a permanent
     failure still raises, and any OSError counts - a sharing violation is
-    not always spelled PermissionError."""
+    not always spelt PermissionError."""
     target = tmp_path / "x.json"
     atomic_write_json(target, {"ok": 1})
 

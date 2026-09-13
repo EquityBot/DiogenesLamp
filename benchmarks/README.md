@@ -15,7 +15,7 @@ Five independent Node v22.23.2 runs on the same Windows workstation each used
 | 4 | 13.415 ms | 13.188 ms | 8.51% |
 | 5 | 13.323 ms | 13.110 ms | 6.19% |
 
-Across the five run means, the mean was 13.479 ms, the population standard
+Across the 5 run means, the mean was 13.479 ms, the population standard
 deviation was 0.274 ms and the coefficient of variation was 2.03%. The medians
 ranged from 12.971 to 13.562 ms. This is sufficiently repeatable to retain as a
 comparison baseline, but it does not yet justify a regression threshold across

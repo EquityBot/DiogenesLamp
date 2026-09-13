@@ -44,7 +44,7 @@ def test_serves_viewer_and_data(tmp_path: Path):
 
 
 def test_data_path_traversal_is_refused(tmp_path: Path):
-    """/data/ must not reach outside the data dir, however the path is spelled."""
+    """/data/ must not reach outside the data dir, however the path is spelt."""
     viewer = tmp_path / "viewer"
     data = tmp_path / "data"
     viewer.mkdir()
@@ -147,7 +147,7 @@ def test_revalidated_thumb_keeps_its_cache_header(tmp_path: Path):
 
 
 def test_directory_listings_are_refused(tmp_path: Path):
-    """A listing exposes the catalog's file names and is never needed: the
+    """A listing exposes the catalogue's file names and is never needed: the
     viewer loads index.html and every data file by explicit path."""
     viewer = tmp_path / "viewer"
     data = tmp_path / "data"

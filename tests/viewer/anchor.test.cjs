@@ -36,7 +36,7 @@ test("anchorAt never indexes past the end of a shrinking list", () => {
 test("restoredViewTop keeps the anchored album at the same pixel offset", () => {
   const viewTop = 24 * ROW_H + 10;
   const spot = anchorAt(viewTop, ROW_H, COLS, 10000);
-  // three sellers' worth of albums (300) land above the anchor
+  // 3 sellers' worth of albums (300) land above the anchor
   const moved = restoredViewTop(spot.index + 300, spot.offset, ROW_H, COLS);
   assert.strictEqual(moved, viewTop + (300 / COLS) * ROW_H);
 });

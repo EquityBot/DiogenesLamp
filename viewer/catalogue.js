@@ -37,7 +37,7 @@ function matchRanges(title, query) {
 }
 
 // Terms overlap: "air jordan" against "air jordan" marks 0-3 and 4-10, but
-// "jord ordan" would mark 4-8 and 5-10, and two <mark> elements cannot share a
+// "jord ordan" would mark 4-8 and 5-10, and 2 <mark> elements cannot share a
 // character. Sort, then fold anything that touches or overlaps into one span.
 function mergeRanges(ranges) {
   if (ranges.length < 2) return ranges;

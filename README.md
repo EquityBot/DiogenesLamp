@@ -64,7 +64,7 @@ install, and the ci badge above is the release gate.
 
        lamp scrape
 
-   Big catalogues are mostly stale stock. Skipping listings older than six
+   Big catalogues are mostly stale stock. Skipping listings older than 6
    months typically removes about two thirds of the work:
 
        lamp scrape --max-age-days 180
@@ -182,11 +182,11 @@ To work on the viewer without scraping anything, generate synthetic data:
     python tests/make_demo_data.py demo-data
     lamp --data demo-data serve
 
-That writes 5 sellers x 2000 albums, with generated gradient covers for two
-albums in every three, spread across each seller. The rest are left cover-less
+That writes 5 sellers x 2000 albums, with generated gradient covers for 2
+albums in every 3, spread across each seller. The rest are left cover-less
 on purpose, so the viewer's titled colour-block fallback is on screen too.
 
-Yupoo serves two different list-page templates and the parser handles both.
+Yupoo serves 2 different list-page templates and the parser handles both.
 When a seller fails, the page is saved to `data/debug/<seller>-page1.html`
 and the error distinguishes a page whose albums could not be read (a parser
 problem) from one with no albums at all (an empty or closed seller).

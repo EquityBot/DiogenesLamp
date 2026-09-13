@@ -7,7 +7,7 @@ pairs measured live on 2026-08-18 from album pages spread across the id
 range; interpolating between them is accurate to days.
 
 viewer/age.js carries the same table for the browser side.
-tests/test_age.py asserts the two stay identical.
+tests/test_age.py asserts the 2 stay identical.
 """
 
 from __future__ import annotations
@@ -50,7 +50,7 @@ def estimate_published(album_id: int) -> date:
     span_days = (date1 - date0).days
     # Floor, not round: viewer/age.js interpolates in milliseconds and reads
     # the calendar date off the resulting instant, which truncates. Rounding
-    # here would put the two languages a day apart in the middle of every
+    # here would put the 2 languages a day apart in the middle of every
     # segment, so a 180-day scrape and a 180-day filter would disagree about
     # the same album. tests/test_age.py checks they still match.
     offset = (album_id - id0) * span_days // (id1 - id0)
