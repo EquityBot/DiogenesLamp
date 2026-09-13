@@ -154,7 +154,7 @@ test("registerTitleKeys folds batches to the same bans as a full recompute", () 
   ];
   const counts = new Map();
   const banned = new Set();
-  // stream in two uneven batches, as concurrent shard loads would
+  // stream in 2 uneven batches, as concurrent shard loads would
   registerTitleKeys(corpus.slice(0, 2), counts, banned);
   assert.equal(banned.size, 0);
   registerTitleKeys(corpus.slice(2), counts, banned);
@@ -170,7 +170,7 @@ test("collapseDups honors a corpus-global banned set over a filtered subset", ()
     album({ id: "3", seller: "a", dup_key: key }),
   ];
   const banned = bannedTitleKeys(corpus);
-  // a filtered view (e.g. favorites) showing only 2 of the 3: without the
+  // a filtered view (for example, favourites) showing only 2 of the 3: without the
   // global set the pair would collapse and hide a distinct product
   const subset = corpus.slice(0, 2);
   assert.equal(collapseDups(subset, banned).out.length, 2);

@@ -20,7 +20,7 @@ def test_anchors_are_strictly_increasing():
 
 
 def test_python_and_viewer_anchor_tables_match():
-    """The two tables must agree - but see the estimate test below.
+    """The 2 tables must agree - but see the estimate test below.
 
     Matching anchors alone does not prove matching dates: the interpolation
     between them is written twice, once per language.
@@ -136,7 +136,7 @@ def test_python_and_viewer_agree_on_the_keep_decision():
     today = date(2026, 8, 18)
     # Local mid-afternoon, matching production: the scraper stamps runs with
     # a local timestamp and the viewer reads a local Date.now(). Building
-    # this in UTC would put the two on different calendar days wherever the
+    # this in UTC would put the 2 on different calendar days wherever the
     # machine is not near UTC, and the test would fail for that reason
     # rather than the one it is checking. The time of day matters: a
     # millisecond comparison against "N days ago" lands after midnight of

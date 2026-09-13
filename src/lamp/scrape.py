@@ -1,4 +1,4 @@
-"""Scrape Yupoo sellers into catalog shards."""
+"""Scrape Yupoo sellers into catalogue shards."""
 
 from __future__ import annotations
 
@@ -62,7 +62,7 @@ def _fetch_all_stubs(client, source: Source, data_dir: Path, save_debug: bool = 
                     debug.parent.mkdir(parents=True, exist_ok=True)
                     debug.write_text(html, encoding="utf-8")
                     saved_note = f"; saved {debug}"
-                # Distinguish the two causes, because they need opposite
+                # Distinguish the 2 causes, because they need opposite
                 # responses: a page with album links we failed to read is a
                 # parser problem worth investigating, while a page with none
                 # is simply an empty or closed seller. Blaming a layout
@@ -86,7 +86,7 @@ def _fetch_all_stubs(client, source: Source, data_dir: Path, save_debug: bool = 
         # real Yupoo past-the-end page comes back empty (confirmed live), but a
         # hypothetical seller could instead repeat the last page's content
         # forever. If nothing on this page is new, treat it the same as an
-        # empty page - end of catalog, not an error - rather than looping.
+        # empty page - end of catalogue, not an error - rather than looping.
         new_stubs = [stub for stub in batch if stub.id not in seen_ids]
         if not new_stubs:
             return stubs
@@ -244,7 +244,7 @@ def scrape_all(sources: dict[str, Source], data_dir: Path, run_ts: str,
                only: set[str] | None = None, rps: float = 8.0,
                max_age_days: int = 0, dry_run: bool = False) -> list[SellerSummary]:
     if client_factory is None:
-        # The shared thumbnail CDN host would otherwise serialize the whole
+        # The shared thumbnail CDN host would otherwise serialise the whole
         # run at 1 req/s; it runs at the global cap instead. Per-host 1 req/s
         # for seller hosts is a politeness floor and stays fixed - only the
         # global cap is operator-tunable.

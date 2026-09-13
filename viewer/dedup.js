@@ -62,11 +62,11 @@ function titleWeight(normalized) {
 // Group key for an album, or null when the album has no usable identity.
 // Exactly one item link -> that item is the identity (works across sellers
 // even when titles differ). Zero or several item links (link-less albums,
-// multi-item catalogs) -> fall back to the normalized title when it is
+// multi-item catalogues) -> fall back to the normalised title when it is
 // specific enough. The seller is baked into title keys so titles can never
 // group across sellers: live-corpus sampling showed every cross-seller
 // title match was mirrored storefronts sharing category taxonomy - one
-// title on five sellers, five catalogs - not reposts. Genuine reposts
+// title on 5 sellers, 5 catalogues - not reposts. Genuine reposts
 // share purchase links, and the item-key path catches those.
 function dupKey(album) {
   const keys = itemKeys(album.links || []);
@@ -95,9 +95,9 @@ const _TITLE_MAX_PER_SELLER = 2;
 // Title keys used more than _TITLE_MAX_PER_SELLER times are category
 // labels and never collapse. Call this over the FULL loaded corpus, not a
 // filtered view: whether a title is a category label is a property of the
-// seller's whole catalog, and computing it on a filtered subset lets a
+// seller's whole catalogue, and computing it on a filtered subset lets a
 // banned group resurrect whenever filters hide enough of its members
-// (e.g. favorites view showing 2 of a seller's 60 same-title albums).
+// (for example, favourites view showing 2 of a seller's 60 same-title albums).
 // Title keys already embed the seller, so one count per key is per-seller
 // by construction; item-link identity is strong and never banned.
 function bannedTitleKeys(list) {

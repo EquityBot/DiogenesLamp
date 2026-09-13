@@ -57,7 +57,7 @@ def test_parse_dump_keeps_urls_that_contain_commas():
         "https://seller.x.yupoo.com/"
     ]
     assert parse_dump("12, https://spaced.example/\n") == ["https://spaced.example/"]
-    # a two-index export ("row,subrow,url") strips both, and a comma inside
+    # a 2-index export ("row,subrow,url") strips both, and a comma inside
     # the URL still survives behind them
     assert parse_dump("1,2,https://seller.x.yupoo.com/\n") == [
         "https://seller.x.yupoo.com/"
@@ -66,7 +66,7 @@ def test_parse_dump_keeps_urls_that_contain_commas():
     assert parse_dump("1,https://weidian.com/i.html?itemID=1,2\n") == [
         "https://weidian.com/i.html?itemID=1,2"
     ]
-    # Quoted exports from spreadsheet applications (Excel, Google Sheets, etc.)
+    # Quoted exports from spreadsheet applications (Excel, Google Sheets and so on)
     assert parse_dump('"1","https://seller.x.yupoo.com/"\n') == [
         "https://seller.x.yupoo.com/"
     ]

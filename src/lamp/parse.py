@@ -38,7 +38,7 @@ def _cny_amount(raw: str) -> int | None:
 
 
 def parse_price(text: str) -> int:
-    """Extract price in CNY/RMB from title or description text (e.g. ¥180, 180元, P180, 180p).
+    """Extract price in CNY/RMB from title or description text (for example, ¥180, 180元, P180, 180p).
 
     Returns 0 if no price found or if the rounded whole-yuan value is outside
     sensible catalogue ranges (10..99999).
@@ -85,7 +85,7 @@ def _first_int(text: str) -> int:
     return int(match.group()) if match else 0
 
 
-# Yupoo serves two list-page templates. The original names its cards
+# Yupoo serves 2 list-page templates. The original names its cards
 # album__*; a second one (live 2026-08, and the majority in a real link
 # collection) names them album3__* and lazy-loads covers, putting a base64
 # placeholder in src and the real URL in data-origin-src.

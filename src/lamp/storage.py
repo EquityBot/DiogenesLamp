@@ -1,4 +1,4 @@
-"""Catalog storage: per-seller shards plus an index manifest, all atomic writes."""
+"""Catalogue storage: per-seller shards plus an index manifest, all atomic writes."""
 
 from __future__ import annotations
 
@@ -11,7 +11,7 @@ from pathlib import Path
 def atomic_write_json(path: Path, obj: object) -> None:
     """Write JSON via a temp file + os.replace so readers never see a partial file.
 
-    If serialization fails, the original file (if any) is left untouched - the
+    If serialisation fails, the original file (if any) is left untouched - the
     temp file never gets created before json.dumps succeeds. On Windows the
     rename step can lose against a reader holding the destination open (the
     viewer serving the very shard being rewritten) or against antivirus and
@@ -24,7 +24,7 @@ def atomic_write_json(path: Path, obj: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     tmp = path.with_name(path.name + ".tmp")
     # Compact separators: shards are machine-read by the viewer, and the
-    # indent=1 form measured ~35% larger on real catalog data.
+    # indent=1 form measured ~35% larger on real catalogue data.
     tmp.write_text(json.dumps(obj, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
     for attempt in range(5):
         try:
@@ -69,7 +69,7 @@ def write_shard(data_dir: Path, seller: str, albums: dict[str, dict]) -> None:
 
 # Facts about the album itself, not about this scrape run: once captured they
 # stay captured. A later fetch that fails to extract them (layout variant,
-# truncated JSON-LD) must not erase what an earlier run already learned.
+# truncated JSON-LD) must not erase what an earlier run already learnt.
 # Price is not sticky: an absent price is a catalogue change, not a missed
 # extract of a date-like field.
 _STICKY_FIELDS = ("date_published", "date_modified")

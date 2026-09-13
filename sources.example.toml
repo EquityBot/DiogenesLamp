@@ -12,7 +12,7 @@
 url = "https://exampleseller.x.yupoo.com"
 name = "exampleseller"
 
-# A catalog too large to be worth the hours, or one you no longer buy from:
+# A catalogue too large to be worth the hours, or one you no longer buy from:
 [yupoo.skippedseller]
 url = "https://skippedseller.x.yupoo.com"
 name = "skippedseller"
