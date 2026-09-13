@@ -1,8 +1,8 @@
-# Design System: DiogenesLamp
+# Design system: DiogenesLamp
 
 ## Overview
 
-**Creative North Star: "The Stock Book"**
+**Creative North Star: 'The Stock Book'**
 
 A stock book is the leaf a collection keeps for its specimens: a page ruled
 before anything is mounted on it, windows cut at a fixed pitch, a folded paper
@@ -11,7 +11,7 @@ Nothing on that page competes with what is mounted on it, which is the whole
 reason the form survived: the page is apparatus, the specimens are the subject.
 
 DiogenesLamp is tens of thousands of cover photographs judged at a glance, so
-it inherits that discipline literally. The chrome is two inks on one ground.
+it inherits that discipline literally. The chrome is 2 inks on one ground.
 Every colour a visitor sees comes from the covers themselves. There are no
 rounded corners, no shadows on the leaf, and no card containers: the rules are
 printed once across the page as a background, and the windows are cut into it.
@@ -47,7 +47,7 @@ screen. The light leaf is a cool printed stock, deliberately not a warm cream.
 - **Leaf** (`#0e1013` dark / `#e7e9ec` light): the page. Body ground and the
   window ground behind a cover that failed to load.
 - **Leaf Raised** (`#14171b` / `#f3f5f7`): the head band and the shops panel,
-  the two surfaces that sit above the page rather than on it.
+  the 2 surfaces that sit above the page rather than on it.
 - **Rule** (`#262c33` / `#c8ced5`): the printed lattice, the hairline under a
   window, the box around a purchase mark.
 - **Rule Strong** (`#3a434d` / `#9aa4ae`): the baseline under a form field,
@@ -56,7 +56,7 @@ screen. The light leaf is a cool printed stock, deliberately not a warm cream.
 - **Ink Faint** (`#9aa3ad` / `#545c66`): sellers, tallies, purchase marks,
   placeholders. Both values clear 4.5:1 on their own leaf.
 
-### Named Rules
+### Named rules
 
 **The Two Ink Rule.** The chrome uses the leaf, the ink and one second ink.
 Every other colour on the screen is a photograph. A platform that wants its
@@ -64,7 +64,7 @@ own brand colour, a status that wants amber, a category that wants a hue: all
 of them are refused, and the state finds a shape instead.
 
 **The Cover Sovereignty Rule.** Nothing is painted over a cover that is not
-load-bearing. Today that is exactly three marks: the arrival tag, the
+load-bearing. Today that is exactly 3 marks: the arrival tag, the
 duplicate count, and the corner mount. Adding a fourth requires removing one.
 
 ## Typography
@@ -89,12 +89,12 @@ headline.
 - **Note** (400, 22px, 1.5): the empty and loading states, the only place the
   page speaks a sentence.
 - **Body / Title** (400, 14px, 1.32 to 1.45): captions, controls, panel links.
-  Card titles clamp to two lines, one on narrow.
+  Card titles clamp to 2 lines, one on narrow.
 - **Label** (400, 11px, mono, tabular): sellers, tallies, purchase marks,
   duplicate counts, dates, panel headings.
 - **Brand** (700, 11px, uppercase, 0.14em): the name in the head band.
 
-### Named Rules
+### Named rules
 
 **The Tabular Figure Rule.** Every number the interface owns is set in the
 mono stack with `font-variant-numeric: tabular-nums`, and any figure that
@@ -118,7 +118,7 @@ gutter; the narrow lattice at 158 by 202 with a 152 cover and an 8px gutter
 below 720px; and the strip page at 300 by 384 with a 300 cover and a 14px
 gutter, 300 by 300 with an 8px gutter on narrow.
 
-The lattice itself is two `repeating-linear-gradient` layers on the spacer,
+The lattice itself is 2 `repeating-linear-gradient` layers on the spacer,
 at the card pitch, so the ruling costs one paint rather than a border on each
 of the hundred-odd nodes in the window. The spacer is exactly as wide as the
 columns it holds and is centred, so the page never rules ground no window can
@@ -127,19 +127,19 @@ sit on.
 The head band is sticky above 720px and static below it, where a wrapping
 toolbar would otherwise hold a third of the viewport permanently.
 
-## Elevation & Depth
+## Elevation and depth
 
 Flat, with one exception. The leaf has no shadows at all: depth is the ruling
-and the two raised surface tones. The shops panel is the one element that
+and the 2 raised surface tones. The shops panel is the one element that
 physically sits above the page, and it is the one element that casts a shadow.
 
-### Shadow Vocabulary
+### Shadow vocabulary
 
 - **Lift** (`0 2px 4px rgb(0 0 0 / 0.45), 0 12px 28px rgb(0 0 0 / 0.38)` dark;
   `0 2px 4px rgb(16 20 30 / 0.10), 0 12px 28px rgb(16 20 30 / 0.12)` light):
   the slide-over panel only.
 
-### Named Rules
+### Named rules
 
 **The Printed Page Rule.** A surface on the leaf is distinguished by a rule or
 by a tone, never by a shadow. A shadow on the page means the element is
@@ -184,18 +184,18 @@ kept and filled solid in the second ink when it is.
   only the paint is ours. The tick is hidden by giving up its stroke, never
   its opacity, which would take the box with it.
 - **Arrival.** A 2px inset rule in the second ink across the top of the window
-  plus a `NEW` tag, two carriers so the state survives without colour.
+  plus a `NEW` tag, 2 carriers so the state survives without colour.
 - **Price.** A catalogue figure printed at the foot of the window, opposite the
   copy count, on the leaf rather than floating on the cover. It is a figure,
   not a badge: mono, tabular, no colour of its own.
 - **Export.** A drawn mark and a plain label. Every button in the head band is
-  a ruled rectangle; the second ink is reserved for the two that undo
+  a ruled rectangle; the second ink is reserved for the 2 that undo
   something, and export is not one of them.
 - **Strip page.** A duplicate group leaves the lattice for a wider pitch where
   the copies stand side by side, each carrying the seller in full ink and the
   posted date, which are the only fields that differ.
 
-## Do's and Don'ts
+## Do's and don'ts
 
 **Do** put a new state on a shape, a rule or a mark before reaching for
 colour, and confirm it still reads in greyscale.

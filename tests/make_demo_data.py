@@ -1,9 +1,9 @@
-"""Generate synthetic catalog data for viewer development.
+"""Generate synthetic catalogue data for viewer development.
 
 Usage: python tests/make_demo_data.py [data_dir] [sellers] [albums_per_seller]
 Then:  lamp --data <data_dir> serve --no-browser
 
-Two albums in every three get a cover, spread across each seller rather than
+Two albums in every 3 get a cover, spread across each seller rather than
 sitting on its first albums. The rest are left cover-less deliberately: Yupoo
 has no cover image for some albums, and the viewer draws its titled colour
 block for those, so a demo where every card carried an image would never
@@ -60,7 +60,7 @@ def _hsv_to_rgb(hue: float, sat: float, val: float) -> tuple[int, int, int]:
 
 
 def cover_bytes(seed: int) -> bytes:
-    """A diagonal two-tone gradient, hue keyed on the album id.
+    """A diagonal 2-tone gradient, hue keyed on the album id.
 
     Stands in for a product photo well enough to lay out and eyeball the
     grid, while staying obviously synthetic to anyone reading a screenshot.
@@ -84,7 +84,7 @@ def main() -> None:
     n_albums = int(sys.argv[3]) if len(sys.argv) > 3 else 2000
     rng = random.Random(42)
     run_ts = "2026-08-17T12:00:00+10:00"
-    # Spread demo postings across the last three years so the age filter has
+    # Spread demo postings across the last 3 years so the age filter has
     # something to cut: with every album the same age, every threshold would
     # return either the whole corpus or nothing.
     today = datetime.now(UTC).date()
@@ -96,8 +96,8 @@ def main() -> None:
         thumb_dir.mkdir(parents=True, exist_ok=True)
         albums = []
         for j in range(n_albums):
-            # Offset per seller: favorites key on album id, so ids must be
-            # globally unique like real Yupoo ids or the manual favorites
+            # Offset per seller: favourites key on album id, so ids must be
+            # globally unique like real Yupoo ids or the manual favourites
             # check stars one card per seller at once.
             aid = str((i + 1) * 10_000_000 + j)
             title = " ".join(rng.sample(WORDS, 3)) + f" {aid}"

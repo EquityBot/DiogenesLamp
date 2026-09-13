@@ -17,7 +17,7 @@ tens of thousands of albums across sellers.
 Inferred from the repository (README, viewer behaviour, demo data generator);
 not confirmed in interview.
 
-## Product Purpose
+## Product purpose
 
 Yupoo seller catalogues paginate every 20 or so albums and load slowly. The
 project scrapes album covers, titles and purchase links into a local index
@@ -28,11 +28,11 @@ item faster locally than they could on Yupoo.
 ## Positioning
 
 The index is local and cross-seller. Yupoo itself can only ever show one
-seller, twenty at a time, at network speed. Nothing about a single seller page
+seller, 20 at a time, at network speed. Nothing about a single seller page
 can offer corpus-wide search, cross-seller duplicate collapsing, or an age
 filter that knows an album's date without fetching it.
 
-## Operating Context
+## Operating context
 
 Command line first, browser second. The operator runs `lamp import` on a link
 dump, `lamp scrape` (slow first run, incremental after), then `lamp serve`,
@@ -41,7 +41,7 @@ which opens `http://localhost:<port>`. Data lives in `data/` beside the clone:
 in `sources.toml`. A scrape can leave a seller with no shard on disk, so the
 viewer routinely loads a partially available catalogue.
 
-## Capabilities and Constraints
+## Capabilities and constraints
 
 - Viewer is dependency-free vanilla JS with no build step and no bundler.
   Editing `viewer/*.js` and reloading is the whole development loop.
@@ -61,14 +61,14 @@ viewer routinely loads a partially available catalogue.
 - Covers and metadata only. Detail photos are never downloaded; every card
   links back to Yupoo.
 
-## Brand Commitments
+## Brand commitments
 
 Name: DiogenesLamp. The lamp reference is the product's one piece of
 personality, after the story of Diogenes carrying a lamp in daylight looking
 for an honest man. Voice in the README and in the UI is plain, specific and
 unhurried, with no marketing register.
 
-## Evidence on Hand
+## Evidence on hand
 
 - `tests/make_demo_data.py` writes 5 sellers by 2000 albums with generated
   gradient covers for the first 300 of each, so every viewer state can be seen
@@ -79,7 +79,7 @@ unhurried, with no marketing register.
 - No usage numbers, no testimonials, no user research. Future work must not
   invent any.
 
-## Product Principles
+## Product principles
 
 1. The corpus is the unit. Every control acts across all sellers at once; that
    is the only thing Yupoo cannot do.
@@ -94,7 +94,7 @@ unhurried, with no marketing register.
    labelled and reachable, focus survives virtualised re-renders, and reduced
    motion is honoured.
 
-## Accessibility & Inclusion
+## Accessibility and inclusion
 
 No external standard was mandated, but the implementation already commits to:
 visible focus rings on `:focus-visible` in both themes, hit areas at or above

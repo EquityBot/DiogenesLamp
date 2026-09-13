@@ -3,7 +3,7 @@
 // Reads the legacy candle.favorites key once so pre-rename stars survive.
 // A corrupt value must not throw here: this runs while the module body is
 // still executing, so an exception would leave no listeners bound and no
-// catalog loaded - a blank page recoverable only by clearing site data.
+// catalogue loaded - a blank page recoverable only by clearing site data.
 // That covers the read itself as well as the parse, which is why the key is
 // fetched through readStored: with site data blocked for the origin, the
 // accessor raises before there is anything to parse. The window is what is
@@ -137,7 +137,7 @@ function setStatus() {
   const loading = !state.index || state.loadedSellers < total;
   // A seller whose scrape errored has no shard on disk, so its fetch 404s.
   // Those still count in loadedSellers (the attempt finished), so name the
-  // missing part rather than silently reporting a full catalog.
+  // missing part rather than silently reporting a full catalogue.
   const parts = [
     tallyFigure(state.filtered.length, state.albums.length),
     state.filtered.length === 1 ? " album" : " albums",
@@ -456,7 +456,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 
 // One drawn mark from the sheet in index.html. Built rather than written as
 // markup so the same mark set serves the cards, the buttons and the labels
-// without three copies of the same path data.
+// without 3 copies of the same path data.
 function drawnMark(id, className = "mark") {
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("class", className);
@@ -675,7 +675,7 @@ function renderGrid(force = false) {
     totalRows,
     Math.ceil((viewTop + window.innerHeight) / rowH) + OVERSCAN_ROWS
   );
-  // filterVersion is part of the key: two different filters can produce the
+  // filterVersion is part of the key: 2 different filters can produce the
   // same row range and the same count, and without it the second would be
   // mistaken for a no-op and never drawn. So is the cursor, since the pass
   // below is what stamps the tab stop - sameRenderWindow says why.
@@ -717,7 +717,7 @@ function renderGrid(force = false) {
     if (card.style.transform !== transform) card.style.transform = transform;
     // Only a window of rows exists in the DOM, so role=list would otherwise
     // advertise a set the size of that window: "item 1 of 30" against a
-    // catalog of six figures. Stamped here rather than in makeCard because a
+    // catalogue of 6 figures. Stamped here rather than in makeCard because a
     // cached card is reused at a different index when the filter changes,
     // and only this loop knows the new one.
     setIfChanged(card, "aria-setsize", String(state.filtered.length));
@@ -765,7 +765,7 @@ function setIfChanged(el, name, value) {
 // Everything on a card that the browser makes focusable in its own right.
 // Stamping the tabindex on the card alone leaves all of these in the tab
 // order, and a card carries a cover link, a star, sometimes a duplicate
-// badge and up to three purchase links: at ~54 cards in the render window
+// badge and up to 3 purchase links: at ~54 cards in the render window
 // that is several hundred stops to tab past the grid, which is the outcome
 // the roving tabindex exists to prevent. A card added to makeCard with a
 // new focusable element has to be added here too.

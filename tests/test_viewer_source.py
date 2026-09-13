@@ -72,7 +72,7 @@ def test_app_js_reaches_storage_only_through_the_guarded_accessors():
     A browser with site data blocked for the origin raises SecurityError
     from getItem itself. app.js reads the favourites and the colour theme
     while its module body is still running, so a raw call there aborts the
-    whole module: no listeners bound, no catalog loaded, and a permanently
+    whole module: no listeners bound, no catalogue loaded, and a permanently
     blank grid recoverable only by clearing site data. filters.js owns the
     guarded readStored/writeStored that every access goes through.
     """
@@ -101,7 +101,7 @@ def test_every_focusable_control_on_a_card_carries_the_roving_tabindex():
     """The roving tabindex is meant to be one tab stop for the whole lattice.
 
     A card is not a single focusable node: it carries a cover link, a star,
-    sometimes a duplicate badge and up to three purchase links, each
+    sometimes a duplicate badge and up to 3 purchase links, each
     focusable in its own right. Stamping the tabindex on the card alone left
     every one of them in the tab order, and the render window holds roughly
     54 cards - several hundred stops to tab past a grid that advertises one.

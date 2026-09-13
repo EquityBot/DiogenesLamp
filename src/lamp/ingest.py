@@ -21,7 +21,7 @@ class Source:
     url: str
     name: str
     # Set skip = true in sources.toml to leave a seller out of scrapes -
-    # useful for a catalog too large to be worth the hours, or one that no
+    # useful for a catalogue too large to be worth the hours, or one that no
     # longer sells anything you want. Commenting the entry out would not
     # last: import rewrites the file and would restore it from the dump.
     skip: bool = False

@@ -73,8 +73,8 @@ function serializeFilters(filters) {
 // blocked one.
 //
 // app.js persists favourites, the filter blob and the colour theme, and
-// reads all three while its module body is still executing - an exception
-// there binds no listeners, loads no catalog and leaves a blank page
+// reads all 3 while its module body is still executing - an exception
+// there binds no listeners, loads no catalogue and leaves a blank page
 // recoverable only by clearing site data.
 function readStored(host, key) {
   try {
@@ -120,7 +120,7 @@ function matchSearch(query) {
   return (titleLc) => terms.every((term) => (titleLc || "").includes(term));
 }
 
-// Global sort. "Newest first" must order the whole catalog, not leave albums
+// Global sort. "Newest first" must order the whole catalogue, not leave albums
 // grouped in seller-shard order. Missing prices sort last on low-to-high and
 // first-to-last on high-to-low (treated as 0).
 function sortAlbums(albums, sortOrder) {

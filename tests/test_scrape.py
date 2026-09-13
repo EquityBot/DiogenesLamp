@@ -63,7 +63,7 @@ class FakeClient:
                 raise BlockedError(429)
         for marker in self.fetch_errors:
             if marker in url:
-                # Mirrors a real non-blocked hard failure (e.g. the live-verified
+                # Mirrors a real non-blocked hard failure (for example, the live-verified
                 # bare-URL 404) rather than rate-limit/hotlink blocking.
                 raise FetchError(f"fake fetch error for {url}")
         for marker, text in self.pages.items():
@@ -429,7 +429,7 @@ def test_a_lone_album_link_does_not_imply_a_layout_change(tmp_path: Path):
 def test_page_without_album_links_reports_an_empty_seller(tmp_path: Path):
     """No album links at all means a closed or empty seller, not a parser bug.
 
-    Conflating the two once hid every seller on Yupoo's second template
+    Conflating the 2 once hid every seller on Yupoo's second template
     behind an error that read like dead accounts.
     """
     summary = scrape_seller(FakeClient({"albums?page=1": EMPTY_PAGE}), SELLER, tmp_path,
@@ -555,7 +555,7 @@ def test_index_loads_each_shard_once(tmp_path: Path, monkeypatch):
     monkeypatch.setattr(scrape_module, "load_shard", spy)
     scrape_all({"yupoo:sellerx": SELLER}, tmp_path, "2026-08-17T12:00:00+10:00",
                client_factory=make_client)
-    # one load during scrape_seller + one during the index build, not two
+    # one load during scrape_seller + one during the index build, not 2
     assert loads.count("sellerx") == 2
 
 
