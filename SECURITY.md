@@ -6,9 +6,13 @@ Security fixes are applied to the latest version on the default branch.
 
 ## Reporting a vulnerability
 
-Please use this repository's private vulnerability reporting feature. Do not
-open a public issue for a suspected security vulnerability. Include a clear
-description, reproduction steps, impact, and any suggested mitigation.
+Contact the repository owner directly. Do not open an issue for a suspected
+security vulnerability. Include a clear description, reproduction steps,
+impact, and any suggested mitigation.
+
+GitHub offers repository security advisories and private vulnerability
+reporting for public repositories on GitHub.com only, so that route is not
+available while this repository stays private.
 
 Use fabricated catalogue pages, source configuration and reproduction data only. Do
 not submit client or private catalogue data, credentials, access tokens, cookies,
@@ -24,5 +28,10 @@ Treat scraped titles, HTML and JSON as untrusted data in the viewer. Do not
 run the importer with elevated privileges, and do not point it at a less
 trusted user's working directory.
 
-The importer talks to the network. Keep `sources.toml` free of credentials;
-Yupoo catalogue URLs are the only expected input.
+The scraper talks to the network. `lamp import` reads a local link dump and
+writes `sources.toml` without fetching anything.
+
+Keep `sources.toml` free of credentials. The expected input is a dump of public
+http or https links: Yupoo catalogue URLs, which are the only ones scraped, plus
+non-Yupoo shop links (taobao, tmall, weidian) and link aggregators, which are
+kept as a link-out directory and never fetched.

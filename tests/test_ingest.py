@@ -84,6 +84,19 @@ def test_parse_dump_keeps_urls_that_contain_commas():
     ]
 
 
+def test_merge_counts_malformed_url_as_invalid_and_keeps_valid_rows():
+    # The malformed row used to raise out of classify_url, so neither
+    # surrounding valid row was imported.
+    rows = [
+        "https://sellerx.x.yupoo.com/",
+        "https://[not-an-ipv6]/albums",
+        "https://sellery.x.yupoo.com/",
+    ]
+    merged, report = merge_sources({}, rows)
+    assert set(merged) == {"yupoo:sellerx", "yupoo:sellery"}
+    assert (report.rows, report.invalid, report.yupoo_new) == (3, 1, 2)
+
+
 def test_merge_dedupes_and_counts():
     merged, report = merge_sources({}, parse_dump(DUMP))
     assert set(merged) == {
