@@ -73,11 +73,13 @@ EXPECTED_CI = "\n".join(
         "      # The viewer's logic modules have node tests. pytest runs them",
         "      # through a wrapper that skips when node is missing, so installing it",
         "      # explicitly is what keeps that suite from silently disappearing on a",
-        "      # runner image change - and is why there is no separate node step:",
-        "      # it would run the same tests a second time.",
+        "      # runner image change. The separate type check does not execute tests.",
         _uses("actions/setup-node", "      - uses: "),
         "        with:",
         '          node-version: "22"',
+        "          package-manager-cache: false",
+        "      - run: npm ci",
+        "      - run: npm run typecheck",
         _uses("astral-sh/setup-uv", "      - uses: "),
         "        with:",
         '          version: "0.12.0"',
@@ -102,6 +104,12 @@ EXPECTED_WORKFLOW_NAMES = sorted(EXPECTED_WORKFLOWS.keys() | EXPECTED_WORKFLOW_H
 EXPECTED_DEPENDABOT = """\
 version: 2
 updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
   - package-ecosystem: github-actions
     directory: /
     schedule:

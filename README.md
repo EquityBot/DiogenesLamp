@@ -177,6 +177,13 @@ stylesheet at runtime. Its logic modules have their own tests, run by
 
     node --test tests/viewer/*.test.cjs
 
+For strict type checking of the viewer's 6 logic modules and compile-only
+contract tests, run `npm ci` then `npm run typecheck`. TypeScript and the Node
+type declarations are development tools only; the check emits no files and
+the browser still loads the same JavaScript. `app.js` and its DOM interactions
+are outside this initial scope. `viewer/browser-globals.d.ts` gives the script
+loading path the same helper signatures as the Node test imports.
+
 To work on the viewer without scraping anything, generate synthetic data:
 
     python tests/make_demo_data.py demo-data
