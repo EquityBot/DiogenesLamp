@@ -30,4 +30,4 @@ jobs:
       contents: read
       pull-requests: read
       statuses: write
-    uses: ryanduguid/release-policy/.github/workflows/attribution-policy.yml@ba94d055c28cfae801a3d663404156b2af36cdd6
+    uses: ryanduguid/release-policy/.github/workflows/attribution-policy.yml@2351d43805ee3b08f004a3a7e7cde9c9a81e7813
