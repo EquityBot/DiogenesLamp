@@ -1,0 +1,23 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "target": "ES2022",
+    "module": "NodeNext",
+    "types": [
+      "node"
+    ]
+  },
+  "files": [
+    "viewer/filters.js",
+    "viewer/view-state.js",
+    "viewer/catalogue.js",
+    "viewer/dedup.js",
+    "viewer/age.js",
+    "viewer/anchor.js",
+    "viewer/browser-globals.d.ts",
+    "tests/viewer/contracts.ts"
+  ]
+}

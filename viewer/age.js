@@ -26,6 +26,9 @@ const AGE_ANCHORS = [
 // (trillion-scale) would otherwise overflow into Invalid Date, and an
 // implied date that far out just means "newer than the table knows". A
 // date merely in the future is left alone - it is already never stale.
+/**
+ * @param {number} id
+ */
 function estimatePublishedMs(id) {
   const a = AGE_ANCHORS;
   if (id <= a[0][0]) return a[0][1];
@@ -43,6 +46,9 @@ function estimatePublishedMs(id) {
 
 // Publication timestamp (ms) for an album record: the scraped
 // date_published when present, the id estimate otherwise.
+/**
+ * @param {{id: string, date_published?: string | null}} album
+ */
 function publishedMs(album) {
   if (album.date_published) {
     const ts = Date.parse(album.date_published);
@@ -58,6 +64,10 @@ function publishedMs(album) {
 // from the N-day filter. `today` is the viewer's local date, matching the
 // local timestamp the scraper stamps its runs with.
 const DAY_MS = 86400000;
+/**
+ * @param {number} publishedTs
+ * @param {number} nowTs
+ */
 function ageInDays(publishedTs, nowTs) {
   const now = new Date(nowTs);
   const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
@@ -67,6 +77,11 @@ function ageInDays(publishedTs, nowTs) {
 
 // True when the album is within the window, matching is_stale's rule that
 // an album exactly max_age_days old is still kept.
+/**
+ * @param {Parameters<typeof publishedMs>[0]} album
+ * @param {number} maxDays
+ * @param {number} nowTs
+ */
 function withinAgeWindow(album, maxDays, nowTs) {
   if (!maxDays) return true;
   return ageInDays(publishedMs(album), nowTs) <= maxDays;

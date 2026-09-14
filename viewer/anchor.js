@@ -12,6 +12,12 @@
 // then push the user a full row DOWN on every background refresh. The
 // index is capped too - a filter that shrank the list mid-scroll would
 // otherwise point past the end and the anchor would be silently dropped.
+/**
+ * @param {number} viewTop
+ * @param {number} rowH
+ * @param {number} cols
+ * @param {number} count
+ */
 function anchorAt(viewTop, rowH, cols, count) {
   if (count <= 0 || rowH <= 0 || cols <= 0) return null;
   const top = Math.max(0, viewTop);
@@ -23,6 +29,12 @@ function anchorAt(viewTop, rowH, cols, count) {
 // Where the viewport has to sit for the anchored album, now at newIndex, to
 // keep the pixel position it had. Mirrors anchorAt exactly: the row is
 // derived the same way, so a rebuild that moved nothing is a no-op.
+/**
+ * @param {number} newIndex
+ * @param {number} offset
+ * @param {number} rowH
+ * @param {number} cols
+ */
 function restoredViewTop(newIndex, offset, rowH, cols) {
   return Math.floor(newIndex / cols) * rowH + offset;
 }

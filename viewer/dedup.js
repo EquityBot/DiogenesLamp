@@ -1,5 +1,10 @@
 "use strict";
 
+/**
+ * @typedef {{url?: unknown, platform?: string} | null | undefined} PurchaseLink
+ * @typedef {{links: PurchaseLink[], updated_at?: string | null, dup_key?: string | null}} DuplicateAlbum
+ */
+
 // Duplicate-posting detection. Pure functions only - no DOM access - so the
 // same file runs in the browser (script tag before app.js) and under node
 // for tests.
@@ -7,6 +12,9 @@
 // Titles compare after NFKC folding (fullwidth yen/digits -> ASCII), case
 // folding, and stripping everything that is not a letter or digit. CJK
 // characters are letters and survive.
+/**
+ * @param {string | null | undefined} title
+ */
 function normTitle(title) {
   return (title || "")
     .normalize("NFKC")
@@ -24,6 +32,10 @@ function normTitle(title) {
 // album text) and encoding never leak into the key, and a link entry whose
 // url is missing or malformed is skipped instead of throwing - one bad
 // link must not cost the whole shard.
+/**
+ * @param {PurchaseLink[]} links
+ * @returns {Set<string>}
+ */
 function itemKeys(links) {
   const keys = new Set();
   for (const link of links) {
@@ -51,10 +63,13 @@ function itemKeys(links) {
 // a word per character, so they weigh double.
 const _TITLE_MIN_WEIGHT = 8;
 
+/**
+ * @param {string} normalized
+ */
 function titleWeight(normalized) {
   let weight = 0;
   for (const ch of normalized) {
-    weight += ch.codePointAt(0) > 0x2e7f ? 2 : 1;
+    weight += /** @type {number} */ (ch.codePointAt(0)) > 0x2e7f ? 2 : 1;
   }
   return weight;
 }
@@ -68,6 +83,9 @@ function titleWeight(normalized) {
 // title match was mirrored storefronts sharing category taxonomy - one
 // title on 5 sellers, 5 catalogues - not reposts. Genuine reposts
 // share purchase links, and the item-key path catches those.
+/**
+ * @param {{links?: PurchaseLink[], title?: string | null, seller: string}} album
+ */
 function dupKey(album) {
   const keys = itemKeys(album.links || []);
   if (keys.size === 1) return `i:${keys.values().next().value}`;
@@ -78,6 +96,10 @@ function dupKey(album) {
 
 // True when a should represent its group instead of b: more purchase links
 // wins, then newer updated_at; otherwise keep the incumbent (stable order).
+/**
+ * @param {DuplicateAlbum} a
+ * @param {DuplicateAlbum} b
+ */
 function better(a, b) {
   if (a.links.length !== b.links.length) return a.links.length > b.links.length;
   const ta = Date.parse(a.updated_at || "");
@@ -100,7 +122,12 @@ const _TITLE_MAX_PER_SELLER = 2;
 // (for example, favourites view showing 2 of a seller's 60 same-title albums).
 // Title keys already embed the seller, so one count per key is per-seller
 // by construction; item-link identity is strong and never banned.
+/**
+ * @param {{dup_key?: string | null}[]} list
+ * @returns {Set<string>}
+ */
 function bannedTitleKeys(list) {
+  /** @type {Map<string, number>} */
   const counts = new Map();
   for (const album of list) {
     const key = album.dup_key;
@@ -120,6 +147,11 @@ function bannedTitleKeys(list) {
 // so a banned key never un-bans. Equivalent to recomputing
 // bannedTitleKeys over everything seen so far, at O(batch) instead of
 // O(corpus) per shard.
+/**
+ * @param {{dup_key?: string | null}[]} albums
+ * @param {Map<string, number>} counts
+ * @param {Set<string>} banned
+ */
 function registerTitleKeys(albums, counts, banned) {
   for (const album of albums) {
     const key = album.dup_key;
@@ -136,9 +168,18 @@ function registerTitleKeys(albums, counts, banned) {
 // through untouched. Pass the corpus-global banned set; the default only
 // suits callers whose list IS the full corpus. Returns { out, counts }
 // where counts maps dup_key -> group size.
+/**
+ * @template {DuplicateAlbum} T
+ * @param {T[]} list
+ * @param {Set<string>} [banned]
+ * @returns {{out: T[], counts: Map<string, number>}}
+ */
 function collapseDups(list, banned = bannedTitleKeys(list)) {
+  /** @type {T[]} */
   const out = [];
+  /** @type {Map<string, number>} */
   const firstIdx = new Map();
+  /** @type {Map<string, number>} */
   const counts = new Map();
   for (const album of list) {
     const key = album.dup_key;
@@ -149,7 +190,7 @@ function collapseDups(list, banned = bannedTitleKeys(list)) {
       counts.set(key, 1);
       out.push(album);
     } else {
-      counts.set(key, counts.get(key) + 1);
+      counts.set(key, /** @type {number} */ (counts.get(key)) + 1);
       if (better(album, out[idx])) out[idx] = album;
     }
   }
