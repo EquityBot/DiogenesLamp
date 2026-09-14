@@ -6,6 +6,7 @@ sources.toml.*
 __pycache__/
 *.egg-info/
 .venv/
+node_modules/
 # Internal build-process scaffolding and design docs: they describe a
 # private catalog and the author's environment, and are of no use to
 # anyone reading the published repo. Kept locally, never published.

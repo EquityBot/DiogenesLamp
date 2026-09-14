@@ -32,11 +32,13 @@ jobs:
       # The viewer's logic modules have node tests. pytest runs them
       # through a wrapper that skips when node is missing, so installing it
       # explicitly is what keeps that suite from silently disappearing on a
-      # runner image change - and is why there is no separate node step:
-      # it would run the same tests a second time.
+      # runner image change. The separate type check does not execute tests.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"
+          package-manager-cache: false
+      - run: npm ci
+      - run: npm run typecheck
       - uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
         with:
           version: "0.12.0"

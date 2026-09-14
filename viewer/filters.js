@@ -1,5 +1,13 @@
 "use strict";
 
+/**
+ * @typedef {{search: string, seller: string, category: string, age: string,
+ *   sort: string, newOnly: boolean, favsOnly: boolean, hideDups: boolean}} Filters
+ * @typedef {{localStorage: Pick<Storage, "getItem" | "setItem">}} StorageHost
+ * @typedef {{id: string, price?: number | null, photo_count?: number,
+ *   published_ms?: number}} SortableAlbum
+ */
+
 // Filter state is saved so a reload puts the user back where they were,
 // and every localStorage access the viewer makes goes through this file.
 // Nothing here touches the DOM: the browser passes in a plain object and
@@ -10,6 +18,7 @@ const FILTER_STORAGE_KEY = "lamp.filters";
 // Every persisted field, with the value that means "not filtering". A field
 // at its default is dropped on save, so a stored blob stays small and an
 // added filter defaults sensibly for someone with an old blob saved.
+/** @type {Filters} */
 const FILTER_DEFAULTS = {
   search: "",
   seller: "",
@@ -29,15 +38,21 @@ function defaultFilters() {
 // unrecognised falls back to the default rather than being trusted: the blob
 // is editable by hand, and a string where a boolean belongs would otherwise
 // make `checked` truthy for any non-empty value.
+/**
+ * @param {unknown} raw
+ * @returns {Filters}
+ */
 function normalizeFilters(raw) {
   const out = defaultFilters();
   if (!raw || typeof raw !== "object") return out;
-  for (const [key, fallback] of Object.entries(FILTER_DEFAULTS)) {
-    const value = raw[key];
+  for (const [key, fallback] of /** @type {[keyof Filters, string | boolean][]} */ (
+    Object.entries(FILTER_DEFAULTS))) {
+    const value = /** @type {Record<string, unknown>} */ (raw)[key];
     if (typeof fallback === "boolean") {
-      if (typeof value === "boolean") out[key] = value;
+      if (typeof value === "boolean")
+        /** @type {Record<string, string | boolean>} */ (out)[key] = value;
     } else if (typeof value === "string") {
-      out[key] = value;
+      /** @type {Record<string, string | boolean>} */ (out)[key] = value;
     }
   }
   return out;
@@ -45,19 +60,29 @@ function normalizeFilters(raw) {
 
 // True when at least one filter is doing something, which is what decides
 // whether the "Clear filters" control is offered.
+/**
+ * @param {unknown} filters
+ */
 function anyFilterActive(filters) {
   const state = normalizeFilters(filters);
-  return Object.entries(FILTER_DEFAULTS)
+  return /** @type {[keyof Filters, string | boolean][]} */ (Object.entries(FILTER_DEFAULTS))
     .some(([key, fallback]) => state[key] !== fallback);
 }
 
 // Drop defaults before storing. Restoring a blob written by an older build
 // then leaves new fields at their default instead of undefined.
+/**
+ * @param {unknown} filters
+ * @returns {Partial<Filters>}
+ */
 function serializeFilters(filters) {
   const state = normalizeFilters(filters);
+  /** @type {Partial<Filters>} */
   const out = {};
-  for (const [key, fallback] of Object.entries(FILTER_DEFAULTS)) {
-    if (state[key] !== fallback) out[key] = state[key];
+  for (const [key, fallback] of /** @type {[keyof Filters, string | boolean][]} */ (
+    Object.entries(FILTER_DEFAULTS))) {
+    if (state[key] !== fallback)
+      /** @type {Record<string, string | boolean>} */ (out)[key] = state[key];
   }
   return out;
 }
@@ -76,6 +101,10 @@ function serializeFilters(filters) {
 // reads all 3 while its module body is still executing - an exception
 // there binds no listeners, loads no catalogue and leaves a blank page
 // recoverable only by clearing site data.
+/**
+ * @param {StorageHost} host
+ * @param {string} key
+ */
 function readStored(host, key) {
   try {
     return host.localStorage.getItem(key);
@@ -84,6 +113,11 @@ function readStored(host, key) {
   }
 }
 
+/**
+ * @param {StorageHost} host
+ * @param {string} key
+ * @param {string} value
+ */
 function writeStored(host, key, value) {
   try {
     host.localStorage.setItem(key, value);
@@ -95,6 +129,9 @@ function writeStored(host, key, value) {
 // A corrupt or unparseable blob must not throw: this runs during start-up,
 // and an exception here would leave the viewer with no listeners bound. The
 // host is passed rather than the Storage for the reason given above.
+/**
+ * @param {StorageHost} host
+ */
 function readFilters(host) {
   try {
     const raw = host.localStorage.getItem(FILTER_STORAGE_KEY);
@@ -105,6 +142,10 @@ function readFilters(host) {
   }
 }
 
+/**
+ * @param {StorageHost} host
+ * @param {Filters} filters
+ */
 function writeFilters(host, filters) {
   try {
     host.localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(serializeFilters(filters)));
@@ -115,6 +156,10 @@ function writeFilters(host, filters) {
 
 // Prepare once per filter pass. Titles are lowercased when their shard loads;
 // all whitespace-separated query terms must appear, in any order.
+/**
+ * @param {string | null | undefined} query
+ * @returns {(titleLc: string | null | undefined) => boolean}
+ */
 function matchSearch(query) {
   const terms = (query || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
   return (titleLc) => terms.every((term) => (titleLc || "").includes(term));
@@ -123,6 +168,12 @@ function matchSearch(query) {
 // Global sort. "Newest first" must order the whole catalogue, not leave albums
 // grouped in seller-shard order. Missing prices sort last on low-to-high and
 // first-to-last on high-to-low (treated as 0).
+/**
+ * @template {SortableAlbum} T
+ * @param {T[]} albums
+ * @param {string} sortOrder
+ * @returns {T[]}
+ */
 function sortAlbums(albums, sortOrder) {
   const out = albums.slice();
   if (sortOrder === "price-asc") {
@@ -141,12 +192,19 @@ function sortAlbums(albums, sortOrder) {
   return out;
 }
 
+/**
+ * @param {number | null | undefined} price
+ */
 function formatPrice(price) {
   if (!price) return "";
   return `¥${price}`;
 }
 
 // "/" focuses search unless the user is already typing in a field.
+/**
+ * @param {string} key
+ * @param {string | null | undefined} activeTag
+ */
 function isSearchShortcut(key, activeTag) {
   if (key !== "/") return false;
   const tag = (activeTag || "").toLowerCase();
@@ -155,6 +213,11 @@ function isSearchShortcut(key, activeTag) {
 
 // Favourites export must not silently drop stars whose shards are still
 // loading or failed. Callers show `reason` and `omittedIds` to the user.
+/**
+ * @template {{id: string}} T
+ * @param {{favoriteIds?: Set<string> | string[], albums?: T[], loading?: boolean}} input
+ * @returns {{ready: boolean, reason: "empty" | "loading" | "partial" | "missing" | "ok", albums: T[], omittedIds: string[]}}
+ */
 function favouritesExportPlan({ favoriteIds, albums, loading }) {
   const favSet = favoriteIds instanceof Set ? favoriteIds : new Set(favoriteIds || []);
   if (!favSet.size) {

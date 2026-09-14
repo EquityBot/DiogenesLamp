@@ -1,5 +1,19 @@
 "use strict";
 
+/**
+ * @typedef {import("./filters.js").Filters} Filters
+ * @typedef {{filters: Filters, storedFilters: Filters, userTouchedFilters: boolean,
+ *   groupKey: string | null, preGroupScroll: number, cursor: number}} ViewState
+ * @typedef {"seller" | "category" | "sort"} RestoredOption
+ * @typedef {{type: "filter", filters: Filters} | {type: "clear-filters"}
+ *   | {type: "restore-options", options: Partial<Record<RestoredOption, string[]>>}
+ *   | {type: "open-group", groupKey: string, scrollY: number} | {type: "close-group"}
+ *   | {type: "cursor", index: number, count: number}} ViewEvent
+ * @typedef {import("./filters.js").SortableAlbum & import("./dedup.js").DuplicateAlbum
+ *   & {seller: string, category: string, first_seen: string, published_ms: number,
+ *      title_lc: string}} CatalogueAlbum
+ */
+
 // Catalogue choices and transitions. app.js owns DOM, storage, scroll and focus.
 const VIEW_HELPERS = typeof module !== "undefined" ? {
   ...require("./filters.js"),
@@ -9,6 +23,11 @@ const VIEW_HELPERS = typeof module !== "undefined" ? {
 } : { normalizeFilters, defaultFilters, matchSearch, sortAlbums, clampCursor,
   collapseDups, ageInDays };
 
+/**
+ * @param {unknown} [storedFilters]
+ * @param {unknown} [filters]
+ * @returns {ViewState}
+ */
 function createViewState(storedFilters = {}, filters = storedFilters) {
   return {
     filters: VIEW_HELPERS.normalizeFilters(filters),
@@ -20,6 +39,11 @@ function createViewState(storedFilters = {}, filters = storedFilters) {
   };
 }
 
+/**
+ * @param {ViewState} view
+ * @param {ViewEvent} event
+ * @returns {ViewState}
+ */
 function nextViewState(view, event) {
   switch (event.type) {
     case "filter":
@@ -30,7 +54,7 @@ function nextViewState(view, event) {
     case "restore-options": {
       if (view.userTouchedFilters) return view;
       const filters = { ...view.filters };
-      for (const key of ["seller", "category", "sort"]) {
+      for (const key of /** @type {RestoredOption[]} */ (["seller", "category", "sort"])) {
         const saved = view.storedFilters[key];
         filters[key] = saved && (event.options[key] || []).includes(saved)
           ? saved : VIEW_HELPERS.defaultFilters()[key];
@@ -49,10 +73,17 @@ function nextViewState(view, event) {
   }
 }
 
+/**
+ * @template {CatalogueAlbum} T
+ * @param {ViewState} view
+ * @param {{albums: T[], favorites: Set<string>, generatedAt: string, bannedKeys: Set<string>}} catalogue
+ * @param {number} [now]
+ */
 function selectCatalogue(view, catalogue, now = Date.now()) {
   const { albums, favorites, generatedAt, bannedKeys } = catalogue;
   const filters = view.filters;
   let filtered;
+  /** @type {Map<string, number>} */
   let dupCounts = new Map();
   let dupHidden = 0;
   if (view.groupKey) {

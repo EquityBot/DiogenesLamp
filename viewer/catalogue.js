@@ -1,5 +1,7 @@
 "use strict";
 
+/** @typedef {{start: number, end: number, cols: number, count: number, version: number, cursor: number}} RenderWindow */
+
 // Query marking and grid movement. Pure functions only, no DOM access, so the
 // same file runs in the browser (script tag before app.js) and under node for
 // tests. app.js supplies the measurements.
@@ -15,10 +17,16 @@
 // every term is marked wherever it lands. Matching is done on lowercased
 // copies of both sides and the offsets are reported against the original, so
 // the marks fall on the real characters.
+/**
+ * @param {string | null | undefined} title
+ * @param {string | null | undefined} query
+ * @returns {[number, number][]}
+ */
 function matchRanges(title, query) {
   const text = (title || "").toLowerCase();
   const terms = (query || "").trim().toLowerCase().split(/\s+/).filter(Boolean);
   if (!terms.length || !text) return [];
+  /** @type {[number, number][]} */
   const hits = [];
   for (const term of terms) {
     let from = 0;
@@ -39,6 +47,9 @@ function matchRanges(title, query) {
 // Terms overlap: "air jordan" against "air jordan" marks 0-3 and 4-10, but
 // "jord ordan" would mark 4-8 and 5-10, and 2 <mark> elements cannot share a
 // character. Sort, then fold anything that touches or overlaps into one span.
+/**
+ * @param {[number, number][]} ranges
+ */
 function mergeRanges(ranges) {
   if (ranges.length < 2) return ranges;
   const sorted = ranges.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
@@ -56,6 +67,11 @@ function mergeRanges(ranges) {
 // handing it the row count alone makes a page shorter than a single
 // ArrowDown on any grid with more columns than rows on screen, which is
 // every desktop layout. app.js supplies the measurements.
+/**
+ * @param {number} viewportHeight
+ * @param {number} rowHeight
+ * @param {number} cols
+ */
 function pageStep(viewportHeight, rowHeight, cols) {
   const rows = Math.max(1, Math.floor(viewportHeight / rowHeight));
   return rows * Math.max(1, cols);
@@ -65,6 +81,10 @@ function pageStep(viewportHeight, rowHeight, cols) {
 // single tab stop in the lattice is stamped on the card whose index is the
 // cursor, so a list that shrank past it would carry no stop at all and the
 // keyboard could not enter the grid again.
+/**
+ * @param {number} cursor
+ * @param {number} count
+ */
 function clampCursor(cursor, count) {
   if (count <= 0) return 0;
   return Math.min(Math.max(cursor, 0), count - 1);
@@ -82,8 +102,13 @@ function clampCursor(cursor, count) {
 // user had just left - Tab then jumped backwards to it, which is the whole
 // behaviour the roving tabindex exists to provide. app.js supplies the
 // measurements; the comparison lives here so it can be tested without a DOM.
+/** @type {(keyof RenderWindow)[]} */
 const RENDER_WINDOW_KEYS = ["start", "end", "cols", "count", "version", "cursor"];
 
+/**
+ * @param {RenderWindow | null | undefined} drawn
+ * @param {RenderWindow | null | undefined} wanted
+ */
 function sameRenderWindow(drawn, wanted) {
   if (!drawn || !wanted) return false;
   return RENDER_WINDOW_KEYS.every((key) => drawn[key] === wanted[key]);
@@ -96,6 +121,13 @@ function sameRenderWindow(drawn, wanted) {
 // Down and up move a whole row; a down move from the last partial row lands
 // on the final album rather than refusing, because the row below exists on
 // screen even when it is not full.
+/**
+ * @param {number} index
+ * @param {string} key
+ * @param {number} cols
+ * @param {number} count
+ * @param {number} [perPage]
+ */
 function gridStep(index, key, cols, count, perPage) {
   if (count <= 0 || cols <= 0) return 0;
   const here = Math.min(Math.max(index, 0), count - 1);
