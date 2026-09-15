@@ -185,7 +185,7 @@ def test_active_workflow_inventory_is_exact():
     assert sorted(_workflow_documents()) == EXPECTED_WORKFLOW_NAMES
 
 
-@pytest.mark.parametrize("filename", ["ci.yml"])
+@pytest.mark.parametrize("filename", sorted(EXPECTED_WORKFLOWS))
 def test_active_workflow_document_is_exact(filename: str):
     _assert_exact(_workflow_documents()[filename], EXPECTED_WORKFLOWS[filename], filename)
 

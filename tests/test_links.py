@@ -154,3 +154,24 @@ def test_control_and_invisible_characters_never_reach_a_url():
 )
 def test_platform_uses_a_hostname_label_boundary(host, platform):
     assert _platform(host) == platform
+
+
+@pytest.mark.parametrize("text", [
+    "taobao.com.evil.example/item?id=5",
+    "taobao.com.cn/item?id=5",
+    "weidian.com.evil.example/item",
+])
+def test_a_suffix_lookalike_never_collapses_onto_the_real_host(text):
+    # The lookahead rejected only alphanumerics and hyphens, so a following dot
+    # ended the host: taobao.com.evil.example stored a link to taobao.com itself.
+    assert extract_links(text) == []
+
+
+@pytest.mark.parametrize("text,host", [
+    ("taobao.com/item?id=5", "taobao.com"),
+    ("item.taobao.com/x", "item.taobao.com"),
+    ("buy from taobao.com. Then wait.", "taobao.com"),
+])
+def test_valid_hosts_still_match(text, host):
+    links = extract_links(text)
+    assert links and host in links[0].url

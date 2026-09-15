@@ -16,7 +16,11 @@ _URL_RE = re.compile(
     r"(?<![A-Za-z0-9-])"
     r"(?:https?://)?"
     r"(?P<host>(?:[A-Za-z0-9-]+\.)*(?:taobao\.com|tmall\.com|weidian\.com|m\.tb\.cn|k\.youshop10\.com))"
-    r"(?![A-Za-z0-9-])"
+    # A following dot must not end the host either: taobao.com.evil.example would
+    # otherwise match host="taobao.com" with no rest, and the lookalike domain
+    # would be stored as a link to the real homepage. A trailing dot before prose
+    # still matches, because no label follows it.
+    r"(?!\.?[A-Za-z0-9-])"
     r"(?P<rest>/[^\s'\"<>]*|\?[^\s'\"<>]*)?",
     re.IGNORECASE,
 )

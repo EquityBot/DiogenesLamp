@@ -7,6 +7,7 @@ import pytest
 import requests
 from PIL import Image
 
+from lamp import http as lamp_http
 from lamp.http import (
     _MAX_IMAGE_BYTES,
     _MAX_IMAGE_DIMENSION,
@@ -15,6 +16,7 @@ from lamp.http import (
     Client,
     FetchError,
     RateLimiter,
+    _normalise_url,
     _open_pinned,
     _PinnedHTTPSAdapter,
     _Target,
@@ -163,7 +165,7 @@ def test_get_pins_validated_ip_and_preserves_original_host():
     assert client.get("https://catalogue.example/albums").status_code == 200
 
     call = transport.calls[0]
-    assert call["target"].connect_ip == "8.8.8.8"
+    assert call["target"].connect_ips == ("8.8.8.8",)
     assert call["target"].hostname == "catalogue.example"
     assert call["headers"]["Host"] == "catalogue.example"
 
@@ -253,7 +255,7 @@ def test_redirect_is_resolved_again_and_pinned_independently():
 
     client.get("https://catalogue.example/start")
 
-    assert [call["target"].connect_ip for call in transport.calls] == ["8.8.8.8", "1.1.1.1"]
+    assert [call["target"].connect_ips for call in transport.calls] == [("8.8.8.8",), ("1.1.1.1",)]
     assert [call["headers"]["Host"] for call in transport.calls] == [
         "catalogue.example",
         "images.example",
@@ -399,3 +401,58 @@ def test_download_rejects_truncated_image(tmp_path: Path):
 
     assert client.download("https://images.example/thumb.png", tmp_path / "thumb.png") is False
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("url", [
+    "https://[::1",
+    "https://[abc",
+    "https://[::1]:80]/x",
+])
+def test_a_malformed_authority_raises_fetch_error_not_value_error(url):
+    # urlsplit raises ValueError on these. download() contracts on FetchError, so
+    # a ValueError escaping the boundary aborted the scrape instead of the URL.
+    with pytest.raises(FetchError):
+        _normalise_url(url)
+
+
+def test_every_validated_address_is_tried_before_the_host_fails(monkeypatch):
+    # Only the first validated address was ever used, so one unreachable A record
+    # failed a host that had a reachable one.
+    tried: list[str] = []
+
+    def fake_open(target, connect_ip, headers):
+        tried.append(connect_ip)
+        if connect_ip != "1.1.1.1":
+            raise requests.exceptions.ConnectionError("refused")
+        return FakeResponse(200), lambda: None
+
+    monkeypatch.setattr(lamp_http, "_open_pinned_to", fake_open)
+    target = _Target("https://example/", "example", ("8.8.8.8", "1.1.1.1"), 443)
+    response, _close = _open_pinned(target, {})
+    assert response.status_code == 200
+    assert tried == ["8.8.8.8", "1.1.1.1"]
+
+
+def test_the_last_connection_error_is_raised_when_every_address_fails(monkeypatch):
+    def fake_open(target, connect_ip, headers):
+        raise requests.exceptions.ConnectionError("refused " + connect_ip)
+
+    monkeypatch.setattr(lamp_http, "_open_pinned_to", fake_open)
+    target = _Target("https://example/", "example", ("8.8.8.8", "1.1.1.1"), 443)
+    with pytest.raises(requests.exceptions.ConnectionError, match="1.1.1.1"):
+        _open_pinned(target, {})
+
+
+def test_a_proxy_error_stops_immediately_rather_than_trying_more_addresses(monkeypatch):
+    # Proxy routing is refused by design, so it must not look like one bad address.
+    tried: list[str] = []
+
+    def fake_open(target, connect_ip, headers):
+        tried.append(connect_ip)
+        raise requests.exceptions.ProxyError("safe fetch does not permit proxy routing")
+
+    monkeypatch.setattr(lamp_http, "_open_pinned_to", fake_open)
+    target = _Target("https://example/", "example", ("8.8.8.8", "1.1.1.1"), 443)
+    with pytest.raises(requests.exceptions.ProxyError):
+        _open_pinned(target, {})
+    assert tried == ["8.8.8.8"]

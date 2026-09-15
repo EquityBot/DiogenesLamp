@@ -89,7 +89,9 @@ class RateLimiter:
 class _Target:
     url: str
     hostname: str
-    connect_ip: str
+    # Every validated address, in resolution order. One unreachable address must
+    # not fail a host that has another, and each is pinned the same way.
+    connect_ips: tuple[str, ...]
     port: int
 
 
@@ -114,7 +116,13 @@ def _normalise_url(url: str) -> tuple[str, str, int]:
     if "\\" in url or any(ord(char) < 32 or ord(char) == 127 for char in url):
         raise FetchError(f"refusing malformed URL: {url}")
 
-    parts = urlsplit(url)
+    # urlsplit raises ValueError on a malformed authority, an unmatched IPv6
+    # bracket among them. download() contracts on FetchError, so a ValueError
+    # escaping here aborts the scrape instead of failing the one URL.
+    try:
+        parts = urlsplit(url)
+    except ValueError as exc:
+        raise FetchError(f"refusing malformed URL: {url}") from exc
     if parts.scheme.lower() != "https":
         raise FetchError(f"refusing non-https URL: {url}")
     if parts.username is not None or parts.password is not None:
@@ -197,7 +205,7 @@ def _validated_target(url: str, resolver: Resolver) -> _Target:
         if canonical not in validated:
             validated.append(canonical)
 
-    return _Target(normalised, hostname, validated[0], port)
+    return _Target(normalised, hostname, tuple(validated), port)
 
 
 class _PinnedHTTPSAdapter(HTTPAdapter):
@@ -231,13 +239,33 @@ def _open_pinned(
     target: _Target,
     headers: Mapping[str, str],
 ) -> tuple[requests.Response, Callable[[], None]]:
+    # Try each validated address. A host whose first A record is unreachable
+    # still has the others, and every attempt pins the same way, so the
+    # validation the resolver did is not weakened by trying more of its answers.
+    last: Exception | None = None
+    for connect_ip in target.connect_ips:
+        try:
+            return _open_pinned_to(target, connect_ip, headers)
+        except requests.exceptions.ProxyError:
+            raise
+        except requests.RequestException as exc:
+            last = exc
+    assert last is not None  # _validated_target never returns an empty set
+    raise last
+
+
+def _open_pinned_to(
+    target: _Target,
+    connect_ip: str,
+    headers: Mapping[str, str],
+) -> tuple[requests.Response, Callable[[], None]]:
     session = requests.Session()
     # Environment proxy settings would create a second routing decision after
     # validation, so this boundary always makes the validated direct connection.
     session.trust_env = False
     session.mount(
         "https://",
-        _PinnedHTTPSAdapter(target.connect_ip, target.hostname, target.port),
+        _PinnedHTTPSAdapter(connect_ip, target.hostname, target.port),
     )
     try:
         response = session.get(
