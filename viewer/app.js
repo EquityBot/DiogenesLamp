@@ -639,12 +639,16 @@ let geometry = readGeometry();
 
 function columns() {
   const width = els.container.clientWidth - geometry.gap * 2;
-  return Math.max(1, Math.floor(width / geometry.w));
+  // The last column carries no trailing gap, which is how the spacer is ruled.
+  // Charging one here dropped a column whenever the leftover reached a card width.
+  return Math.max(1, Math.floor((width + geometry.gap) / geometry.w));
 }
 function rowHeight() { return geometry.h; }
 function rowsFor(count) { return Math.ceil(count / columns()); }
-function placeCard(i) {
-  const cols = columns();
+// cols is passed in, not read here: the render loop writes card.style.transform
+// and columns() reads container.clientWidth, so reading it per card forced a
+// synchronous layout on every card of every scroll frame.
+function placeCard(i, cols) {
   const x = (i % cols) * geometry.w;
   const y = Math.floor(i / cols) * geometry.h;
   return `translate(${x}px, ${y}px)`;
@@ -727,7 +731,7 @@ function renderGrid(force = false) {
       card = makeCard(album);
       els.grid.appendChild(card);
     }
-    const transform = placeCard(i);
+    const transform = placeCard(i, cols);
     if (card.style.transform !== transform) card.style.transform = transform;
     // Only a window of rows exists in the DOM, so role=list would otherwise
     // advertise a set the size of that window: "item 1 of 30" against a

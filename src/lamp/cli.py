@@ -110,6 +110,15 @@ def _cmd_import(args: argparse.Namespace) -> int:
         f"shops: {report.shops_new} new, {report.shops_known} known{platforms}\n"
         f"wrote {args.sources}"
     )
+    if report.collisions:
+        # Two different hosts slugged to one id, so the second was not stored.
+        # Name both so the dump can be corrected, rather than losing a seller.
+        print(
+            f"{len(report.collisions)} id collision(s), second URL not stored:",
+            file=sys.stderr,
+        )
+        for key, kept, dropped in report.collisions:
+            print(f"  {key}: kept {kept}, dropped {dropped}", file=sys.stderr)
     return 0
 
 

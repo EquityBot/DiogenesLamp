@@ -183,3 +183,30 @@ def test_load_sources_strips_a_hand_edited_trailing_slash(tmp_path: Path):
     path.write_text('[yupoo.s]\nurl = "https://s.x.yupoo.com/"\nname = "s"\n',
                     encoding="utf-8")
     assert load_sources(path)["yupoo:s"].url == "https://s.x.yupoo.com"
+
+
+def test_colliding_slugs_are_reported_and_not_silently_dropped():
+    # A dot cannot stay in a TOML key, so "foo.bar" and "foo-bar" both slug to
+    # "foo-bar". The second used to count as already known and vanish.
+    merged, report = merge_sources({}, [
+        "https://foo.bar.x.yupoo.com",
+        "https://foo-bar.x.yupoo.com",
+    ])
+    assert report.yupoo_new == 1
+    assert len(report.collisions) == 1
+    key, kept, dropped = report.collisions[0]
+    assert key == "yupoo:foo-bar"
+    assert kept == "https://foo.bar.x.yupoo.com"
+    assert dropped == "https://foo-bar.x.yupoo.com"
+    assert merged[key].url == kept
+
+
+def test_the_same_url_twice_is_not_a_collision():
+    _, report = merge_sources({}, [
+        "https://seller.x.yupoo.com",
+        "https://seller.x.yupoo.com",
+    ])
+    # A repeat inside one run is skipped without a count, which is existing
+    # behaviour. What matters here is that it is not reported as a collision.
+    assert report.yupoo_new == 1
+    assert report.collisions == []

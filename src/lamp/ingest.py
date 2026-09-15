@@ -111,6 +111,11 @@ class ImportReport:
     shops_new: int = 0
     shops_known: int = 0
     shops_by_platform: dict[str, int] = field(default_factory=dict)
+    # Distinct hosts can slug to the same id: a yupoo seller "foo.bar" and a
+    # seller "foo-bar" both become "foo-bar", because a dot cannot stay in a TOML
+    # key. Counting the second as already known would drop a real seller with no
+    # trace, so each collision is named here instead.
+    collisions: list[tuple[str, str, str]] = field(default_factory=list)
 
 
 def parse_dump(text: str) -> list[str]:
@@ -147,6 +152,9 @@ def merge_sources(
             continue
         key = f"{src.kind}:{src.id}"
         if key in merged or key in seen_this_run:
+            held = merged.get(key)
+            if held is not None and held.url != src.url:
+                report.collisions.append((key, held.url, src.url))
             if key not in seen_this_run:
                 if src.kind == "yupoo":
                     report.yupoo_known += 1

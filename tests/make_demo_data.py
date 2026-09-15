@@ -25,6 +25,8 @@ WORDS = ("alpha", "bravo", "canvas", "denim", "echo", "fleece", "grid", "hood",
 
 UNCOVERED_EVERY = 3
 COVER_PX = 240
+_HUE_BUCKETS = 64
+_COVER_CACHE: dict[int, bytes] = {}
 
 
 def has_cover(index: int) -> bool:
@@ -66,7 +68,15 @@ def cover_bytes(seed: int) -> bytes:
     Stands in for a product photo well enough to lay out and eyeball the
     grid, while staying obviously synthetic to anyone reading a screenshot.
     """
-    hue = (seed * 0.61803398875) % 1.0
+    # Quantise the hue and cache the encoded PNG. The default dataset asks for
+    # about 6,700 covers at 240x240, which is roughly 384 million pixel
+    # iterations plus one deflate each. 64 buckets keep the grid visibly varied
+    # and turn that into 64 encodes.
+    bucket = int((seed * 0.61803398875) % 1.0 * _HUE_BUCKETS)
+    cached = _COVER_CACHE.get(bucket)
+    if cached is not None:
+        return cached
+    hue = bucket / _HUE_BUCKETS
     top = _hsv_to_rgb(hue, 0.45, 0.85)
     bottom = _hsv_to_rgb((hue + 0.08) % 1.0, 0.60, 0.45)
     rows = []
@@ -76,7 +86,9 @@ def cover_bytes(seed: int) -> bytes:
             ratio = (y + x * 0.35) / (COVER_PX * 1.35)
             row += bytes(int(a + (b - a) * ratio) for a, b in zip(top, bottom))
         rows.append(bytes(row))
-    return _png(COVER_PX, COVER_PX, rows)
+    png = _png(COVER_PX, COVER_PX, rows)
+    _COVER_CACHE[bucket] = png
+    return png
 
 
 def main() -> None:
