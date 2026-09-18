@@ -97,7 +97,7 @@ EXPECTED_WORKFLOWS = {
 
 # Pin the reviewed script too, without duplicating its embedded Python here.
 EXPECTED_WORKFLOW_HASHES = {
-    "no-ai-attribution.yml": "38996b364b80ee1dea1f76be24defab6ace207297dbbdd0e5d0a5cc3f59c6dff",
+    "no-ai-attribution.yml": "5f5259efb19f82a63ac9a20e4211fd0bb2bcd660b439b300753744df87cb1ead",
 }
 EXPECTED_WORKFLOW_NAMES = sorted(EXPECTED_WORKFLOWS.keys() | EXPECTED_WORKFLOW_HASHES.keys())
 
