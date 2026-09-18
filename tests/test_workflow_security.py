@@ -25,9 +25,9 @@ EXPECTED_ACTIONS = {
         "v7.0.0",
     ),
     "astral-sh/setup-uv": (
-        "20cfd1bf945f4377ade1205e4dbc17946fc9a30d",
-        "v10.0.1",
-        "v10.0.1",
+        "bec219d24cd3e171d82865faccec33120bb574f4",
+        "v10.1.0",
+        "v10.1.0",
     ),
 }
 
@@ -208,4 +208,3 @@ def test_dependabot_document_is_exact():
 def test_security_document_is_exact():
     actual = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
     _assert_exact(actual, EXPECTED_SECURITY, "SECURITY.md")
-
