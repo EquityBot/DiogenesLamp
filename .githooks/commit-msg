@@ -156,21 +156,27 @@ MARKERS = comment_markers()
 
 
 def readings(text):
-    """The line as written, then again with each comment marker peeled off.
+    """The line as written, then every line with comment markers peeled off.
 
     Repeated markers are peeled in turn, so "## Co-authored-by: ..." is read
     down to the bare trailer rather than only to "# Co-authored-by: ...".
+    Every matching marker is followed: overlapping markers can expose
+    different readings, and stopping at the first one could miss a credit.
     """
-    found = [text]
-    rest = text.lstrip()
-    while True:
+    found = []
+    pending = [text]
+    seen = set()
+    while pending:
+        rest = pending.pop(0)
+        if rest in seen:
+            continue
+        seen.add(rest)
+        found.append(rest)
+        stripped = rest.lstrip()
         for marker in MARKERS:
-            if rest.startswith(marker):
-                rest = rest[len(marker):].lstrip()
-                found.append(rest)
-                break
-        else:
-            return found
+            if stripped.startswith(marker):
+                pending.append(stripped[len(marker):].lstrip())
+    return found
 
 
 raw = open(os.environ["MSG_FILE"], encoding="utf-8", errors="replace").read()
