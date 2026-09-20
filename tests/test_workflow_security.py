@@ -116,6 +116,11 @@ updates:
       interval: weekly
     cooldown:
       default-days: 7
+    ignore:
+      # The release-policy reusable workflow is pinned by SHA-256 in
+      # tests/test_workflow_security.py, so a bot bump can only fail CI.
+      # Bump it by hand and move the pin in the same commit.
+      - dependency-name: ryanduguid/release-policy/.github/workflows/attribution-policy.yml
   - package-ecosystem: uv
     directory: /
     schedule:
