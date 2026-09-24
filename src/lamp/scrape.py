@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
+import queue
 import re
 import sys
 import threading
 from collections.abc import Callable
-from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -349,41 +349,69 @@ def scrape_all(sources: dict[str, Source], data_dir: Path, run_ts: str,
         return scrape_seller(client_factory(), source, data_dir, run_ts, full=full,
                              max_age_days=max_age_days, dry_run=dry_run, stop=stop)
 
+    todo: queue.SimpleQueue[Source] = queue.SimpleQueue()
+    for source in to_scrape:
+        todo.put(source)
+    results: queue.SimpleQueue[SellerSummary | Exception] = queue.SimpleQueue()
+
+    def worker() -> None:
+        # A set stop flag leaves queued sellers unstarted.
+        while not stop.is_set():
+            try:
+                source = todo.get_nowait()
+            except queue.Empty:
+                return
+            try:
+                results.put(run_one(source))
+            except Exception as exc:  # re-raised on the main thread
+                results.put(exc)
+
+    # Daemon threads, not a ThreadPoolExecutor: the interpreter joins pool
+    # threads at exit, so a seller stuck in a slow request would hold the
+    # process open after the operator abandoned it with a second Ctrl+C.
+    # Every shard write is atomic, so a thread cut off at exit leaves at
+    # most a stray .tmp file.
+    threads = [threading.Thread(target=worker, daemon=True)
+               for _ in range(min(workers, len(to_scrape)))]
+    for thread in threads:
+        thread.start()
+
     summaries: list[SellerSummary] = []
 
-    def collect(done) -> None:
-        for future in done:
-            summary = future.result()
-            summaries.append(summary)
+    def drain() -> None:
+        # A timed get wakes the main thread twice a second, so Ctrl+C is
+        # handled promptly rather than whenever the next seller finishes.
+        while True:
+            idle = not any(thread.is_alive() for thread in threads)
+            try:
+                # Once every worker has exited, all results are queued.
+                item = results.get(block=not idle, timeout=0.5)
+            except queue.Empty:
+                if idle:
+                    return
+                continue
+            if isinstance(item, Exception):
+                raise item
+            summaries.append(item)
             if on_done is not None:
-                on_done(summary)
+                on_done(item)
 
-    pool = ThreadPoolExecutor(max_workers=workers)
-    pending = {pool.submit(run_one, source) for source in to_scrape}
     interrupted = False
     try:
-        # A timed wait wakes the main thread twice a second, so Ctrl+C is
-        # handled promptly rather than whenever the next seller finishes.
-        while pending:
-            done, pending = wait(pending, timeout=0.5, return_when=FIRST_COMPLETED)
-            collect(done)
+        drain()
     except KeyboardInterrupt:
         interrupted = True
         stop.set()
         print("stopping: running sellers save their progress, "
               "Ctrl+C again to abandon them", file=sys.stderr, flush=True)
-        pending = {future for future in pending if not future.cancel()}
         try:
-            while pending:
-                done, pending = wait(pending, timeout=0.5)
-                collect(done)
+            drain()
         except KeyboardInterrupt:
             pass  # a second press abandons the running sellers, not the index
     finally:
         # Sellers are still running here only after a second Ctrl+C or an
         # unexpected error; the stop flag ends each at its next album.
         stop.set()
-        pool.shutdown(wait=False, cancel_futures=True)
     summaries.sort(key=lambda s: s.seller)
 
     if not dry_run:

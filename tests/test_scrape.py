@@ -867,27 +867,46 @@ def test_ctrl_c_writes_the_index_then_raises(tmp_path: Path):
     assert "sellerx" in [s["id"] for s in index["sellers"]]
 
 
-
 def test_a_second_ctrl_c_abandons_running_sellers_but_still_writes_the_index(tmp_path: Path):
-    """Every report raises, so the drain after the first press is itself
-    interrupted. One seller's client is slow, so it is still running then."""
+    """sellerx's report is the first press. sellery is stuck in a request, so
+    only a second press (a timer here) can end the wait, and the call must
+    return then without it. Its thread is a daemon, so it cannot hold the
+    process open at exit either."""
+    import _thread
+    import threading
     import time
 
     import pytest
 
-    class SlowClient(FakeClient):
+    release = threading.Event()
+
+    class StuckClient(FakeClient):
         def get(self, url, referer=None):
-            time.sleep(0.3)
+            if "sellery" in url:
+                release.wait(10)
             return super().get(url, referer)
 
     sellery = Source("yupoo", "sellery", "yupoo", "https://sellery.x.yupoo.com", "sellery")
-    clients = iter([make_client(), SlowClient(make_client().pages)])
+    pressed: list[bool] = []
 
-    def always_interrupt(_summary):
-        raise KeyboardInterrupt
+    def first_press(_summary):
+        if not pressed:
+            pressed.append(True)
+            threading.Timer(0.3, _thread.interrupt_main).start()  # the second press
+            raise KeyboardInterrupt
 
-    with pytest.raises(KeyboardInterrupt):
-        scrape_all({"yupoo:sellerx": SELLER, "yupoo:sellery": sellery}, tmp_path,
-                   "2026-08-17T12:00:00+10:00", client_factory=lambda: next(clients),
-                   workers=2, on_done=always_interrupt)
-    assert (tmp_path / "index.json").exists()
+    started = time.monotonic()
+    try:
+        with pytest.raises(KeyboardInterrupt):
+            scrape_all({"yupoo:sellerx": SELLER, "yupoo:sellery": sellery}, tmp_path,
+                       "2026-08-17T12:00:00+10:00",
+                       client_factory=lambda: StuckClient(make_client().pages),
+                       workers=2, on_done=first_press)
+        assert time.monotonic() - started < 5
+        assert (tmp_path / "index.json").exists()
+        still_running = [t for t in threading.enumerate()
+                         if t is not threading.current_thread() and t.is_alive()
+                         and not isinstance(t, threading.Timer)]
+        assert still_running and all(t.daemon for t in still_running)
+    finally:
+        release.set()
