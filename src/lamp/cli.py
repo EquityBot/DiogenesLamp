@@ -125,7 +125,7 @@ def _cmd_import(args: argparse.Namespace) -> int:
 def _cmd_scrape(args: argparse.Namespace) -> int:
     from datetime import datetime
 
-    from lamp.scrape import scrape_all
+    from lamp.scrape import SellerSummary, scrape_all
 
     sources = load_sources(args.sources)
     if not any(src.kind == "yupoo" for src in sources.values()):
@@ -138,15 +138,23 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
             return 1
         only = {args.seller}
     run_ts = datetime.now(UTC).astimezone().isoformat(timespec="seconds")
-    summaries = scrape_all(sources, args.data, run_ts,
-                           full=args.full, workers=args.workers, only=only, rps=args.rps,
-                           max_age_days=args.max_age_days, dry_run=args.dry_run)
-    errored = [s for s in summaries if s.error]
-    for s in summaries:
+    total = len(only) if only else sum(
+        1 for src in sources.values() if src.kind == "yupoo" and not src.skip
+    )
+    reported = 0
+
+    def report(s: SellerSummary) -> None:
+        # Printed as each seller finishes: a full run takes hours, and a
+        # report held back until the end looks exactly like a hang.
+        nonlocal reported
+        reported += 1
         action_verb = "would scrape" if args.dry_run else "scraped"
-        line = f"{s.seller}: {s.scraped} {action_verb}, {s.skipped} skipped, {s.failed} failed"
+        line = (f"[{reported}/{total}] {s.seller}: {s.scraped} {action_verb}, "
+                f"{s.skipped} skipped, {s.failed} failed")
         if s.skipped_old:
             line += f", {s.skipped_old} too old"
+        if s.thumbs_refetched:
+            line += f", {s.thumbs_refetched} covers fetched again"
         if s.failed_ids:
             shown = ", ".join(s.failed_ids[:5])
             more = ", ..." if len(s.failed_ids) > 5 else ""
@@ -161,7 +169,18 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
             line += " (no publish dates found - Yupoo markup change?)"
         if s.error:
             line += f"  ERROR: {s.error}"
-        print(line)
+        print(line, flush=True)
+
+    try:
+        summaries = scrape_all(sources, args.data, run_ts,
+                               full=args.full, workers=args.workers, only=only, rps=args.rps,
+                               max_age_days=args.max_age_days, dry_run=args.dry_run,
+                               on_done=report)
+    except KeyboardInterrupt:
+        saved = "" if args.dry_run else "; finished work is saved and index.json is written"
+        print(f"interrupted after {reported} of {total} sellers{saved}", file=sys.stderr)
+        return 130
+    errored = [s for s in summaries if s.error]
     # Name the skipped sellers rather than quietly reporting a smaller total:
     # a stray skip = true would otherwise be invisible in the summary.
     skipped = sorted(

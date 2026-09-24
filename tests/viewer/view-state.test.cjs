@@ -9,7 +9,7 @@ const albums = [
   { id: "b", title_lc: "blue shirt", seller: "two", category: "shirts", dup_key: "same", links: [], published_ms: 2000 },
   { id: "c", title_lc: "red shoes", seller: "two", category: "shoes", dup_key: "other", links: [], published_ms: 3000 },
 ];
-const catalogue = { albums, favorites: new Set(["a", "c"]), generatedAt: "today", bannedKeys: new Set() };
+const catalogue = { albums, favorites: new Set(["a", "c"]), bannedKeys: new Set() };
 
 test("removed saved options clear filters so the available catalogue stays visible", () => {
   let view = createViewState({ seller: "removed", category: "removed" });
@@ -76,13 +76,29 @@ test("duplicate collapse keeps counts and respects corpus-wide exclusions", () =
   assert.equal(selectCatalogue(view, { ...catalogue, bannedKeys: new Set(["same"]) }).filtered.length, 3);
 });
 
-test("age and new-only filters use the supplied catalogue date and clock", () => {
+test("age and new-only filters use the marked new flag and the supplied clock", () => {
   const now = 10 * 86400000;
   const items = [
-    { ...albums[0], first_seen: "today", published_ms: now - 86400000 },
-    { ...albums[1], first_seen: "yesterday", published_ms: now },
-    { ...albums[2], first_seen: "today", published_ms: now - 3 * 86400000 },
+    { ...albums[0], is_new: true, published_ms: now - 86400000 },
+    { ...albums[1], is_new: false, published_ms: now },
+    { ...albums[2], is_new: true, published_ms: now - 3 * 86400000 },
   ];
   const view = createViewState({ age: "1", newOnly: true });
   assert.deepEqual(selectCatalogue(view, { ...catalogue, albums: items }, now).filtered.map(a => a.id), ["a"]);
+});
+
+test("albums gone from Yupoo leave browsing but stay among favourites", () => {
+  const gone = { albums: albums.map((a) => (a.id === "a" ? { ...a, gone_since: "x" } : a)),
+    favorites: new Set(["a"]), bannedKeys: new Set() };
+  const browse = selectCatalogue(createViewState(), gone);
+  assert.deepEqual(browse.filtered.map((a) => a.id).sort(), ["b", "c"]);
+  const favs = selectCatalogue(createViewState({ favsOnly: true }), gone);
+  assert.deepEqual(favs.filtered.map((a) => a.id), ["a"]);
+});
+
+test("the new filter reads each album's precomputed is_new", () => {
+  const marked = { albums: albums.map((a) => ({ ...a, is_new: a.id === "c" })),
+    favorites: new Set(), bannedKeys: new Set() };
+  const view = selectCatalogue(createViewState({ newOnly: true }), marked);
+  assert.deepEqual(view.filtered.map((a) => a.id), ["c"]);
 });

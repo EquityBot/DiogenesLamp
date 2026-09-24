@@ -146,7 +146,33 @@ function gridStep(index, key, cols, count, perPage) {
   return next;
 }
 
+// "New" means first seen in the latest scrape of the album's own seller.
+// Measuring against the index's run instead made a one-seller scrape
+// (lamp scrape --seller) empty every other seller's new list. A shard is one
+// seller, and every album its latest complete listing carried holds that
+// run's last_seen. Shards written before last_seen existed fall back to the
+// index run.
+/**
+ * @param {{first_seen?: string, last_seen?: string, is_new?: boolean}[]} albums
+ * @param {string} generatedAt
+ */
+function markNew(albums, generatedAt) {
+  let latestRun = "";
+  let latestMs = -Infinity;
+  for (const album of albums) {
+    // Parsed, not compared as text: the stamps carry a local UTC offset,
+    // which moves across a daylight saving change.
+    const ms = album.last_seen ? Date.parse(album.last_seen) : NaN;
+    if (ms > latestMs) {
+      latestMs = ms;
+      latestRun = /** @type {string} */ (album.last_seen);
+    }
+  }
+  const run = latestRun || generatedAt;
+  for (const album of albums) album.is_new = album.first_seen === run;
+}
+
 if (typeof module !== "undefined") {
   module.exports = { matchRanges, mergeRanges, pageStep, clampCursor, gridStep,
-    RENDER_WINDOW_KEYS, sameRenderWindow };
+    RENDER_WINDOW_KEYS, sameRenderWindow, markNew };
 }

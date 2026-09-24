@@ -84,7 +84,19 @@ install, and the ci badge above is the release gate.
 
    Incremental re-runs skip unchanged titles, but records written before
    price extraction (no `price` field on disk) are fetched once so catalogue
-   prices can backfill. Use `--full` to re-fetch everything.
+   prices can backfill. A re-fetched album keeps the cover already on disk
+   unless its cover URL changed, and a cover missing from disk is fetched on
+   its own without the album page. Use `--full` to re-fetch everything,
+   covers included.
+
+   Each seller's result line prints as soon as that seller finishes. Ctrl+C
+   stops the run: sellers not yet started are dropped, running ones save what
+   they have, and `index.json` is still written. Press it again to abandon
+   the running sellers.
+
+   An album that has disappeared from a seller's listing is kept, marked
+   gone, and hidden from the viewer except under Favourites. It comes back
+   if the seller lists it again.
 
 3. Browse:
 
@@ -95,8 +107,8 @@ install, and the ci badge above is the release gate.
    and `lamp --sources other.toml scrape`.
 
    Search titles (press `/` to jump to the box), filter by seller, category or
-   posting age, show only new-since-last-scrape items, and sort the whole
-   catalogue by price, by photo count, or newest first. Titles and
+   posting age, show only items new in each seller's latest scrape, and sort
+   the whole catalogue by price, by photo count, or newest first. Titles and
    descriptions are scanned for a yuan price (`¥180`, `180元`, `P180`), and
    that is what the price sorts read. A search marks the parts of each title
    it matched, every term of it, so a hit says which part of it hit. Clicking
