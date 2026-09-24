@@ -214,6 +214,8 @@ def _session_spy(monkeypatch, fail_hosts=()):
             self.trust_env = True
             self.calls = []
             self.closed = False
+            self.cookies = requests.cookies.RequestsCookieJar()
+            self.cookies_sent = []
             sessions.append(self)
 
         def mount(self, prefix, adapter):
@@ -221,6 +223,8 @@ def _session_spy(monkeypatch, fail_hosts=()):
 
         def get(self, url, **kwargs):
             self.calls.append((url, kwargs))
+            self.cookies_sent.append(dict(self.cookies))
+            self.cookies.set("tracker", "set-by-this-response")
             if any(host in url for host in fail_hosts):
                 raise requests.exceptions.ConnectionError("reset")
             return FakeResponse(200)
@@ -257,6 +261,13 @@ def test_requests_to_one_host_and_address_reuse_a_session(monkeypatch):
         _open_pinned(_target("catalogue.example"), {})
     _open_pinned(_target("catalogue.example", ip="1.1.1.1"), {})  # re-resolved elsewhere
     assert [len(s.calls) for s in sessions] == [3, 1]
+
+
+def test_a_reused_session_sends_no_cookies_from_earlier_responses(monkeypatch):
+    sessions = _session_spy(monkeypatch)
+    for _ in range(3):
+        _open_pinned(_target("catalogue.example"), {})
+    assert sessions[0].cookies_sent == [{}, {}, {}]
 
 
 def test_least_recently_used_sessions_are_closed_past_the_limit(monkeypatch):

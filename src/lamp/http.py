@@ -295,6 +295,10 @@ def _open_pinned_to(
     headers: Mapping[str, str],
 ) -> tuple[requests.Response, Callable[[], None]]:
     session = _pinned_session(target, connect_ip)
+    # Only the connection is reused. Cookies a site set on an earlier
+    # response are dropped, so every request stays as anonymous as one on a
+    # fresh session: public pages only, no state carried between them.
+    session.cookies.clear()
     try:
         response = session.get(
             target.url,
