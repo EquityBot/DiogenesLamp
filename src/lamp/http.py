@@ -8,6 +8,7 @@ import socket
 import threading
 import time
 import warnings
+from collections import OrderedDict
 from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
@@ -254,19 +255,46 @@ def _open_pinned(
     raise last
 
 
+# Pinned sessions kept per thread, so consecutive requests to one host reuse
+# a keep-alive connection instead of paying a TCP and TLS handshake each
+# (measured on Yupoo: about 1.7 s a request fresh, 0.9 s reused). A scrape
+# worker handles one seller at a time, which needs its seller host and the
+# cover host; a few more cover a redirect. Evicted sessions are closed.
+# The key includes the validated address, so a host that resolves elsewhere
+# gets a new session pinned there: reuse never skips validation.
+_SESSIONS = threading.local()
+_MAX_SESSIONS_PER_THREAD = 4
+
+
+def _pinned_session(target: _Target, connect_ip: str) -> requests.Session:
+    cache: OrderedDict[tuple[str, str, int], requests.Session] | None = getattr(
+        _SESSIONS, "cache", None)
+    if cache is None:
+        cache = _SESSIONS.cache = OrderedDict()
+    key = (target.hostname, connect_ip, target.port)
+    session = cache.pop(key, None)
+    if session is None:
+        session = requests.Session()
+        # Environment proxy settings would create a second routing decision
+        # after validation, so this boundary always makes the validated
+        # direct connection.
+        session.trust_env = False
+        session.mount(
+            "https://",
+            _PinnedHTTPSAdapter(connect_ip, target.hostname, target.port),
+        )
+    cache[key] = session  # most recently used last
+    while len(cache) > _MAX_SESSIONS_PER_THREAD:
+        cache.popitem(last=False)[1].close()
+    return session
+
+
 def _open_pinned_to(
     target: _Target,
     connect_ip: str,
     headers: Mapping[str, str],
 ) -> tuple[requests.Response, Callable[[], None]]:
-    session = requests.Session()
-    # Environment proxy settings would create a second routing decision after
-    # validation, so this boundary always makes the validated direct connection.
-    session.trust_env = False
-    session.mount(
-        "https://",
-        _PinnedHTTPSAdapter(connect_ip, target.hostname, target.port),
-    )
+    session = _pinned_session(target, connect_ip)
     try:
         response = session.get(
             target.url,
@@ -277,19 +305,14 @@ def _open_pinned_to(
             proxies={},
         )
     except Exception:
+        # A failed connection may be a stale one; start clean next time.
+        _SESSIONS.cache.pop((target.hostname, connect_ip, target.port), None)
         session.close()
         raise
 
-    closed = False
-
-    def close() -> None:
-        nonlocal closed
-        if not closed:
-            closed = True
-            response.close()
-            session.close()
-
-    return response, close
+    # Closing a fully read response returns its connection to the session's
+    # pool; one abandoned mid-body closes the connection instead.
+    return response, response.close
 
 
 def _content_type(response: requests.Response) -> str:

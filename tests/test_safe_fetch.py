@@ -1,4 +1,5 @@
 import struct
+import threading
 import zlib
 from io import BytesIO
 from pathlib import Path
@@ -204,7 +205,8 @@ def test_pinned_adapter_refuses_proxy_routing():
         )
 
 
-def test_pinned_transport_ignores_environment_proxies_and_disables_auto_redirects(monkeypatch):
+def _session_spy(monkeypatch, fail_hosts=()):
+    """Stands in for requests.Session, with an empty per-thread cache."""
     sessions = []
 
     class SessionSpy:
@@ -219,16 +221,25 @@ def test_pinned_transport_ignores_environment_proxies_and_disables_auto_redirect
 
         def get(self, url, **kwargs):
             self.calls.append((url, kwargs))
+            if any(host in url for host in fail_hosts):
+                raise requests.exceptions.ConnectionError("reset")
             return FakeResponse(200)
 
         def close(self):
             self.closed = True
 
     monkeypatch.setattr("lamp.http.requests.Session", SessionSpy)
-    response, close = _open_pinned(
-        _Target("https://catalogue.example/", "catalogue.example", "8.8.8.8", 443),
-        {"Host": "catalogue.example"},
-    )
+    monkeypatch.setattr(lamp_http, "_SESSIONS", threading.local())
+    return sessions
+
+
+def _target(host, ip="8.8.8.8"):
+    return _Target(f"https://{host}/", host, (ip,), 443)
+
+
+def test_pinned_transport_ignores_environment_proxies_and_disables_auto_redirects(monkeypatch):
+    sessions = _session_spy(monkeypatch)
+    response, close = _open_pinned(_target("catalogue.example"), {"Host": "catalogue.example"})
 
     session = sessions[0]
     assert session.trust_env is False
@@ -237,7 +248,34 @@ def test_pinned_transport_ignores_environment_proxies_and_disables_auto_redirect
     assert session.calls[0][1]["stream"] is True
     close()
     assert response.closed is True
-    assert session.closed is True
+    assert session.closed is False  # kept for the next request to this host
+
+
+def test_requests_to_one_host_and_address_reuse_a_session(monkeypatch):
+    sessions = _session_spy(monkeypatch)
+    for _ in range(3):
+        _open_pinned(_target("catalogue.example"), {})
+    _open_pinned(_target("catalogue.example", ip="1.1.1.1"), {})  # re-resolved elsewhere
+    assert [len(s.calls) for s in sessions] == [3, 1]
+
+
+def test_least_recently_used_sessions_are_closed_past_the_limit(monkeypatch):
+    sessions = _session_spy(monkeypatch)
+    hosts = [f"host{i}.example" for i in range(lamp_http._MAX_SESSIONS_PER_THREAD + 1)]
+    for host in hosts:
+        _open_pinned(_target(host), {})
+    assert [s.closed for s in sessions] == [True] + [False] * (len(hosts) - 1)
+
+
+def test_a_failed_request_drops_its_session(monkeypatch):
+    sessions = _session_spy(monkeypatch, fail_hosts=("broken.example",))
+    with pytest.raises(requests.exceptions.ConnectionError):
+        _open_pinned(_target("broken.example"), {})
+    before = len(sessions)
+    with pytest.raises(requests.exceptions.ConnectionError):
+        _open_pinned(_target("broken.example"), {})
+    assert sessions[0].closed is True
+    assert len(sessions) == before + 1  # a fresh session, not the failed one
 
 
 def test_redirect_is_resolved_again_and_pinned_independently():
