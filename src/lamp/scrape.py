@@ -352,7 +352,7 @@ def scrape_all(sources: dict[str, Source], data_dir: Path, run_ts: str,
     todo: queue.SimpleQueue[Source] = queue.SimpleQueue()
     for source in to_scrape:
         todo.put(source)
-    results: queue.SimpleQueue[SellerSummary | Exception] = queue.SimpleQueue()
+    results: queue.SimpleQueue[SellerSummary] = queue.SimpleQueue()
 
     def worker() -> None:
         # A set stop flag leaves queued sellers unstarted.
@@ -363,8 +363,10 @@ def scrape_all(sources: dict[str, Source], data_dir: Path, run_ts: str,
                 return
             try:
                 results.put(run_one(source))
-            except Exception as exc:  # re-raised on the main thread
-                results.put(exc)
+            except Exception as exc:
+                # One seller's unexpected failure is that seller's error, as
+                # a corrupt shard is: the rest of the run carries on.
+                results.put(SellerSummary(source.id, error=f"unexpected error: {exc!r}"))
 
     # Daemon threads, not a ThreadPoolExecutor: the interpreter joins pool
     # threads at exit, so a seller stuck in a slow request would hold the
@@ -390,8 +392,6 @@ def scrape_all(sources: dict[str, Source], data_dir: Path, run_ts: str,
                 if idle:
                     return
                 continue
-            if isinstance(item, Exception):
-                raise item
             summaries.append(item)
             if on_done is not None:
                 on_done(item)
@@ -410,7 +410,7 @@ def scrape_all(sources: dict[str, Source], data_dir: Path, run_ts: str,
             pass  # a second press abandons the running sellers, not the index
     finally:
         # Sellers are still running here only after a second Ctrl+C or an
-        # unexpected error; the stop flag ends each at its next album.
+        # error raised by on_done; the stop flag ends each at its next album.
         stop.set()
     summaries.sort(key=lambda s: s.seller)
 

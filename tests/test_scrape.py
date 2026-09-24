@@ -867,6 +867,23 @@ def test_ctrl_c_writes_the_index_then_raises(tmp_path: Path):
     assert "sellerx" in [s["id"] for s in index["sellers"]]
 
 
+def test_an_unexpected_error_fails_its_seller_and_the_run_carries_on(tmp_path: Path):
+    class BrokenClient(FakeClient):
+        def get(self, url, referer=None):
+            if "sellery" in url:
+                raise RuntimeError("parser bug")
+            return super().get(url, referer)
+
+    sellery = Source("yupoo", "sellery", "yupoo", "https://sellery.x.yupoo.com", "sellery")
+    summaries = scrape_all({"yupoo:sellerx": SELLER, "yupoo:sellery": sellery}, tmp_path,
+                           "2026-08-17T12:00:00+10:00",
+                           client_factory=lambda: BrokenClient(make_client().pages), workers=2)
+    by_seller = {s.seller: s for s in summaries}
+    assert by_seller["sellerx"].scraped == 2
+    assert "RuntimeError('parser bug')" in by_seller["sellery"].error
+    assert (tmp_path / "index.json").exists()
+
+
 def test_a_second_ctrl_c_abandons_running_sellers_but_still_writes_the_index(tmp_path: Path):
     """sellerx's report is the first press. sellery is stuck in a request, so
     only a second press (a timer here) can end the wait, and the call must
