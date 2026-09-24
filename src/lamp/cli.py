@@ -154,7 +154,7 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
         if s.skipped_old:
             line += f", {s.skipped_old} too old"
         if s.thumbs_refetched:
-            line += f", {s.thumbs_refetched} missing covers fetched"
+            line += f", {s.thumbs_refetched} covers fetched again"
         if s.failed_ids:
             shown = ", ".join(s.failed_ids[:5])
             more = ", ..." if len(s.failed_ids) > 5 else ""

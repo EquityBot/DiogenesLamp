@@ -51,7 +51,7 @@ class SellerSummary:
     thumbs_blocked: bool = False
     dated: int = 0  # albums whose page yielded a JSON-LD publish date
     skipped_old: int = 0  # albums past the age cutoff, never fetched
-    thumbs_refetched: int = 0  # missing covers of unchanged albums, fetched again
+    thumbs_refetched: int = 0  # covers of unchanged albums, missing or changed
 
 
 def _fetch_all_stubs(client, source: Source, data_dir: Path, save_debug: bool = True,
@@ -170,6 +170,14 @@ def scrape_seller(client, source: Source, data_dir: Path,
         old = shard.get(stub.id)
         thumb_rel = f"thumbs/{source.id}/{stub.id}.jpg"
         thumb_path = data_dir / thumb_rel
+        # thumb_url names the cover the file on disk holds, and it moves only
+        # when a download lands, so a changed cover or a failed download is
+        # tried again on the next run. A record from before thumb_url was
+        # stored counts as holding the listed cover: its file came from this
+        # album.
+        held_url = (old or {}).get("thumb_url", stub.thumb_url)
+        cover_current = not stub.thumb_url or (
+            held_url == stub.thumb_url and thumb_path.exists())
         # Age gate first: a stale listing costs nothing to skip here, but an
         # album page plus a thumb download each if we go on. The id dates the
         # album without a request; a date captured by an earlier scrape wins
@@ -184,11 +192,11 @@ def scrape_seller(client, source: Source, data_dir: Path,
             # predates price extraction (no "price" key). Records that already
             # carry a price (including 0, meaning none was found) stay skipped.
             summary.skipped += 1
-            # A cover that failed to arrive on an earlier run (blocked, cut
-            # off, invalid) would otherwise never be tried again, since the
-            # album itself is unchanged. Its URL is on the list page, so the
-            # retry costs one image request and no album page.
-            if (not dry_run and stub.thumb_url and not thumb_path.exists()
+            # A cover that changed, or failed to arrive on an earlier run
+            # (blocked, cut off, invalid), would otherwise never be fetched,
+            # since the album itself is unchanged. Its URL is on the list
+            # page, so this costs one image request and no album page.
+            if (not dry_run and not cover_current
                     and fetch_thumb(stub.thumb_url, thumb_rel)):
                 summary.thumbs_refetched += 1
                 shard[stub.id] = {**old, "thumb": thumb_rel, "thumb_url": stub.thumb_url}
@@ -228,12 +236,9 @@ def scrape_seller(client, source: Source, data_dir: Path,
         price = detail.price or parse_price(f"{title} {stub.title} {detail.description}")
         # An album page is re-fetched for many reasons (a changed title, a
         # price backfill) that say nothing about its cover. Downloading the
-        # cover again anyway doubles the requests of every such run. A record
-        # from before thumb_url was stored counts as the same cover: the
-        # file on disk came from this album.
-        same_cover = (old or {}).get("thumb_url", stub.thumb_url) == stub.thumb_url
-        if stub.thumb_url and (full or not same_cover or not thumb_path.exists()):
-            fetch_thumb(stub.thumb_url, thumb_rel)
+        # cover again anyway doubles the requests of every such run.
+        if stub.thumb_url and (full or not cover_current):
+            cover_current = fetch_thumb(stub.thumb_url, thumb_rel)
         record = {
             "id": stub.id,
             "seller": source.id,
@@ -247,7 +252,7 @@ def scrape_seller(client, source: Source, data_dir: Path,
             # whose download was blocked keeps its path - the file can still
             # arrive on a later run.
             "thumb": thumb_rel if stub.thumb_url else "",
-            "thumb_url": stub.thumb_url,
+            "thumb_url": stub.thumb_url if cover_current else (old or {}).get("thumb_url", ""),
             "album_url": album_url,
             "links": [{"platform": link.platform, "url": link.url} for link in links],
             "category": detail.category,
@@ -368,9 +373,12 @@ def scrape_all(sources: dict[str, Source], data_dir: Path, run_ts: str,
         print("stopping: running sellers save their progress, "
               "Ctrl+C again to abandon them", file=sys.stderr, flush=True)
         pending = {future for future in pending if not future.cancel()}
-        while pending:
-            done, pending = wait(pending, timeout=0.5)
-            collect(done)
+        try:
+            while pending:
+                done, pending = wait(pending, timeout=0.5)
+                collect(done)
+        except KeyboardInterrupt:
+            pass  # a second press abandons the running sellers, not the index
     finally:
         # Sellers are still running here only after a second Ctrl+C or an
         # unexpected error; the stop flag ends each at its next album.

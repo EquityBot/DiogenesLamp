@@ -88,7 +88,7 @@ def test_scrape_reports_each_diagnostic_and_exits_zero(tmp_path: Path, capsys, m
     assert rc == 0
     assert "[1/1] sellerx: 4 scraped, 2 skipped, 1 failed" in out
     assert "7 too old" in out
-    assert "3 missing covers fetched" in out
+    assert "3 covers fetched again" in out
     assert "failed albums: 9" in out
     assert "thumbs blocked" in out
     # a seller that scraped cleanly but produced no dates signals a markup change

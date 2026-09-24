@@ -759,6 +759,40 @@ def test_unchanged_album_with_a_missing_cover_fetches_only_the_cover(tmp_path: P
     assert summary.thumbs_refetched == 0 and client.download_calls == []
 
 
+def test_unchanged_album_with_a_changed_cover_fetches_the_new_cover(tmp_path: Path):
+    from lamp.storage import write_shard
+
+    _write_thumb(tmp_path)
+    write_shard(tmp_path, "sellerx", {"101": _pre_price_record(
+        price=0, thumb_url="https://photo.yupoo.com/s/101/older.jpg")})
+    client = _one_album_client()
+    summary = scrape_seller(client, SELLER, tmp_path, "2026-08-18T12:00:00+10:00")
+    assert (summary.skipped, summary.thumbs_refetched) == (1, 1)
+    assert not any("/albums/101" in url for url in client.calls)
+    assert load_shard(tmp_path, "sellerx")["101"]["thumb_url"] == (
+        "https://photo.yupoo.com/s/101/small.jpg")
+
+
+def test_a_failed_cover_download_keeps_the_old_url_so_it_is_retried(tmp_path: Path):
+    """The old file survives a failed download, so recording the new URL
+    would claim a cover that never arrived and stop every later retry."""
+    from lamp.storage import write_shard
+
+    _write_thumb(tmp_path)
+    older = "https://photo.yupoo.com/s/101/older.jpg"
+    write_shard(tmp_path, "sellerx", {"101": _pre_price_record(thumb_url=older)})
+    client = _one_album_client()
+    client._download_block_pattern = [True]
+    summary = scrape_seller(client, SELLER, tmp_path, "2026-08-18T12:00:00+10:00")
+    assert summary.scraped == 1
+    assert load_shard(tmp_path, "sellerx")["101"]["thumb_url"] == older
+
+    client = _one_album_client()  # the next run tries the new cover again
+    summary = scrape_seller(client, SELLER, tmp_path, "2026-08-19T12:00:00+10:00")
+    assert summary.thumbs_refetched == 1
+    assert load_shard(tmp_path, "sellerx")["101"]["thumb_url"] != older
+
+
 def test_listing_stamps_last_seen_and_marks_delisted_albums_gone(tmp_path: Path):
     scrape_seller(make_client(), SELLER, tmp_path, "2026-08-17T12:00:00+10:00")
     only_102 = FakeClient({
@@ -832,3 +866,28 @@ def test_ctrl_c_writes_the_index_then_raises(tmp_path: Path):
     index = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
     assert "sellerx" in [s["id"] for s in index["sellers"]]
 
+
+
+def test_a_second_ctrl_c_abandons_running_sellers_but_still_writes_the_index(tmp_path: Path):
+    """Every report raises, so the drain after the first press is itself
+    interrupted. One seller's client is slow, so it is still running then."""
+    import time
+
+    import pytest
+
+    class SlowClient(FakeClient):
+        def get(self, url, referer=None):
+            time.sleep(0.3)
+            return super().get(url, referer)
+
+    sellery = Source("yupoo", "sellery", "yupoo", "https://sellery.x.yupoo.com", "sellery")
+    clients = iter([make_client(), SlowClient(make_client().pages)])
+
+    def always_interrupt(_summary):
+        raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        scrape_all({"yupoo:sellerx": SELLER, "yupoo:sellery": sellery}, tmp_path,
+                   "2026-08-17T12:00:00+10:00", client_factory=lambda: next(clients),
+                   workers=2, on_done=always_interrupt)
+    assert (tmp_path / "index.json").exists()
