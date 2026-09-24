@@ -62,7 +62,7 @@ EXPECTED_CI = "\n".join(
         "      matrix:",
         '        # Oldest and newest supported, so the README\'s "Python 3.11+" claim',
         "        # is actually tested rather than assumed.",
-        '        python-version: ["3.11", "3.13"]',
+        '        python-version: ["3.11", "3.14"]',
         "    steps:",
         _uses("actions/checkout", "      - uses: "),
         "        with:",
