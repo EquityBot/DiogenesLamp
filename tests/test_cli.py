@@ -68,16 +68,27 @@ def _sources_file(tmp_path: Path) -> Path:
     return path
 
 
+def _fake_scrape_all(summary):
+    """Stands in for scrape_all, reporting through on_done as the real one does."""
+    def fake(*_args, on_done=None, **_kwargs):
+        if on_done is not None:
+            on_done(summary)
+        return [summary]
+    return fake
+
+
 def test_scrape_reports_each_diagnostic_and_exits_zero(tmp_path: Path, capsys, monkeypatch):
     summary = SellerSummary("sellerx", scraped=4, skipped=2, failed=1,
-                            failed_ids=["9"], thumbs_blocked=True, dated=0, skipped_old=7)
-    monkeypatch.setattr("lamp.scrape.scrape_all", lambda *a, **k: [summary])
+                            failed_ids=["9"], thumbs_blocked=True, dated=0, skipped_old=7,
+                            thumbs_refetched=3)
+    monkeypatch.setattr("lamp.scrape.scrape_all", _fake_scrape_all(summary))
     rc = main(["--sources", str(_sources_file(tmp_path)), "--data", str(tmp_path / "d"),
                "scrape"])
     out = capsys.readouterr().out
     assert rc == 0
-    assert "4 scraped, 2 skipped, 1 failed" in out
+    assert "[1/1] sellerx: 4 scraped, 2 skipped, 1 failed" in out
     assert "7 too old" in out
+    assert "3 missing covers fetched" in out
     assert "failed albums: 9" in out
     assert "thumbs blocked" in out
     # a seller that scraped cleanly but produced no dates signals a markup change
@@ -87,11 +98,22 @@ def test_scrape_reports_each_diagnostic_and_exits_zero(tmp_path: Path, capsys, m
 
 def test_scrape_exits_nonzero_when_a_seller_errors(tmp_path: Path, capsys, monkeypatch):
     summary = SellerSummary("sellerx", error="blocked: HTTP 429")
-    monkeypatch.setattr("lamp.scrape.scrape_all", lambda *a, **k: [summary])
+    monkeypatch.setattr("lamp.scrape.scrape_all", _fake_scrape_all(summary))
     rc = main(["--sources", str(_sources_file(tmp_path)), "--data", str(tmp_path / "d"),
                "scrape"])
     assert rc == 1
     assert "ERROR: blocked: HTTP 429" in capsys.readouterr().out
+
+
+def test_scrape_interrupted_exits_130_and_says_what_was_kept(tmp_path: Path, capsys,
+                                                           monkeypatch):
+    def interrupted(*_args, **_kwargs):
+        raise KeyboardInterrupt
+    monkeypatch.setattr("lamp.scrape.scrape_all", interrupted)
+    rc = main(["--sources", str(_sources_file(tmp_path)), "--data", str(tmp_path / "d"),
+               "scrape"])
+    assert rc == 130
+    assert "interrupted after 0 of 1 sellers; finished work is saved" in capsys.readouterr().err
 
 
 def test_scrape_rejects_an_unknown_seller(tmp_path: Path, capsys):

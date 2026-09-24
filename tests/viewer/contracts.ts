@@ -15,7 +15,7 @@ nextViewState(view, { type: "filter", filters: { ...defaultFilters(), hideDups: 
 nextViewState(view, { type: "clear-filter" });
 
 const selected = selectCatalogue(view, {
-  albums: [], favorites: new Set<string>(), generatedAt: "", bannedKeys: new Set<string>(),
+  albums: [], favorites: new Set<string>(), bannedKeys: new Set<string>(),
 });
 // @ts-expect-error Duplicate counts are numeric.
 selected.dupCounts.set("group", "2");

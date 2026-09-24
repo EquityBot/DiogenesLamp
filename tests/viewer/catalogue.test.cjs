@@ -5,7 +5,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 
 const { matchRanges, mergeRanges, pageStep, clampCursor, gridStep,
-  RENDER_WINDOW_KEYS, sameRenderWindow } =
+  RENDER_WINDOW_KEYS, sameRenderWindow, markNew } =
   require(path.join(__dirname, "..", "..", "viewer", "catalogue.js"));
 
 test("no query marks nothing", () => {
@@ -148,4 +148,29 @@ test("every field of the render key invalidates on its own", () => {
     assert.equal(sameRenderWindow(drawnWindow(), moved), false,
       `${key} changed and the render was skipped anyway`);
   }
+});
+
+test("new is measured against each seller's own latest listing", () => {
+  const albums = [
+    { first_seen: "2026-08-01T00:00:00+10:00", last_seen: "2026-09-01T00:00:00+10:00" },
+    { first_seen: "2026-09-01T00:00:00+10:00", last_seen: "2026-09-01T00:00:00+10:00" },
+  ];
+  markNew(albums, "2026-09-20T00:00:00+10:00"); // a later run of another seller
+  assert.deepEqual(albums.map((a) => a.is_new), [false, true]);
+});
+
+test("the latest listing is found by instant, across a daylight saving change", () => {
+  const albums = [
+    { first_seen: "2026-04-05T09:00:00+10:00", last_seen: "2026-04-05T09:00:00+10:00" },
+    // Earlier as an instant, later as text.
+    { first_seen: "2026-04-05T09:30:00+11:00", last_seen: "2026-04-05T09:30:00+11:00" },
+  ];
+  markNew(albums, "");
+  assert.deepEqual(albums.map((a) => a.is_new), [true, false]);
+});
+
+test("shards from before last_seen fall back to the index run", () => {
+  const albums = [{ first_seen: "run-2" }, { first_seen: "run-1" }];
+  markNew(albums, "run-2");
+  assert.deepEqual(albums.map((a) => a.is_new), [true, false]);
 });

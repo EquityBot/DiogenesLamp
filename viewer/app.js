@@ -202,8 +202,8 @@ function setLoadNote(loading) {
   }
   const names = state.failedShards.join(", ");
   els.noteText.textContent =
-    `${failed} ${failed === 1 ? "seller has" : "sellers have"} no data on disk ` +
-    `and ${failed === 1 ? "was" : "were"} left out: ${names}.`;
+    `${failed} ${failed === 1 ? "seller's data is" : "sellers' data is"} missing or ` +
+    `unreadable and ${failed === 1 ? "was" : "were"} left out: ${names}.`;
   els.note.hidden = false;
 }
 
@@ -274,6 +274,7 @@ async function shardWorker() {
         album.title_lc = (album.title || "").toLowerCase();
         album.published_ms = publishedMs(album);
       }
+      markNew(shard.albums, state.generatedAt);
       // Bans are a corpus property: fold this batch into the running
       // counts, never derive them from a filtered view.
       registerTitleKeys(shard.albums, state.titleKeyCounts, state.bannedKeys);
@@ -505,7 +506,7 @@ function refreshCardTitle(card, album, query) {
 function makeCard(album) {
   const card = document.createElement("div");
   card.className = "card";
-  const isNew = album.first_seen === state.generatedAt;
+  const isNew = album.is_new;
   if (isNew) card.classList.add("is-new");
   const isFav = state.favorites.has(album.id);
   // Everything interpolated below reaches us from scraped remote HTML. The

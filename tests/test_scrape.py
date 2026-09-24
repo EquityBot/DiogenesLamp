@@ -523,8 +523,12 @@ def test_corrupt_shard_errors_the_seller_not_the_run(tmp_path: Path):
     by_seller = {s.seller: s for s in summaries}
     assert "corrupt shard" in by_seller["sellerx"].error
     assert by_seller["sellery"].scraped == 2  # untouched by its neighbour's mess
+    # Still listed, with nothing counted: the viewer's fetch of it fails and
+    # its load note names the seller, instead of the seller vanishing.
     index = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
-    assert [s["id"] for s in index["sellers"]] == ["sellery"]
+    assert [(s["id"], s["album_count"]) for s in index["sellers"]] == [
+        ("sellerx", 0), ("sellery", 2),
+    ]
 
 
 def test_index_keeps_a_skipped_seller_that_was_scraped_before(tmp_path: Path):
@@ -681,4 +685,150 @@ def test_incremental_scrape_still_skips_unchanged_priced_records(tmp_path: Path)
     assert summary.scraped == 0
     assert not any("/albums/101" in url for url in client.calls)
     assert load_shard(tmp_path, "sellerx")["101"]["price"] == 0
+
+
+def _pre_price_record(**extra):
+    return {
+        "id": "101", "seller": "sellerx", "title": "Item A", "list_title": "Item A",
+        "thumb": "thumbs/sellerx/101.jpg",
+        "album_url": "https://sellerx.x.yupoo.com/albums/101?uid=1",
+        "links": [], "category": "", "photo_count": 3,
+        "first_seen": "2026-08-01T00:00:00+10:00",
+        "updated_at": "2026-08-01T00:00:00+10:00", **extra,
+    }
+
+
+def _one_album_client():
+    return FakeClient({
+        "albums?page=1": LIST_ITEM.format(aid="101", title="Item A"),
+        "albums?page=2": EMPTY_PAGE,
+        "/albums/101": ALBUM_PAGE.format(title="Item A", desc="¥180"),
+    })
+
+
+def _write_thumb(data_dir: Path) -> None:
+    thumb = data_dir / "thumbs" / "sellerx" / "101.jpg"
+    thumb.parent.mkdir(parents=True)
+    thumb.write_bytes(b"old cover")
+
+
+def test_refetched_album_keeps_a_cover_already_on_disk(tmp_path: Path):
+    """A price backfill re-fetches every album page; it must not download
+    every cover again as well. A record from before thumb_url was stored
+    counts as the same cover."""
+    from lamp.storage import write_shard
+
+    write_shard(tmp_path, "sellerx", {"101": _pre_price_record()})
+    _write_thumb(tmp_path)
+    client = _one_album_client()
+    summary = scrape_seller(client, SELLER, tmp_path, "2026-08-18T12:00:00+10:00")
+    assert summary.scraped == 1
+    assert client.download_calls == []
+    assert load_shard(tmp_path, "sellerx")["101"]["thumb_url"] == (
+        "https://photo.yupoo.com/s/101/small.jpg")
+
+
+def test_changed_cover_url_or_full_run_downloads_the_cover_again(tmp_path: Path):
+    from lamp.storage import write_shard
+
+    _write_thumb(tmp_path)
+    write_shard(tmp_path, "sellerx", {"101": _pre_price_record(
+        thumb_url="https://photo.yupoo.com/s/101/older.jpg")})
+    client = _one_album_client()
+    scrape_seller(client, SELLER, tmp_path, "2026-08-18T12:00:00+10:00")
+    assert len(client.download_calls) == 1
+
+    client = _one_album_client()
+    scrape_seller(client, SELLER, tmp_path, "2026-08-19T12:00:00+10:00", full=True)
+    assert len(client.download_calls) == 1
+
+
+def test_unchanged_album_with_a_missing_cover_fetches_only_the_cover(tmp_path: Path):
+    from lamp.storage import write_shard
+
+    write_shard(tmp_path, "sellerx", {"101": _pre_price_record(price=0, thumb="")})
+    client = _one_album_client()
+    summary = scrape_seller(client, SELLER, tmp_path, "2026-08-18T12:00:00+10:00")
+    assert (summary.skipped, summary.scraped, summary.thumbs_refetched) == (1, 0, 1)
+    assert not any("/albums/101" in url for url in client.calls)
+    assert len(client.download_calls) == 1
+    assert load_shard(tmp_path, "sellerx")["101"]["thumb"] == "thumbs/sellerx/101.jpg"
+
+    client = _one_album_client()  # the cover is on disk now: nothing to do
+    summary = scrape_seller(client, SELLER, tmp_path, "2026-08-19T12:00:00+10:00")
+    assert summary.thumbs_refetched == 0 and client.download_calls == []
+
+
+def test_listing_stamps_last_seen_and_marks_delisted_albums_gone(tmp_path: Path):
+    scrape_seller(make_client(), SELLER, tmp_path, "2026-08-17T12:00:00+10:00")
+    only_102 = FakeClient({
+        "albums?page=1": LIST_ITEM.format(
+            aid="102", title="Item B https://item.taobao.com/item.htm?id=7"),
+        "albums?page=2": EMPTY_PAGE,
+    })
+    scrape_seller(only_102, SELLER, tmp_path, "2026-08-18T12:00:00+10:00")
+    shard = load_shard(tmp_path, "sellerx")
+    assert shard["101"]["gone_since"] == "2026-08-18T12:00:00+10:00"
+    assert shard["101"]["last_seen"] == "2026-08-17T12:00:00+10:00"
+    assert shard["102"]["last_seen"] == "2026-08-18T12:00:00+10:00"
+    assert "gone_since" not in shard["102"]
+
+    scrape_all({"yupoo:sellerx": SELLER}, tmp_path, "2026-08-19T12:00:00+10:00",
+               client_factory=lambda: only_102)
+    index = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    assert index["sellers"][0]["album_count"] == 1  # the gone album is not counted
+
+    scrape_seller(make_client(), SELLER, tmp_path, "2026-08-20T12:00:00+10:00")
+    assert "gone_since" not in load_shard(tmp_path, "sellerx")["101"]  # relisted
+
+
+def test_a_stopped_seller_saves_nothing_it_has_not_listed(tmp_path: Path):
+    import threading
+
+    stop = threading.Event()
+    stop.set()
+    client = make_client()
+    summary = scrape_seller(client, SELLER, tmp_path, "2026-08-18T12:00:00+10:00", stop=stop)
+    assert summary.error == "interrupted before the listing finished"
+    assert client.calls == []
+    assert not (tmp_path / "catalog" / "sellerx.json").exists()
+
+
+def test_scrape_all_reports_each_seller_as_it_finishes(tmp_path: Path):
+    sellers = {
+        "yupoo:sellerx": SELLER,
+        "yupoo:sellery": Source("yupoo", "sellery", "yupoo",
+                                "https://sellery.x.yupoo.com", "sellery"),
+    }
+    seen: list[str] = []
+    summaries = scrape_all(sellers, tmp_path, "2026-08-17T12:00:00+10:00",
+                           client_factory=make_client, workers=2,
+                           on_done=lambda s: seen.append(s.seller))
+    assert sorted(seen) == ["sellerx", "sellery"]
+    assert [s.seller for s in summaries] == ["sellerx", "sellery"]
+
+
+def test_ctrl_c_writes_the_index_then_raises(tmp_path: Path):
+    """The first seller's report stands in for Ctrl+C arriving mid-run: the
+    queued seller is dropped or stopped, and the index is still written."""
+    import pytest
+
+    sellers = {
+        "yupoo:sellerx": SELLER,
+        "yupoo:sellery": Source("yupoo", "sellery", "yupoo",
+                                "https://sellery.x.yupoo.com", "sellery"),
+    }
+
+    pressed: list[bool] = []
+
+    def interrupt(_summary):
+        if not pressed:  # once: a second press abandons the run
+            pressed.append(True)
+            raise KeyboardInterrupt
+
+    with pytest.raises(KeyboardInterrupt):
+        scrape_all(sellers, tmp_path, "2026-08-17T12:00:00+10:00",
+                   client_factory=make_client, workers=1, on_done=interrupt)
+    index = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
+    assert "sellerx" in [s["id"] for s in index["sellers"]]
 
