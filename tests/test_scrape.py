@@ -867,7 +867,7 @@ def test_ctrl_c_writes_the_index_then_raises(tmp_path: Path):
     assert "sellerx" in [s["id"] for s in index["sellers"]]
 
 
-def test_an_unexpected_error_fails_its_seller_and_the_run_carries_on(tmp_path: Path):
+def test_an_unexpected_error_fails_its_seller_and_the_run_carries_on(tmp_path: Path, capsys):
     class BrokenClient(FakeClient):
         def get(self, url, referer=None):
             if "sellery" in url:
@@ -882,6 +882,9 @@ def test_an_unexpected_error_fails_its_seller_and_the_run_carries_on(tmp_path: P
     assert by_seller["sellerx"].scraped == 2
     assert "RuntimeError('parser bug')" in by_seller["sellery"].error
     assert (tmp_path / "index.json").exists()
+    err = capsys.readouterr().err
+    assert "sellery: unexpected error\nTraceback" in err
+    assert 'raise RuntimeError("parser bug")' in err  # the failing line, for diagnosis
 
 
 def test_a_second_ctrl_c_abandons_running_sellers_but_still_writes_the_index(tmp_path: Path):

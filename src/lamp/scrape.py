@@ -6,6 +6,7 @@ import queue
 import re
 import sys
 import threading
+import traceback
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date
@@ -365,7 +366,10 @@ def scrape_all(sources: dict[str, Source], data_dir: Path, run_ts: str,
                 results.put(run_one(source))
             except Exception as exc:
                 # One seller's unexpected failure is that seller's error, as
-                # a corrupt shard is: the rest of the run carries on.
+                # a corrupt shard is: the rest of the run carries on. It is a
+                # bug, so its traceback goes to stderr for diagnosis.
+                print(f"{source.id}: unexpected error\n{traceback.format_exc()}",
+                      file=sys.stderr, end="", flush=True)
                 results.put(SellerSummary(source.id, error=f"unexpected error: {exc!r}"))
 
     # Daemon threads, not a ThreadPoolExecutor: the interpreter joins pool
