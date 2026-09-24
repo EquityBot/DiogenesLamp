@@ -11,7 +11,7 @@
  *   | {type: "cursor", index: number, count: number}} ViewEvent
  * @typedef {import("./filters.js").SortableAlbum & import("./dedup.js").DuplicateAlbum
  *   & {seller: string, category: string, first_seen: string, published_ms: number,
- *      title_lc: string}} CatalogueAlbum
+ *      title_lc: string, is_new?: boolean, gone_since?: string}} CatalogueAlbum
  */
 
 // Catalogue choices and transitions. app.js owns DOM, storage, scroll and focus.
@@ -76,11 +76,11 @@ function nextViewState(view, event) {
 /**
  * @template {CatalogueAlbum} T
  * @param {ViewState} view
- * @param {{albums: T[], favorites: Set<string>, generatedAt: string, bannedKeys: Set<string>}} catalogue
+ * @param {{albums: T[], favorites: Set<string>, bannedKeys: Set<string>}} catalogue
  * @param {number} [now]
  */
 function selectCatalogue(view, catalogue, now = Date.now()) {
-  const { albums, favorites, generatedAt, bannedKeys } = catalogue;
+  const { albums, favorites, bannedKeys } = catalogue;
   const filters = view.filters;
   let filtered;
   /** @type {Map<string, number>} */
@@ -91,10 +91,13 @@ function selectCatalogue(view, catalogue, now = Date.now()) {
   } else {
     const matchesSearch = VIEW_HELPERS.matchSearch(filters.search);
     const maxDays = parseInt(filters.age, 10) || 0;
+    // An album deleted on Yupoo leads to a dead page, so it drops out of
+    // browsing. Favourites still show it: a kept album must not vanish.
     filtered = albums.filter(album =>
+      (!album.gone_since || filters.favsOnly) &&
       (!filters.seller || album.seller === filters.seller) &&
       (!filters.category || album.category === filters.category) &&
-      (!filters.newOnly || album.first_seen === generatedAt) &&
+      (!filters.newOnly || album.is_new) &&
       (!filters.favsOnly || favorites.has(album.id)) &&
       (!maxDays || VIEW_HELPERS.ageInDays(album.published_ms, now) <= maxDays) &&
       matchesSearch(album.title_lc)
