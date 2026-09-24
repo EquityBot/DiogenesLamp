@@ -1,21 +1,5 @@
 # DiogenesLamp
 
-```
-+----------------------------------------------------------------------+
-|                             DiogenesLamp                             |
-+----------------------------------------------------------------------+
-|         Offline Yupoo catalogue archiver with a local viewer         |
-+----------------------------------+-----------------------------------+
-| DR  what it gives you            | CR  what it needs                 |
-+----------------------------------+-----------------------------------+
-| one page scroll all sellers      | Yupoo seller links CSV or text    |
-| search and filter catalogues     | lamp scrape to fetch listings     |
-| links back to Yupoo albums       | -                                 |
-+----------------------------------+-----------------------------------+
-```
-
-[![ci](https://github.com/ryanduguid/DiogenesLamp/actions/workflows/ci.yml/badge.svg)](https://github.com/ryanduguid/DiogenesLamp/actions/workflows/ci.yml)
-
 Browse any Yupoo catalogue locally as one fast, searchable, infinite-scroll page.
 
 ![The DiogenesLamp viewer: a ruled lattice of album covers, each with a folded corner mount, under a head band of search, seller, category, age and order controls](docs/viewer.webp)
