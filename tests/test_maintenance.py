@@ -15,8 +15,10 @@ from lamp.storage import atomic_write_json
 def catalogue(root):
     atomic_write_json(root / "index.json", {"schema_version": 1, "sellers": [
         {"id": "example", "shard": "catalog/example.json", "album_count": 1}]})
-    atomic_write_json(root / "catalog/example.json", {"albums": [
-        {"id": "123", "title": "Example", "price": 0, "thumb": "thumbs/example/123.jpg"}]})
+    atomic_write_json(root / "catalog/example.json", {"seller": "example", "albums": [
+        {"id": "123", "seller": "example", "title": "Example", "price": 0,
+         "album_url": "https://example.x.yupoo.com/albums/123", "links": [],
+         "thumb": "thumbs/example/123.jpg"}]})
 
 
 def test_doctor_is_read_only_and_reports_coverage(tmp_path):
@@ -67,14 +69,47 @@ def test_unsafe_or_incomplete_snapshot_never_changes_metadata(tmp_path, name, pa
     assert not (tmp_path / "snapshots").exists()
 
 
-def test_schema_rejects_duplicate_ids_unsafe_covers_and_links(tmp_path):
-    for album in [{"id": "123", "thumb": "../outside.jpg"},
-                  {"id": "123", "price": float("nan")},
-                  {"id": "123", "links": [{"url": "javascript:alert(1)"}]}]:
-        with pytest.raises(ValueError):
-            validate_metadata({"albums": [album]}, "catalog/example.json")
+@pytest.mark.parametrize("target,field,value", [
+    ("shard", "seller", "other"), ("shard", "seller", None),
+    ("album", "seller", "other"), ("album", "seller", None),
+    ("album", "title", None), ("album", "album_url", None),
+    ("album", "thumb", None), ("album", "links", None),
+    ("album", "links", [{"url": "https://example.com/item"}]),
+    ("album", "links", [{"platform": "shop", "url": ""}]),
+    ("album", "price_evidence", {"candidates": {}}),
+    ("shard", "schema_version", True),
+])
+def test_restore_rejects_metadata_the_viewer_cannot_use(tmp_path, target, field, value):
+    catalogue(tmp_path)
+    files = [tmp_path / "index.json", tmp_path / "catalog/example.json"]
+    before = {path: path.read_bytes() for path in files}
+    shard = json.loads(before[files[1]])
+    record = shard if target == "shard" else shard["albums"][0]
+    if value is None:
+        record.pop(field)
+    else:
+        record[field] = value
+    bad = tmp_path / "bad.zip"
+    with zipfile.ZipFile(bad, "w") as archive:
+        archive.writestr("index.json", before[files[0]])
+        archive.writestr("catalog/example.json", json.dumps(shard))
     with pytest.raises(ValueError):
-        validate_metadata({"albums": [{"id": "123"}, {"id": "123"}]}, "catalog/example.json")
+        restore(tmp_path, bad)
+    assert before == {path: path.read_bytes() for path in files}
+    assert not (tmp_path / "snapshots").exists()
+
+
+def test_schema_rejects_duplicate_ids_unsafe_covers_and_links(tmp_path):
+    catalogue(tmp_path)
+    original = json.loads((tmp_path / "catalog/example.json").read_text())["albums"][0]
+    for changes in [{"thumb": "../outside.jpg"}, {"price": float("nan")},
+                    {"links": [{"platform": "shop", "url": "javascript:alert(1)"}]}]:
+        with pytest.raises(ValueError):
+            validate_metadata({"seller": "example", "albums": [original | changes]},
+                              "catalog/example.json")
+    with pytest.raises(ValueError):
+        validate_metadata({"seller": "example", "albums": [original, original]},
+                          "catalog/example.json")
     with pytest.raises(ValueError):
         data_path(tmp_path, "runs/../index.json")
 

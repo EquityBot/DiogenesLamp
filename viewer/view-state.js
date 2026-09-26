@@ -101,9 +101,9 @@ function selectCatalogue(view, catalogue, now = Date.now()) {
     const reviewed = /** @param {T} album */ album => Number(catalogue.reviews?.get(album.seller) || 0);
     const maxDays = parseInt(filters.age, 10) || 0;
     // An album deleted on Yupoo leads to a dead page, so it drops out of
-    // browsing. Favourites still show it: a kept album must not vanish.
+    // browsing. Saved filters and change history keep it available for reference.
     filtered = albums.filter(album =>
-      (!album.gone_since || filters.favsOnly || !!filters.collection || filters.changed) &&
+      (!album.gone_since || filters.favsOnly || !!filters.collection || !!filters.tag || filters.changed) &&
       (!filters.seller || album.seller === filters.seller) &&
       (!filters.category || album.category === filters.category) &&
       (!filters.newOnly || album.is_new) &&

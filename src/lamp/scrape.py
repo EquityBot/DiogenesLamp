@@ -205,6 +205,9 @@ def scrape_seller(client, source: Source, data_dir: Path,
         return summary
 
     summary.listing_complete = True
+    listed = {stub.id for stub in stubs}
+    # A complete listing proves which failed albums are no longer available to retry.
+    summary.resolved_ids.extend(sorted(pending_failures - listed))
     if refresh_days:
         stubs.sort(key=lambda stub: shard.get(stub.id, {}).get("updated_at", ""))
     # Flushing the shard every so often bounds what an interrupt costs: a
@@ -365,7 +368,7 @@ def scrape_seller(client, source: Source, data_dir: Path,
         summary.error = f"all {summary.failed} album fetches failed"
 
     if not dry_run:
-        _stamp_listing(shard, {stub.id for stub in stubs}, run_ts)
+        _stamp_listing(shard, listed, run_ts)
         write_shard(data_dir, source.id, shard)
     return summary
 

@@ -20,7 +20,8 @@ def data_path(root: Path, relative: str, kind: str = "metadata") -> Path:
 
 
 def validate_metadata(value: object, relative: str) -> dict:
-    if not isinstance(value, dict) or value.get("schema_version", 1) != 1:
+    if (not isinstance(value, dict) or type(value.get("schema_version", 1)) is not int
+            or value.get("schema_version", 1) != 1):
         raise ValueError("unsupported metadata shape or schema version")
     if relative == "index.json":
         sellers = value.get("sellers")
@@ -43,6 +44,9 @@ def validate_metadata(value: object, relative: str) -> dict:
             if field in value and not isinstance(value[field], str):
                 raise ValueError(f"invalid {field} timestamp")
         return value
+    seller = Path(relative).stem
+    if value.get("seller") != seller:
+        raise ValueError("shard seller does not match its path")
     albums = value.get("albums")
     if not isinstance(albums, list):
         raise ValueError("shard albums must be an array")
@@ -53,7 +57,12 @@ def validate_metadata(value: object, relative: str) -> dict:
         if not isinstance(album["id"], str) or album["id"] in seen:
             raise ValueError("duplicate or non-string album ID")
         seen.add(album["id"])
-        for field in ("title", "seller", "thumb", "album_url", "category", "first_seen", "updated_at",
+        if album.get("seller") != seller:
+            raise ValueError("album seller does not match its shard")
+        for field in ("title", "thumb", "album_url"):
+            if not isinstance(album.get(field), str):
+                raise ValueError(f"album {field} must be text")
+        for field in ("category", "first_seen", "updated_at",
                       "thumb_version", "cover_hash"):
             if field in album and not isinstance(album[field], str):
                 raise ValueError(f"album {field} must be text")
@@ -62,16 +71,19 @@ def validate_metadata(value: object, relative: str) -> dict:
             raise ValueError("invalid price")
         if album.get("thumb") and not re.fullmatch(r"thumbs/[a-z0-9_-]+/[0-9]+\.(?:jpg|png|webp)", album["thumb"]):
             raise ValueError("unsafe cover path")
-        links = album.get("links", [])
+        links = album.get("links")
         if not isinstance(links, list):
             raise ValueError("purchase links must be an array")
-        for link in [{"url": album.get("album_url", "")} , *links]:
-            if not isinstance(link, dict) or not isinstance(link.get("url"), str):
-                raise ValueError("invalid album link")
-            if link["url"]:
-                parsed = urlsplit(link["url"])
-                if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
-                    raise ValueError("album links must be public HTTPS URLs without credentials")
+        if any(not isinstance(link, dict) or not isinstance(link.get("url"), str)
+               or not isinstance(link.get("platform"), str) for link in links):
+            raise ValueError("invalid purchase link")
+        for url in [album["album_url"], *(link["url"] for link in links)]:
+            parsed = urlsplit(url)
+            if parsed.scheme != "https" or not parsed.hostname or parsed.username or parsed.password:
+                raise ValueError("album links must be public HTTPS URLs without credentials")
+        evidence = album.get("price_evidence")
+        if isinstance(evidence, dict) and "candidates" in evidence and not isinstance(evidence["candidates"], list):
+            raise ValueError("price candidates must be an array")
         if "history" in album and (not isinstance(album["history"], list) or
                                   any(not isinstance(h, dict) or not isinstance(h.get("at"), str)
                                       for h in album["history"])):

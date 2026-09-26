@@ -904,6 +904,8 @@ function focusedCard() {
 }
 
 els.grid.addEventListener("keydown", (event) => {
+  // Give browser shortcuts such as Ctrl/Cmd+F, Ctrl/Cmd+P and Alt+arrows priority.
+  // Plain grid keys and their Shift variants retain the catalogue actions below.
   if (event.ctrlKey || event.metaKey || event.altKey) return;
   const card = focusedCard();
   if (!card) return;

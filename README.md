@@ -145,7 +145,8 @@ works outside the source tree.
    cursor, whose cover link, favourite, preview and purchase links follow it, while
    every other card is skipped - then the arrow keys move that cursor from
    cover to cover (Home, End, Page Up and Page Down included), Enter opens the
-   album under the cursor, and `f` keeps it. The cursor scrolls the grid to
+   album under the cursor, and `f` keeps it. Ctrl/Cmd and Alt combinations keep
+   their browser actions, including Find, Print and Back. The cursor scrolls the grid to
    follow itself, so it works the same at album 12 and album 40,000.
 
    The theme button cycles system, light and dark. Every control is labelled,

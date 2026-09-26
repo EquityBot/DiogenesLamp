@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from lamp.http import BlockedError, FetchError
 from lamp.ingest import Source
 from lamp.scrape import SellerSummary, scrape_all, scrape_seller
@@ -132,6 +134,30 @@ def test_failed_retry_is_persisted_and_targeted(tmp_path):
     assert latest["failed_ids"] == []
     assert latest["last_success"] == "2026-09-26T00:00:00+00:00"
     assert not any("/albums/102?" in url for url in client.calls)
+
+
+@pytest.mark.parametrize("complete_listing", [True, False])
+def test_delisted_failure_clears_only_after_a_complete_listing(tmp_path, complete_listing):
+    from lamp.storage import read_run
+
+    broken = make_client()
+    broken.fetch_errors = ("/albums/101",)
+    first_run = "2026-09-01T00:00:00+00:00"
+    next_run = "2026-09-26T00:00:00+00:00"
+    scrape_all({"yupoo:sellerx": SELLER}, tmp_path, first_run,
+               client_factory=lambda: broken)
+    assert read_run(tmp_path, SELLER.id)["failed_ids"] == ["101"]
+    client = make_client()
+    client.pages["albums?page=1"] = LIST_ITEM.format(aid="102", title="Item B")
+    if not complete_listing:
+        client.fetch_errors = ("albums?page=2",)
+    scrape_all({"yupoo:sellerx": SELLER}, tmp_path, next_run,
+               client_factory=lambda: client, retry_failed=True)
+    latest = read_run(tmp_path, SELLER.id)
+    assert latest["failed_ids"] == ([] if complete_listing else ["101"])
+    assert latest["last_success"] == (next_run if complete_listing else "")
+    assert latest["last_listing"] == (next_run if complete_listing else first_run)
+    assert not any("/albums/101?" in url for url in client.calls)
 
 
 def test_empty_detail_response_keeps_last_usable_record(tmp_path):
