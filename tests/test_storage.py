@@ -1,4 +1,6 @@
 import json
+import threading
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
@@ -7,9 +9,22 @@ from lamp.storage import (
     atomic_write_json,
     load_shard,
     merge_album,
+    read_run,
     write_index,
+    write_run,
     write_shard,
 )
+
+
+def test_corrupt_run_status_is_reported_and_preserved(tmp_path):
+    path = tmp_path / "runs" / "sellerx.json"
+    path.parent.mkdir()
+    path.write_text('{"failed_ids":"101"}', encoding="utf-8")
+    with pytest.raises(ValueError, match="unreadable run summary"):
+        read_run(tmp_path, "sellerx")
+    with pytest.raises(ValueError, match="unreadable run summary"):
+        write_run(tmp_path, "sellerx", "2026-09-26", {})
+    assert path.read_text(encoding="utf-8") == '{"failed_ids":"101"}'
 
 RECORD = {
     "id": "111",
@@ -69,6 +84,16 @@ def test_merge_album_absent_price_does_not_keep_the_old_price():
     fresh = dict(RECORD, price=0, first_seen="", updated_at="")
     merged = merge_album(known, fresh, "2026-08-17T12:00:00+10:00")
     assert merged["price"] == 0
+    assert all(event["field"] != "price" for event in merged["history"])
+
+
+def test_change_history_is_bounded_and_unchanged_scrapes_add_nothing():
+    old = dict(RECORD, price=180)
+    for amount in range(181, 241):
+        old = merge_album(old, dict(RECORD, price=amount), f"run-{amount}")
+    assert len(old["history"]) == 50
+    same = merge_album(old, dict(RECORD, price=240), "later")
+    assert same["history"] == old["history"]
 
 
 def test_shard_roundtrip_sorted(tmp_path: Path):
@@ -160,3 +185,28 @@ def test_write_index(tmp_path: Path):
     assert index["generated_at"] == "2026-08-17T12:00:00+10:00"
     assert index["sellers"] == sellers
     assert index["shops"] == shops
+
+
+def test_concurrent_atomic_writes_use_independent_temporary_files(tmp_path, monkeypatch):
+    from lamp import storage
+
+    barrier = threading.Barrier(2)
+    original_replace = storage.os.replace
+    seen = []
+
+    def replace(src, dst):
+        if src not in seen:
+            seen.append(src)
+            barrier.wait(timeout=5)
+        original_replace(src, dst)
+
+    monkeypatch.setattr(storage.os, "replace", replace)
+    target = tmp_path / "shared.json"
+    with ThreadPoolExecutor(max_workers=2) as workers:
+        futures = [workers.submit(atomic_write_json, target, {"writer": name})
+                   for name in ("A", "B")]
+        for future in futures:
+            future.result(timeout=10)
+    assert len(set(seen)) == 2
+    assert json.loads(target.read_text())["writer"] in ("A", "B")
+    assert list(tmp_path.iterdir()) == [target]

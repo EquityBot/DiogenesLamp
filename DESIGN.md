@@ -176,6 +176,14 @@ kept and filled solid in the second ink when it is.
   The marks keep their width and the seller name gives way, because a
   truncated seller is readable and a mark clipped mid-word is not. On narrow
   the seller stands down entirely.
+- **Preview.** The title is a button within the existing caption geometry.
+  It opens a native modal dialog with the cached cover and full metadata. The
+  dialog uses the existing ink and leaf tokens, square rules and no extra
+  shadow. It becomes a single scrollable column on narrow screens. Escape
+  returns focus to the originating card; edited forms warn before discarding.
+- **Saved work.** Additional filters and backup import use a native disclosure
+  beneath the main filters. Notes and collections live in the preview, leaving
+  the cover marks and virtual grid dimensions unchanged.
 - **Form field.** A baseline rule rather than a box, thickening into the
   second ink on focus. Selects carry a drawn caret as a data URI rather than
   the platform arrow.

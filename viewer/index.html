@@ -76,9 +76,9 @@ provenance
       <span class="brand-name">Diogenes Lamp</span>
     </span>
     <p id="status" role="status"></p>
-    <button id="export-favs" type="button" aria-label="Export favourites">
+    <button id="export-favs" type="button" aria-label="Back up saved work">
       <svg class="mark" aria-hidden="true" focusable="false"><use href="#mark-export"/></svg>
-      <span class="btn-label">Export favourites</span></button>
+      <span class="btn-label">Back up saved work</span></button>
     <button id="theme-toggle" type="button" aria-label="Colour theme: follow system">
       <svg class="mark" aria-hidden="true" focusable="false"><use id="theme-icon" href="#mark-theme-system"/></svg>
     </button>
@@ -88,8 +88,8 @@ provenance
   </div>
   <div class="rules" role="group" aria-label="Filters">
     <div class="field field-grow">
-      <label class="sr-only" for="search">Search album titles</label>
-      <input id="search" type="search" placeholder="Search titles" autocomplete="off">
+      <label class="sr-only" for="search">Search titles, seller names, item IDs or links</label>
+      <input id="search" type="search" placeholder="Title, seller, item ID or link" autocomplete="off">
     </div>
     <div class="field">
       <label class="sr-only" for="seller-filter">Seller</label>
@@ -130,10 +130,33 @@ provenance
     <button id="filters-clear" type="button" hidden>Clear filters</button>
     <button id="group-clear" type="button" hidden></button>
   </div>
+  <details id="catalogue-tools">
+    <summary>More filters and saved work</summary>
+    <div class="work-tools">
+      <label>Min CNY <input id="price-min" type="number" min="0" max="99999" step="0.01"></label>
+      <label>Max CNY <input id="price-max" type="number" min="0" max="99999" step="0.01" aria-describedby="price-error"></label>
+      <label><input id="include-unknown" type="checkbox" checked> Include unknown prices</label>
+      <p id="price-error" role="alert" hidden>Use prices from 0 to 99,999 CNY, with at most 2 decimal places. Maximum must be at least minimum.</p>
+      <label>Collection <select id="collection-filter"><option value="">All collections</option></select></label>
+      <label>Tag <select id="tag-filter"><option value="">All tags</option></select></label>
+      <label><input id="unreviewed" type="checkbox"> Added since review</label>
+      <label><input id="changed" type="checkbox"> Changed since review</label>
+      <button id="mark-reviewed" type="button">Mark seller reviewed</button>
+      <label>Saved search <select id="saved-search"><option value="">Choose a search</option></select></label>
+      <label>Search name <input id="search-name" maxlength="80" autocomplete="off"></label>
+      <button id="save-search" type="button">Save search</button>
+      <button id="remove-search" type="button">Remove saved search</button>
+      <button id="export-csv" type="button">Export current results as CSV</button>
+      <label>Import saved work <input id="import-backup" type="file" accept=".json,application/json"></label>
+      <p class="tool-help">Choose a seller to mark its catalogue reviewed. Imports add missing saved fields; existing values stay. Saved work belongs to this browser and port.</p>
+    </div>
+  </details>
   <div id="load-progress" role="presentation"><div id="load-progress-bar"></div></div>
 </header>
 <aside id="shops-panel" aria-label="Shops" hidden></aside>
 <main id="grid-container">
+  <p id="persistence-note" role="alert" hidden></p>
+  <p id="action-status" role="status" hidden></p>
   <div id="load-note" hidden>
     <p id="load-note-text"></p>
     <button id="load-note-dismiss" type="button">Dismiss</button>
@@ -141,12 +164,45 @@ provenance
   <p id="grid-message" hidden></p>
   <div id="grid-spacer"><div id="grid" role="list" aria-label="Albums" aria-busy="true" tabindex="-1"></div></div>
 </main>
+<dialog id="album-preview" aria-labelledby="preview-title">
+  <div class="preview-toolbar">
+    <button id="preview-close" type="button" autofocus>Close preview</button>
+    <button id="preview-prev" type="button" aria-label="Previous album">Previous</button>
+    <button id="preview-next" type="button" aria-label="Next album">Next</button>
+    <span id="preview-position"></span>
+  </div>
+  <div class="preview-layout">
+    <div><img id="preview-cover" alt=""><p id="preview-no-cover" hidden>No cached cover</p></div>
+    <div class="preview-detail">
+      <h1 id="preview-title"></h1>
+      <p id="preview-facts"></p><p id="preview-match"></p>
+      <p id="preview-price"></p><p id="preview-run"></p>
+      <div id="preview-links"></div>
+      <button id="preview-favourite" type="button" aria-pressed="false">Add to favourites</button>
+      <details><summary>Recorded changes</summary><ul id="preview-history"></ul></details>
+      <details id="preview-similar"><summary>Similar covers (experimental)</summary>
+        <p>Compares cached cover layouts. Resemblance does not establish product identity. Reviews at most 100,000 loaded albums.</p>
+        <ul id="similar-results"></ul>
+      </details>
+      <form id="preview-form">
+        <label>Collection <input id="preview-collection" maxlength="80" autocomplete="off" placeholder="For example, Compare"></label>
+        <label>Tags, separated by commas <input id="preview-tags" maxlength="1019" autocomplete="off"></label>
+        <label>Notes <textarea id="preview-notes" maxlength="4000" rows="4"></textarea></label>
+        <button type="submit">Save notes, tags and collection</button>
+        <p id="preview-save-status" role="status"></p>
+      </form>
+    </div>
+  </div>
+</dialog>
 <script src="dedup.js"></script>
 <script src="age.js"></script>
 <script src="filters.js"></script>
 <script src="anchor.js"></script>
 <script src="catalogue.js"></script>
+<script src="discovery.js"></script>
+<script src="user-store.js"></script>
 <script src="view-state.js"></script>
 <script src="app.js"></script>
+<script src="saved-work.js"></script>
 </body>
 </html>

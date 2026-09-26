@@ -102,3 +102,14 @@ test("the new filter reads each album's precomputed is_new", () => {
   const view = selectCatalogue(createViewState({ newOnly: true }), marked);
   assert.deepEqual(view.filtered.map((a) => a.id), ["c"]);
 });
+
+test("saved tags retain delisted albums and still apply the other filters", () => {
+  const tagged = { ...catalogue,
+    albums: albums.map(a => a.id === "c" ? a : { ...a, gone_since: "2026-09-26" }),
+    tags: new Map([["a", ["gift"]], ["b", ["compare"]], ["c", ["gift"]]]) };
+  const select = filters => selectCatalogue(createViewState(filters), tagged).filtered.map(a => a.id);
+  assert.deepEqual(select({}), ["c"]);
+  assert.deepEqual(select({ tag: "gift" }), ["c", "a"]);
+  assert.deepEqual(select({ tag: "gift", seller: "one" }), ["a"]);
+  assert.deepEqual(select({ tag: "missing" }), []);
+});

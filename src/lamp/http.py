@@ -5,6 +5,7 @@ from __future__ import annotations
 import ipaddress
 import os
 import socket
+import tempfile
 import threading
 import time
 import warnings
@@ -17,6 +18,8 @@ from urllib.parse import urljoin, urlsplit, urlunsplit
 import requests
 from PIL import Image, UnidentifiedImageError
 from requests.adapters import HTTPAdapter
+
+from lamp.covers import resize_cover
 
 USER_AGENT = "DiogenesLamp/0.1 (+https://github.com/ryanduguid/DiogenesLamp)"
 _RETRIES = 3
@@ -457,7 +460,9 @@ class Client:
                 return False
 
         dest.parent.mkdir(parents=True, exist_ok=True)
-        tmp = dest.with_name(dest.name + ".tmp")
+        with tempfile.NamedTemporaryFile(dir=dest.parent, prefix=dest.name + ".",
+                                         suffix=".tmp", delete=False) as file:
+            tmp = Path(file.name)
         replaced = False
         try:
             observed = 0
@@ -473,7 +478,8 @@ class Client:
                 return False
             try:
                 _verify_image(tmp, mime)
-            except _InvalidImageError:
+                resize_cover(tmp)
+            except (_InvalidImageError, OSError, ValueError):
                 return False
             os.replace(tmp, dest)
             replaced = True

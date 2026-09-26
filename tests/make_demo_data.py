@@ -1,6 +1,6 @@
 """Generate synthetic catalogue data for viewer development.
 
-Usage: python tests/make_demo_data.py [data_dir] [sellers] [albums_per_seller]
+Usage: python tests/make_demo_data.py [data_dir] [sellers] [albums_per_seller] [cover_limit_per_seller]
 Then:  lamp --data <data_dir> serve --no-browser
 
 Two albums in every 3 get a cover, spread across each seller rather than
@@ -95,8 +95,9 @@ def main() -> None:
     data_dir = Path(sys.argv[1] if len(sys.argv) > 1 else "demo-data")
     n_sellers = int(sys.argv[2]) if len(sys.argv) > 2 else 5
     n_albums = int(sys.argv[3]) if len(sys.argv) > 3 else 2000
+    cover_limit = int(sys.argv[4]) if len(sys.argv) > 4 else n_albums
     rng = random.Random(42)
-    run_ts = "2026-08-17T12:00:00+10:00"
+    run_ts = "2026-09-26T12:00:00+10:00"
     # Spread demo postings across the last 3 years so the age filter has
     # something to cut: with every album the same age, every threshold would
     # return either the whole corpus or nothing.
@@ -121,16 +122,21 @@ def main() -> None:
             if j % 4 == 0:
                 links.append({"platform": "taobao",
                               "url": f"https://item.taobao.com/item.htm?id={j}"})
-            if has_cover(j):
+            if has_cover(j) and j < cover_limit:
                 (thumb_dir / f"{aid}.png").write_bytes(cover_bytes(int(aid)))
             age_days = rng.randint(0, 1095)
             albums.append({
                 "id": aid, "seller": seller, "title": title, "list_title": title,
                 "thumb": (f"thumbs/{seller}/{aid}.png"
-                          if has_cover(j) else ""),
+                          if has_cover(j) and j < cover_limit else ""),
                 "album_url": f"https://{seller}.x.yupoo.com/albums/{aid}?uid=1",
                 "links": links,
                 "category": rng.choice(("hoodies", "tees", "shoes", "")),
+                "price": [0, 89, 128, 180, 280, 499][j % 6],
+                "last_seen": run_ts,
+                "gone_since": "2026-09-20T12:00:00+10:00" if j % 97 == 0 else "",
+                "history": [{"at": "2026-09-25T12:00:00+10:00", "field": "price", "before": 220, "after": 180}] if j % 6 == 3 else [],
+                "price_evidence": {"amount": 180, "token": "CNY180", "rule": "currency", "field": "description", "candidates": [180]} if j % 6 == 3 else {},
                 "photo_count": rng.randint(3, 40),
                 "date_published": (today - timedelta(days=age_days)).isoformat(),
                 "date_modified": (today - timedelta(days=age_days // 2)).isoformat(),
@@ -149,7 +155,7 @@ def main() -> None:
         json.dumps({"generated_at": run_ts, "sellers": sellers, "shops": shops}),
         encoding="utf-8",
     )
-    covers = n_sellers * sum(1 for j in range(n_albums) if has_cover(j))
+    covers = n_sellers * sum(1 for j in range(n_albums) if has_cover(j) and j < cover_limit)
     print(f"wrote {n_sellers} sellers x {n_albums} albums "
           f"({covers} covers) to {data_dir}/")
 
