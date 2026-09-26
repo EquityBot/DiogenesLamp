@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import io
 import webbrowser
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
@@ -20,6 +22,7 @@ class _Handler(SimpleHTTPRequestHandler):
     def __init__(self, *args, viewer_dir: Path, data_dir: Path, **kwargs):
         self._viewer_dir = viewer_dir
         self._data_dir = data_dir
+        self._shard_etag: str | None = None
         super().__init__(*args, directory=str(viewer_dir), **kwargs)
 
     def translate_path(self, path: str) -> str:
@@ -51,6 +54,35 @@ class _Handler(SimpleHTTPRequestHandler):
         self._status = code
         super().send_response(code, message)
 
+    def send_head(self):
+        self._shard_etag = None
+        request_path = unquote(self.path.split("?", 1)[0])
+        if request_path.startswith("/data/catalog/") and request_path.endswith(".json"):
+            shard = Path(self.translate_path(self.path)).resolve()
+            if not shard.is_relative_to((self._data_dir / "catalog").resolve()):
+                return super().send_head()
+            try:
+                body = shard.read_bytes()
+            except OSError:
+                return super().send_head()
+            # Bind the validator and response to the same bytes. File timestamps
+            # alone can miss a replacement made within the same second.
+            self._shard_etag = f'"{hashlib.sha256(body).hexdigest()}"'
+            validators = self.headers.get("If-None-Match", "").split(",")
+            if any(
+                value.strip().removeprefix("W/") in ("*", self._shard_etag)
+                for value in validators
+            ):
+                self.send_response(304)
+                self.end_headers()
+                return None
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            return io.BytesIO(body)
+        return super().send_head()
+
     def end_headers(self) -> None:
         # A full catalogue holds tens of thousands of thumbs - letting the
         # browser cache them makes reloads near-instant. Thumb files are
@@ -60,9 +92,13 @@ class _Handler(SimpleHTTPRequestHandler):
         # confirm the image qualify: a cached 404 would mask a thumb that
         # lands in a later scrape, and answering a revalidation with
         # no-store would tell the browser to drop what it already holds.
-        # Everything else (index, shards, viewer files) stays uncached.
+        # Shards require content validation before reuse. The index and viewer
+        # files stay uncached, as do missing images or shards.
         if self.path.startswith("/data/thumbs/") and getattr(self, "_status", 0) in (200, 304):
             self.send_header("Cache-Control", "public, max-age=86400")
+        elif self._shard_etag is not None and getattr(self, "_status", 0) in (200, 304):
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("ETag", self._shard_etag)
         else:
             self.send_header("Cache-Control", "no-store")
         # Everything the page needs, nothing else: scraped HTML feeds card

@@ -1,4 +1,5 @@
 import json
+import os
 import threading
 import urllib.error
 import urllib.request
@@ -142,6 +143,71 @@ def test_revalidated_thumb_keeps_its_cache_header(tmp_path: Path):
             status, cache = err.code, err.headers.get("Cache-Control")
         assert status == 304
         assert cache == "public, max-age=86400"
+    finally:
+        server.shutdown()
+
+
+def test_catalogue_shards_revalidate_by_content(tmp_path: Path):
+    viewer = tmp_path / "viewer"
+    data = tmp_path / "data"
+    viewer.mkdir()
+    (data / "catalog").mkdir(parents=True)
+    shard = data / "catalog" / "seller.json"
+    shard.write_bytes(b'{"value":1}')
+    (data / "index.json").write_bytes(b"{}")
+    original_stat = shard.stat()
+    server = make_server(viewer, data, port=0)
+    port = server.server_address[1]
+    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread.start()
+
+    def request(headers=None, name="seller.json", method="GET"):
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/data/catalog/{name}",
+            headers=headers or {},
+            method=method,
+        )
+        try:
+            response = urllib.request.urlopen(req)
+        except urllib.error.HTTPError as error:
+            response = error
+        with response:
+            return response.code, response.headers, response.read()
+
+    try:
+        status, headers, body = request()
+        assert status == 200 and body == b'{"value":1}'
+        assert headers["Cache-Control"] == "no-cache"
+        assert headers["Content-Type"] == "application/json"
+        etag = headers["ETag"]
+        assert etag
+        status, headers, body = request(method="HEAD")
+        assert status == 200 and body == b"" and headers["ETag"] == etag
+        for validator in (etag, f'"unrelated", W/{etag}', "*"):
+            status, headers, body = request({"If-None-Match": validator})
+            assert status == 304 and body == b""
+            assert headers["Cache-Control"] == "no-cache"
+            assert headers["ETag"] == etag
+
+        # A same-size replacement with the same timestamp must still be fresh.
+        shard.write_bytes(b'{"value":2}')
+        os.utime(shard, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+        status, headers, body = request(
+            {"If-None-Match": etag, "If-Modified-Since": "Fri, 01 Jan 2100 00:00:00 GMT"}
+        )
+        assert status == 200 and body == b'{"value":2}'
+        assert headers["ETag"] != etag
+        assert headers["Cache-Control"] == "no-cache"
+
+        status, headers, body = request({"If-None-Match": "*"}, "missing.json")
+        assert status == 404 and headers["Cache-Control"] == "no-store"
+        assert headers["ETag"] is None
+        status, headers, body = request(name="../index.json")
+        assert status == 200 and headers["Cache-Control"] == "no-store"
+        assert headers["ETag"] is None
+        status, headers, body = request(method="POST")
+        assert status == 501 and headers["Cache-Control"] == "no-store"
+        assert headers["ETag"] is None
     finally:
         server.shutdown()
 
