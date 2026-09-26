@@ -36,7 +36,7 @@ filter that knows an album's date without fetching it.
 
 Command line first, browser second. The operator runs `lamp import` on a link
 dump, `lamp scrape` (slow first run, incremental after), then `lamp serve`,
-which opens `http://localhost:<port>`. Data lives in `data/` beside the clone:
+which opens `http://localhost:<port>`. Data defaults to `data/` under the current directory:
 `index.json`, per-seller shards, and cover thumbnails. Sellers can be skipped
 in `sources.toml`. A scrape can leave a seller with no shard on disk, so the
 viewer routinely loads a partially available catalogue.
@@ -45,7 +45,7 @@ viewer routinely loads a partially available catalogue.
 
 - Viewer is dependency-free vanilla JS with no build step and no bundler.
   Editing `viewer/*.js` and reloading is the whole development loop.
-- Served by a Python standard-library HTTP server out of the source tree. No
+- Served by a Python standard-library HTTP server from the clone or installed package. No
   CDN, no external fonts, no network at view time. Everything ships in-repo.
 - The grid is virtualised: only rows near the viewport exist in the DOM, card
   geometry is read back out of CSS custom properties, and scroll position is
@@ -53,9 +53,17 @@ viewer routinely loads a partially available catalogue.
   geometry readable from `:root`.
 - Catalogue loads stream: shards arrive concurrently and the UI refreshes at
   most every 200 ms while the operator is already scrolling.
-- Favourites, filter selection and colour theme persist in `localStorage`.
-- Existing filters: title search, seller, category, posting age, new since last
-  scrape, favourites, hide duplicates. Duplicate groups open as a peek view.
+- Favourites, notes, tags, collections, review dates and saved searches use
+  per-field browser storage and versioned JSON backups. Filter selection and
+  colour theme also persist locally. Storage failures are visible.
+- Search matches titles, seller IDs, exact album/item IDs and recognised links.
+  Filters include price bounds and unknown prices, seller, category, posting age,
+  new since scrape or review, changed since review, favourites, collections,
+  tags and duplicates. Duplicate groups open as a peek view.
+- Titles open local previews with cached covers, provenance and recorded history.
+  Covers keep their external destination. CSV exports describe their filter scope
+  and catalogue completeness. Visual similarity is an opt-in local experiment,
+  separate from duplicate identities.
 - Python 3.11 or newer. Viewer logic modules are tested with `node --test`,
   everything else with `pytest`.
 - Covers and metadata only. Detail photos are never downloaded; every card

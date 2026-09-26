@@ -87,6 +87,8 @@ EXPECTED_CI = "\n".join(
         "      - run: uv run --locked --extra dev ruff check .",
         "      - run: uv run --locked --extra dev mypy src/lamp",
         "      - run: uv run --locked --extra dev pytest",
+        "      - run: uv build",
+        "      - run: uv run --isolated --no-project --with dist/*.whl python -I tests/wheel_smoke.py",
         "",
     ]
 )

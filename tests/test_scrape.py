@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from lamp.http import BlockedError, FetchError
 from lamp.ingest import Source
 from lamp.scrape import SellerSummary, scrape_all, scrape_seller
@@ -82,6 +84,90 @@ class FakeClient:
 
 
 SELLER = Source("yupoo", "sellerx", "yupoo", "https://sellerx.x.yupoo.com", "sellerx")
+
+
+def test_unchanged_details_refresh_with_a_shared_budget(tmp_path):
+    from lamp.storage import write_shard
+
+    scrape_seller(make_client(), SELLER, tmp_path, "2026-08-01T00:00:00+00:00")
+    saved = load_shard(tmp_path, SELLER.id)
+    for album in saved.values():
+        album["price"] = 180
+    write_shard(tmp_path, SELLER.id, saved)
+    client = make_client()
+    client.pages["/albums/101"] = ALBUM_PAGE.format(title="Item A", desc="CNY price: ¥280")
+    result = scrape_seller(client, SELLER, tmp_path, "2026-09-26T00:00:00+00:00",
+                           refresh_days=14, refresh_limit=1)
+    assert result.refreshed == 1 and result.deferred == 1
+    saved = load_shard(tmp_path, SELLER.id)
+    assert saved["101"]["price"] == 280
+    assert saved["101"]["price_evidence"]["token"] == "¥280"
+    assert saved["102"]["price"] == 180
+    assert saved["102"]["updated_at"] == "2026-08-01T00:00:00+00:00"
+    assert saved["102"]["last_seen"] == "2026-09-26T00:00:00+00:00"
+
+
+def test_refresh_dry_run_counts_without_writing(tmp_path):
+    scrape_seller(make_client(), SELLER, tmp_path, "2026-08-01T00:00:00+00:00")
+    before = (tmp_path / "catalog/sellerx.json").read_bytes()
+    client = make_client()
+    result = scrape_seller(client, SELLER, tmp_path, "2026-09-26T00:00:00+00:00",
+                           refresh_days=14, refresh_limit=1, dry_run=True)
+    assert result.refreshed == 1 and result.deferred == 1
+    assert all("albums?page=" in url for url in client.calls)
+    assert (tmp_path / "catalog/sellerx.json").read_bytes() == before
+
+
+def test_failed_retry_is_persisted_and_targeted(tmp_path):
+    from lamp.storage import read_run
+
+    broken = make_client()
+    broken.fetch_errors = ("/albums/101",)
+    scrape_all({"yupoo:sellerx": SELLER}, tmp_path, "2026-09-01T00:00:00+00:00",
+               client_factory=lambda: broken)
+    first = read_run(tmp_path, SELLER.id)
+    assert first["failed_ids"] == ["101"] and not first["last_success"]
+    client = make_client()
+    scrape_all({"yupoo:sellerx": SELLER}, tmp_path, "2026-09-26T00:00:00+00:00",
+               client_factory=lambda: client, retry_failed=True)
+    latest = read_run(tmp_path, SELLER.id)
+    assert latest["failed_ids"] == []
+    assert latest["last_success"] == "2026-09-26T00:00:00+00:00"
+    assert not any("/albums/102?" in url for url in client.calls)
+
+
+@pytest.mark.parametrize("complete_listing", [True, False])
+def test_delisted_failure_clears_only_after_a_complete_listing(tmp_path, complete_listing):
+    from lamp.storage import read_run
+
+    broken = make_client()
+    broken.fetch_errors = ("/albums/101",)
+    first_run = "2026-09-01T00:00:00+00:00"
+    next_run = "2026-09-26T00:00:00+00:00"
+    scrape_all({"yupoo:sellerx": SELLER}, tmp_path, first_run,
+               client_factory=lambda: broken)
+    assert read_run(tmp_path, SELLER.id)["failed_ids"] == ["101"]
+    client = make_client()
+    client.pages["albums?page=1"] = LIST_ITEM.format(aid="102", title="Item B")
+    if not complete_listing:
+        client.fetch_errors = ("albums?page=2",)
+    scrape_all({"yupoo:sellerx": SELLER}, tmp_path, next_run,
+               client_factory=lambda: client, retry_failed=True)
+    latest = read_run(tmp_path, SELLER.id)
+    assert latest["failed_ids"] == ([] if complete_listing else ["101"])
+    assert latest["last_success"] == (next_run if complete_listing else "")
+    assert latest["last_listing"] == (next_run if complete_listing else first_run)
+    assert not any("/albums/101?" in url for url in client.calls)
+
+
+def test_empty_detail_response_keeps_last_usable_record(tmp_path):
+    scrape_seller(make_client(), SELLER, tmp_path, "2026-08-01T00:00:00+00:00")
+    before = load_shard(tmp_path, SELLER.id)["101"]
+    client = make_client()
+    client.pages["/albums/101"] = EMPTY_PAGE
+    summary = scrape_seller(client, SELLER, tmp_path, "2026-09-26T00:00:00+00:00", full=True)
+    assert "101" in summary.failed_ids
+    assert load_shard(tmp_path, SELLER.id)["101"]["updated_at"] == before["updated_at"]
 
 
 def make_client():
@@ -726,6 +812,7 @@ def test_refetched_album_keeps_a_cover_already_on_disk(tmp_path: Path):
     assert client.download_calls == []
     assert load_shard(tmp_path, "sellerx")["101"]["thumb_url"] == (
         "https://photo.yupoo.com/s/101/small.jpg")
+    assert not load_shard(tmp_path, "sellerx")["101"].get("cover_prepared")
 
 
 def test_changed_cover_url_or_full_run_downloads_the_cover_again(tmp_path: Path):

@@ -10,16 +10,15 @@ original Yupoo album for the detail photos.
 
 ## Install
 
-Requires Python 3.11+. Install from a clone, and keep the clone: the
-viewer is served straight out of the source tree, so the editable install
-(`-e`) is required, not a convenience.
-
-There are no tagged releases and none are planned: the clone is the
-install, and the ci badge above is the release gate.
+Requires Python 3.11+. A normal installation includes the viewer assets:
 
     git clone https://github.com/ryanduguid/DiogenesLamp
     cd DiogenesLamp
-    pip install -e .
+    pip install .
+
+Use `pip install -e '.[dev]'` for development so viewer edits appear on reload.
+No tagged release is required to install from the clone. A built wheel also
+works outside the source tree.
 
 ## Use
 
@@ -73,8 +72,25 @@ install, and the ci badge above is the release gate.
    they have, and `index.json` is still written. Press it again to abandon
    the running sellers.
 
+   To revisit unchanged album details, opt into a freshness budget:
+
+       lamp scrape --refresh-details-days 14 --refresh-limit 100
+
+   This permits up to 100 extra detail requests across the run, oldest checked
+   records first within each seller. It preserves the normal request limits.
+   Changed and new listings still follow the ordinary scrape policy. Use the
+   same flags with `--dry-run` to count work; dry runs fetch listing pages but
+   do not fetch details or write files. `--retry-failed` targets IDs recorded
+   as failed in earlier runs, subject to the listing and age limit. Seller
+   summaries persist in `data/runs/`, including separate listing, attempt and
+   successful-run timestamps.
+
+   Only one writer can use a data directory at a time. A competing scrape or
+   maintenance command exits with an explanation. The OS releases the lock
+   after a crash; the `.lamp.lock` file may remain and should stay in place.
+
    An album that has disappeared from a seller's listing is kept, marked
-   gone, and hidden from the viewer except under Favourites. It comes back
+   gone, and available under Favourites, a collection or Changed since review. It comes back
    if the seller lists it again.
 
 3. Browse:
@@ -85,32 +101,56 @@ install, and the ci badge above is the release gate.
    Global options go *before* the subcommand: `lamp --data other-dir serve`
    and `lamp --sources other.toml scrape`.
 
-   Search titles (press `/` to jump to the box), filter by seller, category or
-   posting age, show only items new in each seller's latest scrape, and sort
-   the whole catalogue by price, by photo count, or newest first. Titles and
-   descriptions are scanned for a yuan price (`¥180`, `180元`, `P180`), and
-   that is what the price sorts read. A search marks the parts of each title
-   it matched, every term of it, so a hit says which part of it hit. Clicking
-   a cover opens the original Yupoo album; the purchase links sit in the line
-   beneath it.
+   Search titles and seller IDs, or paste an exact album ID, marketplace item
+   ID, Yupoo album URL or recognised purchase link. Press `/` to focus search.
+   Filter by seller, category or posting age, and sort by price, photo count or
+   newest first. **More filters and saved work** includes minimum and maximum
+   CNY prices, a separate unknown-price toggle, collections, tags and review
+   filters. Bounds include their endpoints. Prices come from extracted text;
+   they are not a guarantee of a current sale price.
 
-   The folded corner at the top right of each cover is the favourite: click it
-   to keep an album and it fills in. **Export favourites** writes the kept
-   albums to a JSON file; it waits until every seller shard has loaded and
-   names any it had to leave out. Favourites, your filter selection, the sort
-   and the colour theme are all remembered in your browser, so a reload puts
-   you back where you were. **Clear filters** resets them in one go, and the
-   page is an installable PWA (`manifest.json`).
+   Click a title or press `p` on a card for its local preview. It shows the
+   cached cover, full title, price extraction evidence, timestamps, purchase
+   links and the last 50 recorded price, link or availability changes. Unknown
+   extraction is labelled separately from a price drop. Arrow Left/Right moves
+   between previews; Escape closes it and returns focus to the catalogue.
+   Editing a field disables those arrow shortcuts while typing. The cover
+   and Enter on the card still open the original Yupoo album for detail photos.
+
+   The folded corner saves a favourite. The preview can save notes, up to 20
+   tags and one named collection per album. Use a collection such as Compare
+   to keep a shortlist visible together. Choose a loaded seller and **Mark
+   seller reviewed** to record the catalogue's timestamp. **Added since review**
+   uses first-seen dates; **Changed since review** uses recorded change dates.
+
+   **Back up saved work** exports a versioned JSON file with favourites, notes,
+   tags, collections, review checkpoints, saved searches and dismissed visual
+   suggestions. It includes saved IDs whose seller data is unavailable, even
+   during loading. Loaded album metadata is supplementary and labelled partial
+   when appropriate. Import this file under **More filters and saved work**.
+   Imports add missing fields and keep existing values, including deliberate
+   favourite removals and unreadable entries. A storage read failure stops
+   import instead of treating the field as empty. Repeating an import is harmless. Earlier favourites
+   exports can also be imported. Files are limited to 20 MB and 100,000 entries.
+
+   Saved work stays in this browser and origin, including the port. Different
+   albums and fields update independently across tabs; the last save wins if
+   both tabs edit the same field. Storage failures appear on screen. Keep a
+   downloaded backup before clearing browser data or changing ports. Filter
+   URLs and named searches restore the current view; Back restores earlier
+   filters. **Export current results as CSV** exports the visible result set,
+   with catalogue completeness and filter scope recorded in every row.
 
    The grid is a keyboard surface. Tab reaches one card - the one under the
-   cursor, whose own cover link, star and purchase links follow it, while
+   cursor, whose cover link, favourite, preview and purchase links follow it, while
    every other card is skipped - then the arrow keys move that cursor from
    cover to cover (Home, End, Page Up and Page Down included), Enter opens the
-   album under the cursor, and `f` keeps it. The cursor scrolls the grid to
+   album under the cursor, and `f` keeps it. Ctrl/Cmd and Alt combinations keep
+   their browser actions, including Find, Print and Back. The cursor scrolls the grid to
    follow itself, so it works the same at album 12 and album 40,000.
 
    The theme button cycles system, light and dark. Every control is labelled,
-   Escape closes the shops panel or a duplicate group, and a skip link jumps
+   Escape closes the preview, shops panel or a duplicate group, and a skip link jumps
    past the head band to the grid.
 
    Two filters exist for large catalogues:
@@ -128,10 +168,57 @@ install, and the ci badge above is the release gate.
 
 ## Data
 
-Everything lives in `data/` (gitignored): `index.json`, per-seller shards in
-`catalog/*.json`, and cover thumbnails in `thumbs/`. Delete `data/`
-to start over. `sources.toml` is also gitignored - your seller list stays on
-your machine.
+Fetched data lives in `data/` (gitignored): `index.json`, seller shards in
+`catalog/`, cached covers in `thumbs/` and run summaries in `runs/`. The seller
+list stays in the gitignored `sources.toml`. Browser annotations are separate;
+use **Back up saved work** to preserve them.
+
+Metadata uses schema version 1. Existing unversioned shards remain readable.
+Unsupported versions, malformed records and unsafe paths fail visibly.
+
+### Diagnostics and recovery
+
+    lamp --data data doctor
+    lamp --data data snapshot
+    lamp --data data restore data/snapshots/<snapshot-name>.zip
+
+`doctor` reads files without changing them. It reports invalid or missing
+metadata, duplicate IDs, cover coverage, unknown prices, missing detail dates
+and recorded detail failures. It returns a non-zero exit code for structural
+errors. It does not verify whether a remote listing or extracted price is current.
+
+`snapshot` saves metadata only, excluding images, browser annotations, source
+lists and debug captures. It requires every indexed shard to exist and pass
+validation before creating an archive. Each archive is limited to 10,000 files and 256 MB
+of uncompressed metadata. Snapshots accumulate in `data/snapshots/`; retain the
+ones you need. Restore validates the whole archive before writing, preserves
+the previous metadata in another archive and replaces the index last. Files
+replace atomically one at a time; an interrupted restore may need to be repeated.
+Previous corrupt bytes are retained for manual recovery but must be repaired
+before they can pass snapshot validation. Unlisted files are left in place.
+
+### Cached covers and visual suggestions
+
+New downloaded covers are oriented and reduced to a maximum edge of 640 pixels
+using Pillow. Their format and transparency are preserved. Existing small
+covers keep their bytes. Content hashes keep cache URLs stable across unchanged
+detail refreshes.
+
+    lamp --data data prepare-covers --limit 1000
+
+This command processes cached covers locally, saves a metadata snapshot first
+and reports byte counts and failures. Repeat it to process the next batch;
+prepared covers are skipped. Resizing replaces the cached image with a smaller
+copy, so preserve original images separately if you need them. Metadata snapshots
+do not restore original cover pixels. The command makes no network requests.
+
+The preview's **Similar covers (experimental)** compares local 64-bit difference
+hashes after a scrape or cover preparation. It returns up to 8 suggestions within
+8 bit differences, scans at most 100,000 loaded albums, skips uniform hashes and
+supports dismissal. It never merges identities or affects duplicate filtering.
+Shared photography can produce false positives; crops and different angles can
+be missed. The threshold has synthetic regression coverage, not a measured
+accuracy rate on real products.
 
 ## Politeness and scope
 
@@ -168,11 +255,11 @@ stylesheet at runtime. Its logic modules have their own tests, run by
 
     node --test tests/viewer/*.test.cjs
 
-For strict type checking of the viewer's 6 logic modules and compile-only
+For strict type checking of the viewer's logic modules and compile-only
 contract tests, run `npm ci` then `npm run typecheck`. TypeScript and the Node
 type declarations are development tools only; the check emits no files and
-the browser still loads the same JavaScript. `app.js` and its DOM interactions
-are outside this initial scope. `viewer/browser-globals.d.ts` gives the script
+the browser still loads the same JavaScript. `app.js`, `saved-work.js` and their DOM interactions
+are outside the type-check scope and require browser verification. `viewer/browser-globals.d.ts` gives the script
 loading path the same helper signatures as the Node test imports.
 
 To work on the viewer without scraping anything, generate synthetic data:
@@ -183,6 +270,19 @@ To work on the viewer without scraping anything, generate synthetic data:
 That writes 5 sellers x 2000 albums, with generated gradient covers for 2
 albums in every 3, spread across each seller. The rest are left cover-less
 on purpose, so the viewer's titled colour-block fallback is on screen too.
+Fixtures include known and unknown prices, changed prices and gone listings.
+For a larger metadata fixture with fewer generated images:
+
+    python tests/make_demo_data.py demo-data-100k 10 10000 100
+
+The final argument limits generated covers per seller. Use synthetic data to
+check previews, cross-tab saves, backup/import, Back navigation and keyboard
+focus at narrow and desktop widths. To verify packaging:
+
+    uv build
+
+Install the resulting wheel in a clean environment and serve it from a directory
+outside the clone. Check that the page, scripts and styles return successfully.
 
 Yupoo serves 2 different list-page templates and the parser handles both.
 When a seller fails, the page is saved to `data/debug/<seller>-page1.html`

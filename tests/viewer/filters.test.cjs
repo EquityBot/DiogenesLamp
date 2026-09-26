@@ -6,8 +6,7 @@ const path = require("node:path");
 
 const { FILTER_STORAGE_KEY, defaultFilters, normalizeFilters, anyFilterActive,
   serializeFilters, readStored, writeStored, readFilters, writeFilters,
-  matchSearch, sortAlbums, formatPrice, isSearchShortcut,
-  favouritesExportPlan } =
+  matchSearch, sortAlbums, formatPrice, isSearchShortcut } =
   require(path.join(__dirname, "..", "..", "viewer", "filters.js"));
 
 // Minimal stand-in for localStorage. `fail` makes both accessors throw, which
@@ -247,38 +246,6 @@ test("slash focuses search only when not already in a field", () => {
   assert.equal(isSearchShortcut("/", "SELECT"), false);
   assert.equal(isSearchShortcut("/", "TEXTAREA"), false);
   assert.equal(isSearchShortcut("Escape", "DIV"), false);
-});
-
-test("favourites export refuses to run while shards are still loading", () => {
-  const plan = favouritesExportPlan({
-    favoriteIds: ["1"], albums: [album(1)], loading: true,
-  });
-  assert.equal(plan.ready, false);
-  assert.equal(plan.reason, "loading");
-});
-
-test("favourites export reports omitted stars from missing shards", () => {
-  const empty = favouritesExportPlan({ favoriteIds: [], albums: [album(1)], loading: false });
-  assert.equal(empty.reason, "empty");
-
-  const ok = favouritesExportPlan({
-    favoriteIds: ["1"], albums: [album(1, { price: 180 })], loading: false,
-  });
-  assert.equal(ok.reason, "ok");
-  assert.equal(ok.albums[0].price, 180);
-
-  const partial = favouritesExportPlan({
-    favoriteIds: ["1", "2"], albums: [album(1)], loading: false,
-  });
-  assert.equal(partial.reason, "partial");
-  assert.deepEqual(partial.omittedIds, ["2"]);
-  assert.equal(partial.ready, true);
-
-  const missing = favouritesExportPlan({
-    favoriteIds: ["9"], albums: [album(1)], loading: false,
-  });
-  assert.equal(missing.reason, "missing");
-  assert.equal(missing.ready, false);
 });
 
 test("new + favourites + hide-dups still count as three independent filters", () => {
