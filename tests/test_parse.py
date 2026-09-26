@@ -217,3 +217,14 @@ def test_placeholder_match_is_exact_not_a_suffix():
         "</a>"
     )
     assert parse_album_list(html)[0].thumb_url.endswith("my_im_photo_album.png")
+
+
+def test_price_evidence_preserves_selected_rule_and_ambiguous_candidates():
+    from lamp.parse import price_evidence
+
+    evidence = price_evidence("Offer ¥180, previous ¥220")
+    assert evidence["amount"] == 180
+    assert evidence["token"] == "¥180"
+    assert evidence["rule"] == "currency"
+    assert evidence["candidates"] == [180, 220]
+    assert price_evidence("No price supplied") == {}

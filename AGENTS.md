@@ -1,8 +1,8 @@
 # Repository instructions
 
 Before changing code, read the README's Development and Politeness and scope
-sections. The editable installation is required because the viewer is served
-from the source tree.
+sections. Use an editable installation for source and viewer development. Normal
+installations serve viewer assets bundled in the Python package.
 
 - For `viewer/` changes, read [DESIGN.md](DESIGN.md) and [PRODUCT.md](PRODUCT.md).
   Preserve the CSS geometry used by JavaScript and the keyboard interaction rules.

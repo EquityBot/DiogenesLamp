@@ -11,7 +11,8 @@
  *   | {type: "cursor", index: number, count: number}} ViewEvent
  * @typedef {import("./filters.js").SortableAlbum & import("./dedup.js").DuplicateAlbum
  *   & {seller: string, category: string, first_seen: string, published_ms: number,
- *      title_lc: string, is_new?: boolean, gone_since?: string}} CatalogueAlbum
+ *      title_lc: string, is_new?: boolean, gone_since?: string, updated_at?: string,
+ *      history?: {at: string}[], search_ids?: string[], search_keys?: string[]}} CatalogueAlbum
  */
 
 // Catalogue choices and transitions. app.js owns DOM, storage, scroll and focus.
@@ -20,8 +21,9 @@ const VIEW_HELPERS = typeof module !== "undefined" ? {
   ...require("./catalogue.js"),
   ...require("./dedup.js"),
   ...require("./age.js"),
+  ...require("./discovery.js"),
 } : { normalizeFilters, defaultFilters, matchSearch, sortAlbums, clampCursor,
-  collapseDups, ageInDays };
+  collapseDups, ageInDays, compileCatalogueSearch };
 
 /**
  * @param {unknown} [storedFilters]
@@ -76,7 +78,9 @@ function nextViewState(view, event) {
 /**
  * @template {CatalogueAlbum} T
  * @param {ViewState} view
- * @param {{albums: T[], favorites: Set<string>, bannedKeys: Set<string>}} catalogue
+ * @param {{albums: T[], favorites: Set<string>, bannedKeys: Set<string>,
+ * notes?: Map<string, unknown>, collections?: Map<string, unknown>, tags?: Map<string, unknown>,
+ * reviews?: Map<string, unknown>}} catalogue
  * @param {number} [now]
  */
 function selectCatalogue(view, catalogue, now = Date.now()) {
@@ -89,18 +93,28 @@ function selectCatalogue(view, catalogue, now = Date.now()) {
   if (view.groupKey) {
     filtered = albums.filter(album => album.dup_key === view.groupKey);
   } else {
-    const matchesSearch = VIEW_HELPERS.matchSearch(filters.search);
+    const matchesSearch = VIEW_HELPERS.compileCatalogueSearch(filters.search).matches;
+    const min = filters.priceMin ? Number(filters.priceMin) : 0;
+    const max = filters.priceMax ? Number(filters.priceMax) : Infinity;
+    const priceMatches = /** @param {number | null | undefined} price */ price =>
+      min <= max && (price ? price >= min && price <= max : filters.includeUnknown);
+    const reviewed = /** @param {T} album */ album => Number(catalogue.reviews?.get(album.seller) || 0);
     const maxDays = parseInt(filters.age, 10) || 0;
     // An album deleted on Yupoo leads to a dead page, so it drops out of
     // browsing. Favourites still show it: a kept album must not vanish.
     filtered = albums.filter(album =>
-      (!album.gone_since || filters.favsOnly) &&
+      (!album.gone_since || filters.favsOnly || !!filters.collection || filters.changed) &&
       (!filters.seller || album.seller === filters.seller) &&
       (!filters.category || album.category === filters.category) &&
       (!filters.newOnly || album.is_new) &&
       (!filters.favsOnly || favorites.has(album.id)) &&
       (!maxDays || VIEW_HELPERS.ageInDays(album.published_ms, now) <= maxDays) &&
-      matchesSearch(album.title_lc)
+      priceMatches(album.price) &&
+      (!filters.collection || catalogue.collections?.get(album.id) === filters.collection) &&
+      (!filters.tag || /** @type {string[]} */ (catalogue.tags?.get(album.id) || []).includes(filters.tag)) &&
+      (!filters.unreviewed || Date.parse(album.first_seen) > reviewed(album)) &&
+      (!filters.changed || (album.history || []).some(event => Date.parse(event.at) > reviewed(album))) &&
+      matchesSearch(album)
     );
     if (filters.hideDups) {
       const { out, counts } = VIEW_HELPERS.collapseDups(filtered, bannedKeys);

@@ -1,33 +1,20 @@
 "use strict";
 
-// Reads the legacy candle.favorites key once so pre-rename stars survive.
-// A corrupt value must not throw here: this runs while the module body is
-// still executing, so an exception would leave no listeners bound and no
-// catalogue loaded - a blank page recoverable only by clearing site data.
-// That covers the read itself as well as the parse, which is why the key is
-// fetched through readStored: with site data blocked for the origin, the
-// accessor raises before there is anything to parse. The window is what is
-// handed over, never the Storage - reaching for the Storage here would
-// evaluate the throwing getter at this call site, outside readStored's try.
-function loadFavorites() {
-  for (const key of ["lamp.favorites", "candle.favorites"]) {
-    const raw = readStored(window, key);
-    if (!raw) continue;
-    try {
-      const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed)) return new Set(parsed);
-    } catch {
-      console.warn(`ignoring unreadable ${key}`);
-    }
-  }
-  return new Set();
+function savedDataError(message) {
+  const notice = document.getElementById("persistence-note");
+  notice.textContent = message;
+  notice.hidden = false;
 }
+const userStore = createUserStore(window, savedDataError);
 
 const state = {
   index: null,
   albums: [],          // all loaded albums, in shard order
   filtered: [],
-  favorites: loadFavorites(),
+  favorites: userStore.favorites(),
+  collections: userStore.section("collection"),
+  tags: userStore.section("tags"),
+  reviews: userStore.section("review"),
   loadedSellers: 0,
   pendingShards: [],   // sellers whose shards are not yet fetched
   generatedAt: "",
@@ -43,6 +30,13 @@ const state = {
 };
 
 const els = {
+  priceMin: document.getElementById("price-min"),
+  priceMax: document.getElementById("price-max"),
+  includeUnknown: document.getElementById("include-unknown"),
+  collection: document.getElementById("collection-filter"),
+  tag: document.getElementById("tag-filter"),
+  unreviewed: document.getElementById("unreviewed"),
+  changed: document.getElementById("changed"),
   search: document.getElementById("search"),
   seller: document.getElementById("seller-filter"),
   category: document.getElementById("category-filter"),
@@ -80,6 +74,13 @@ function currentFilters() {
     newOnly: els.newOnly.checked,
     favsOnly: els.favsOnly.checked,
     hideDups: els.hideDups.checked,
+    priceMin: els.priceMin.value,
+    priceMax: els.priceMax.value,
+    includeUnknown: els.includeUnknown.checked,
+    collection: els.collection.value,
+    tag: els.tag.value,
+    unreviewed: els.unreviewed.checked,
+    changed: els.changed.checked,
   };
 }
 
@@ -95,7 +96,7 @@ function setSelectIfPresent(select, value) {
   }
 }
 
-const storedFilters = readFilters(window);
+const storedFilters = filtersFromURL(location.search) || readFilters(window);
 
 function applyStoredFilters() {
   els.search.value = storedFilters.search;
@@ -104,6 +105,15 @@ function applyStoredFilters() {
   els.newOnly.checked = storedFilters.newOnly;
   els.favsOnly.checked = storedFilters.favsOnly;
   els.hideDups.checked = storedFilters.hideDups;
+  els.priceMin.value = storedFilters.priceMin;
+  els.priceMax.value = storedFilters.priceMax;
+  els.includeUnknown.checked = storedFilters.includeUnknown;
+  els.unreviewed.checked = storedFilters.unreviewed;
+  els.changed.checked = storedFilters.changed;
+  for (const key of ["collection", "tag"]) {
+    if (storedFilters[key]) els[key].add(new Option(storedFilters[key], storedFilters[key]));
+    els[key].value = storedFilters[key];
+  }
   setSelectIfPresent(els.seller, storedFilters.seller);
   setSelectIfPresent(els.category, storedFilters.category);
 }
@@ -215,6 +225,9 @@ async function loadAll() {
     const response = await fetch("data/index.json");
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     index = await response.json();
+    if (![undefined, 1].includes(index.schema_version) || !Array.isArray(index.sellers) ||
+        !Array.isArray(index.shops) || index.sellers.some(s => !/^[a-z0-9_-]+$/.test(s.id) ||
+          s.shard !== `catalog/${s.id}.json`)) throw new Error("Invalid catalogue index");
   } catch (err) {
     // Without the manifest nothing below can run; name the cause on screen
     // instead of leaving the "Loading the catalog..." message up forever.
@@ -269,9 +282,10 @@ async function shardWorker() {
       const response = await fetch(`data/${seller.shard}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const shard = await response.json();
+      if (!validCatalogueShard(shard, seller.id)) throw new Error("Invalid catalogue shard");
       for (const album of shard.albums) {
         album.dup_key = dupKey(album);
-        album.title_lc = (album.title || "").toLowerCase();
+        prepareAlbumSearch(album);
         album.published_ms = publishedMs(album);
       }
       markNew(shard.albums, state.generatedAt);
@@ -377,8 +391,13 @@ let markQuery = "";
 
 function applyFilters() {
   markQuery = state.view.filters.search.trim();
+  const invalidPrice = !els.priceMin.validity.valid || !els.priceMax.validity.valid || Boolean(els.priceMin.value && els.priceMax.value &&
+    Number(els.priceMin.value) > Number(els.priceMax.value));
+  document.getElementById("price-error").hidden = !invalidPrice;
+  els.priceMax.setAttribute("aria-invalid", String(invalidPrice));
   setGroupGeometry();
-  const selected = selectCatalogue(state.view, state);
+  const selected = invalidPrice ? {filtered: [], dupCounts: new Map(), dupHidden: 0, cursor: 0}
+    : selectCatalogue(state.view, state);
   state.filtered = selected.filtered;
   state.dupCounts = selected.dupCounts;
   state.dupHidden = selected.dupHidden;
@@ -450,7 +469,7 @@ function coverHue(seed) {
 }
 
 function thumbVersion(album) {
-  return encodeURIComponent(album.date_modified || album.updated_at || "");
+  return encodeURIComponent(album.thumb_version || album.date_modified || album.updated_at || "");
 }
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -562,7 +581,7 @@ function makeCard(album) {
     `<button class="fav-btn" type="button" aria-pressed="${isFav}" ` +
     `aria-label="${favLabel(isFav)}"></button>` +
     `</div>` +
-    `<div class="card-title"><span></span></div>` +
+    `<button class="card-title preview-btn" type="button" aria-label="Preview: ${escapeAttr(album.title)}"><span></span></button>` +
     `<div class="card-meta">` +
     `<span class="seller-tag">${escapeHtml(album.seller)}</span>` +
     `<span class="card-links">${links}</span>` +
@@ -590,6 +609,7 @@ function makeCard(album) {
   card.querySelector(".fav-btn").addEventListener("click", (event) => {
     toggleFavorite(album.id, event.currentTarget);
   });
+  card.querySelector(".preview-btn").addEventListener("click", () => openPreview(album.id));
   const dupBtn = card.querySelector(".badge-dup");
   if (dupBtn) {
     dupBtn.addEventListener("click", () => {
@@ -612,16 +632,13 @@ function favLabel(isFav) {
 }
 
 function toggleFavorite(albumId, button) {
-  if (state.favorites.has(albumId)) {
-    state.favorites.delete(albumId);
-  } else {
-    state.favorites.add(albumId);
+  const wanted = userStore.get("favorite", albumId) !== true;
+  if (!userStore.set("favorite", albumId, wanted)) return;
+  refreshSavedState();
+  if (button?.isConnected) {
+    button.setAttribute("aria-pressed", String(wanted));
+    button.setAttribute("aria-label", favLabel(wanted));
   }
-  const isFav = state.favorites.has(albumId);
-  button.setAttribute("aria-pressed", String(isFav));
-  button.setAttribute("aria-label", favLabel(isFav));
-  writeStored(window, "lamp.favorites", JSON.stringify([...state.favorites]));
-  if (els.favsOnly.checked) applyFilters();
 }
 
 // Card geometry lives in style.css and is read from there. Duplicating the
@@ -732,6 +749,9 @@ function renderGrid(force = false) {
       card = makeCard(album);
       els.grid.appendChild(card);
     }
+    const fav = card.querySelector(".fav-btn");
+    setIfChanged(fav, "aria-pressed", String(state.favorites.has(album.id)));
+    setIfChanged(fav, "aria-label", favLabel(state.favorites.has(album.id)));
     const transform = placeCard(i, cols);
     if (card.style.transform !== transform) card.style.transform = transform;
     // Only a window of rows exists in the DOM, so role=list would otherwise
@@ -788,7 +808,7 @@ function setIfChanged(el, name, value) {
 // that is several hundred stops to tab past the grid, which is the outcome
 // the roving tabindex exists to prevent. A card added to makeCard with a
 // new focusable element has to be added here too.
-const CARD_STOPS = ".cover-link, .fav-btn, .badge-dup, .card-links a";
+const CARD_STOPS = ".cover-link, .fav-btn, .badge-dup, .card-links a, .preview-btn";
 
 // The card under the cursor is the stop, and its own controls follow it, so
 // they stay reachable by Tab without every other card offering them too.
@@ -884,6 +904,7 @@ function focusedCard() {
 }
 
 els.grid.addEventListener("keydown", (event) => {
+  if (event.ctrlKey || event.metaKey || event.altKey) return;
   const card = focusedCard();
   if (!card) return;
   if (GRID_KEYS.has(event.key)) {
@@ -894,7 +915,11 @@ els.grid.addEventListener("keydown", (event) => {
   }
   const album = state.filtered[state.view.cursor];
   if (!album) return;
-  if (event.key === "Enter") {
+  if (event.key === "Enter" && event.target.closest("button, a")) return;
+  if (event.key === "p" || event.key === "P") {
+    event.preventDefault();
+    openPreview(album.id);
+  } else if (event.key === "Enter") {
     event.preventDefault();
     window.open(album.album_url, "_blank", "noreferrer");
   } else if (event.key === "f" || event.key === "F") {
@@ -966,6 +991,7 @@ function userFilterChange() {
   state.view = nextViewState(state.view, { type: "filter", filters: currentFilters() });
   setCursor(state.view.cursor);
   writeFilters(window, state.view.filters);
+  saveFilterURL();
   window.scrollTo(0, 0);
   applyFilters();
 }
@@ -989,9 +1015,10 @@ function restoreLateFilters() {
 function clearFilters() {
   state.view = nextViewState(state.view, { type: "clear-filters" });
   const filters = state.view.filters;
-  for (const key of ["search", "seller", "category", "age", "sort"]) els[key].value = filters[key];
-  for (const key of ["newOnly", "favsOnly", "hideDups"]) els[key].checked = filters[key];
+  for (const key of ["search", "seller", "category", "age", "sort", "priceMin", "priceMax", "collection", "tag"]) els[key].value = filters[key];
+  for (const key of ["newOnly", "favsOnly", "hideDups", "includeUnknown", "unreviewed", "changed"]) els[key].checked = filters[key];
   writeFilters(window, filters);
+  saveFilterURL();
   setCursor(state.view.cursor);
   window.scrollTo(0, 0);
   applyFilters();
@@ -999,71 +1026,14 @@ function clearFilters() {
 }
 els.filtersClear.addEventListener("click", clearFilters);
 
-els.exportFavs.addEventListener("click", () => {
-  const total = state.index ? state.index.sellers.length : 0;
-  const loading = !state.index || state.loadedSellers < total || state.pendingShards.length > 0;
-  const plan = favouritesExportPlan({
-    favoriteIds: state.favorites,
-    albums: state.albums,
-    loading,
-  });
-  if (plan.reason === "empty") {
-    alert("No favourites saved yet. Click the star on any album to save it.");
-    return;
-  }
-  if (plan.reason === "loading") {
-    alert("Catalog is still loading. Wait until every seller is loaded before exporting.");
-    return;
-  }
-  if (plan.reason === "missing") {
-    const failed = state.failedShards.length
-      ? ` Unavailable sellers: ${state.failedShards.join(", ")}.`
-      : "";
-    alert(`None of the starred albums are in the loaded catalog.${failed}`);
-    return;
-  }
-  const exportData = {
-    exported_at: new Date().toISOString(),
-    count: plan.albums.length,
-    omitted: plan.omittedIds.length,
-    albums: plan.albums.map((a) => ({
-      id: a.id,
-      seller: a.seller,
-      title: a.title,
-      price: a.price || null,
-      album_url: a.album_url,
-      links: a.links,
-      category: a.category,
-      date_published: a.date_published,
-    })),
-  };
-  if (plan.omittedIds.length) {
-    const failed = state.failedShards.length
-      ? ` Unavailable sellers: ${state.failedShards.join(", ")}.`
-      : "";
-    alert(
-      `Exported ${plan.albums.length} favourite${plan.albums.length === 1 ? "" : "s"}; ` +
-      `${plan.omittedIds.length} could not be included because their seller data is unavailable.${failed}`
-    );
-  }
-  const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = `diogenes-favourites-${new Date().toISOString().slice(0, 10)}.json`;
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-});
-
 let searchTimer = 0;
 els.search.addEventListener("input", () => {
   clearTimeout(searchTimer);
   searchTimer = setTimeout(userFilterChange, 150);
 });
 for (const el of [els.seller, els.category, els.newOnly, els.favsOnly,
-                  els.hideDups, els.age, els.sort]) {
+                  els.hideDups, els.age, els.sort, els.priceMin, els.priceMax, els.includeUnknown,
+                  els.collection, els.tag, els.unreviewed, els.changed]) {
   el.addEventListener("change", userFilterChange);
 }
 
@@ -1100,6 +1070,7 @@ function setShopsOpen(open) {
 els.shopsToggle.addEventListener("click", () => setShopsOpen(els.shopsPanel.hidden));
 
 window.addEventListener("keydown", (event) => {
+  if (document.getElementById("album-preview").open) return;
   if (isSearchShortcut(event.key, document.activeElement && document.activeElement.tagName)) {
     event.preventDefault();
     els.search.focus();

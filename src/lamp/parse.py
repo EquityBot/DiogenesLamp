@@ -43,12 +43,26 @@ def parse_price(text: str) -> int:
     Returns 0 if no price found or if the rounded whole-yuan value is outside
     sensible catalogue ranges (10..99999).
     """
-    for pat in _PRICE_PATTERNS:
-        for match in pat.finditer(text):
+    return price_evidence(text).get("amount", 0)
+
+
+def price_evidence(text: str) -> dict:
+    """Keep the matched token and rule, with competing amounts made explicit."""
+    evidence: dict = {}
+    candidates: list[int] = []
+    for index, pattern in enumerate(_PRICE_PATTERNS):
+        for match in pattern.finditer(text):
             amount = _cny_amount(match.group(1))
-            if amount is not None:
-                return amount
-    return 0
+            if amount is None:
+                continue
+            if not evidence:
+                evidence = {"amount": amount, "token": match.group(0)[:100],
+                            "rule": "currency" if index < 4 else "shorthand"}
+            if amount not in candidates and len(candidates) < 10:
+                candidates.append(amount)
+    if evidence:
+        evidence["candidates"] = candidates
+    return evidence
 
 
 @dataclass(frozen=True)

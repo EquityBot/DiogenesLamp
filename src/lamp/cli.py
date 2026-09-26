@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import argparse
+import json
 import math
 import sys
+import zipfile
 from datetime import UTC
 from pathlib import Path
 
 from lamp.ingest import load_sources, merge_sources, parse_dump, write_sources
+from lamp.locking import CatalogueBusyError
 
 
 def _positive_int(text: str) -> int:
@@ -50,6 +53,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_scrape = sub.add_parser("scrape", help="scrape Yupoo sellers into data/")
     p_scrape.add_argument("--seller", help="scrape only this seller id")
     p_scrape.add_argument("--full", action="store_true", help="re-fetch unchanged albums")
+    p_scrape.add_argument("--refresh-details-days", type=_positive_int, default=0, metavar="N",
+                          help="also refresh unchanged details last checked N days ago")
+    p_scrape.add_argument("--refresh-limit", type=_positive_int, default=100, metavar="N",
+                          help="maximum extra unchanged-detail requests across this run")
+    p_scrape.add_argument("--retry-failed", action="store_true",
+                          help="retry only album IDs recorded as failed in earlier runs")
     p_scrape.add_argument("--workers", type=_positive_int, default=8)
     p_scrape.add_argument("--rps", type=_positive_float, default=8.0,
                           help="global request rate cap")
@@ -62,6 +71,12 @@ def _build_parser() -> argparse.ArgumentParser:
     p_serve = sub.add_parser("serve", help="serve the local viewer")
     p_serve.add_argument("--port", type=_port, default=8000)
     p_serve.add_argument("--no-browser", action="store_true")
+    sub.add_parser("doctor", help="check catalogue metadata and cached cover coverage")
+    sub.add_parser("snapshot", help="save a bounded metadata snapshot (excludes covers)")
+    recovery = sub.add_parser("restore", help="restore metadata from a local snapshot")
+    recovery.add_argument("archive", type=Path)
+    covers = sub.add_parser("prepare-covers", help="resize and fingerprint cached covers locally")
+    covers.add_argument("--limit", type=_positive_int, default=1000)
     return parser
 
 
@@ -167,6 +182,8 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
         # falls back to id-based age estimates forever.
         if s.scraped and not s.dated and not args.dry_run:
             line += " (no publish dates found - Yupoo markup change?)"
+        if s.refreshed or s.deferred:
+            line += f" ({s.refreshed} details refreshed, {s.deferred} deferred by budget)"
         if s.error:
             line += f"  ERROR: {s.error}"
         print(line, flush=True)
@@ -175,7 +192,11 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
         summaries = scrape_all(sources, args.data, run_ts,
                                full=args.full, workers=args.workers, only=only, rps=args.rps,
                                max_age_days=args.max_age_days, dry_run=args.dry_run,
-                               on_done=report)
+                               on_done=report, refresh_days=args.refresh_details_days,
+                               refresh_limit=args.refresh_limit, retry_failed=args.retry_failed)
+    except (CatalogueBusyError, ValueError) as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
     except KeyboardInterrupt:
         saved = "" if args.dry_run else "; finished work is saved and index.json is written"
         print(f"interrupted after {reported} of {total} sellers{saved}", file=sys.stderr)
@@ -195,6 +216,26 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
+    if args.command in {"doctor", "snapshot", "restore", "prepare-covers"}:
+        from lamp.maintenance import diagnose, prepare_covers, restore, snapshot
+        try:
+            if args.command == "doctor":
+                report = diagnose(args.data)
+                print(json.dumps(report, ensure_ascii=False, indent=2))
+                return int(bool(report["issues"]))
+            if args.command == "snapshot":
+                print(snapshot(args.data))
+            elif args.command == "restore":
+                previous = restore(args.data, args.archive)
+                print(f"Metadata restored. Previous files saved at: {previous or 'empty target'}")
+            else:
+                report = prepare_covers(args.data, args.limit)
+                print(json.dumps(report, ensure_ascii=False, indent=2))
+                return int(bool(report["errors"]))
+            return 0
+        except (OSError, ValueError, CatalogueBusyError, zipfile.BadZipFile) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return 1
     if args.command == "import":
         return _cmd_import(args)
     if args.command == "scrape":
@@ -210,17 +251,17 @@ def main(argv: list[str] | None = None) -> int:
                 f"an empty catalog until 'lamp scrape' writes one",
                 file=sys.stderr
             )
-        # Only an editable install puts the viewer beside the package:
-        # pyproject ships the `lamp` package alone, no package-data, so after
-        # a plain `pip install .` this points inside site-packages at nothing.
-        viewer_dir = Path(__file__).resolve().parents[2] / "viewer"
+        # Wheels carry assets inside the package; editable installs use the source.
+        viewer_dir = Path(__file__).resolve().parent / "viewer"
+        if not viewer_dir.is_dir():
+            viewer_dir = Path(__file__).resolve().parents[2] / "viewer"
         if not viewer_dir.is_dir():
             # Without this the server starts, opens a browser and answers 404
             # to every request with nothing said anywhere - the one failure
             # the operator cannot diagnose from the page in front of them.
             print(
                 f"error: viewer files not found at {viewer_dir} - the viewer is "
-                f"served out of the source tree, so install from a clone with "
+                f"missing from this installation; reinstall the wheel or develop with "
                 f"'pip install -e .'",
                 file=sys.stderr
             )

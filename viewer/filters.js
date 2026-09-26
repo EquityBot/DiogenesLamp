@@ -2,14 +2,16 @@
 
 /**
  * @typedef {{search: string, seller: string, category: string, age: string,
- *   sort: string, newOnly: boolean, favsOnly: boolean, hideDups: boolean}} Filters
+ *   sort: string, newOnly: boolean, favsOnly: boolean, hideDups: boolean, priceMin: string,
+ * priceMax: string, includeUnknown: boolean, collection: string, tag: string,
+ * unreviewed: boolean, changed: boolean}} Filters
  * @typedef {{localStorage: Pick<Storage, "getItem" | "setItem">}} StorageHost
  * @typedef {{id: string, price?: number | null, photo_count?: number,
  *   published_ms?: number}} SortableAlbum
  */
 
 // Filter state is saved so a reload puts the user back where they were,
-// and every localStorage access the viewer makes goes through this file.
+// with guarded storage access. user-store.js owns saved album work.
 // Nothing here touches the DOM: the browser passes in a plain object and
 // gets one back, which is what makes it testable under node.
 
@@ -28,6 +30,13 @@ const FILTER_DEFAULTS = {
   newOnly: false,
   favsOnly: false,
   hideDups: false,
+  priceMin: "",
+  priceMax: "",
+  includeUnknown: true,
+  collection: "",
+  tag: "",
+  unreviewed: false,
+  changed: false,
 };
 
 function defaultFilters() {
@@ -54,6 +63,9 @@ function normalizeFilters(raw) {
     } else if (typeof value === "string") {
       /** @type {Record<string, string | boolean>} */ (out)[key] = value;
     }
+  }
+  for (const key of /** @type {const} */ (["priceMin", "priceMax"])) {
+    if (out[key] && (!/^\d+(?:\.\d{1,2})?$/.test(out[key]) || Number(out[key]) > 99999)) out[key] = "";
   }
   return out;
 }
@@ -211,40 +223,31 @@ function isSearchShortcut(key, activeTag) {
   return tag !== "input" && tag !== "select" && tag !== "textarea";
 }
 
-// Favourites export must not silently drop stars whose shards are still
-// loading or failed. Callers show `reason` and `omittedIds` to the user.
-/**
- * @template {{id: string}} T
- * @param {{favoriteIds?: Set<string> | string[], albums?: T[], loading?: boolean}} input
- * @returns {{ready: boolean, reason: "empty" | "loading" | "partial" | "missing" | "ok", albums: T[], omittedIds: string[]}}
- */
-function favouritesExportPlan({ favoriteIds, albums, loading }) {
-  const favSet = favoriteIds instanceof Set ? favoriteIds : new Set(favoriteIds || []);
-  if (!favSet.size) {
-    return { ready: false, reason: "empty", albums: [], omittedIds: [] };
+/** @param {string} query @returns {Filters | null} */
+function filtersFromURL(query) {
+  const params = new URLSearchParams(query);
+  if (params.get("view") !== "1") return null;
+  /** @type {Record<string, string | boolean>} */
+  const values = {};
+  for (const [key, fallback] of Object.entries(FILTER_DEFAULTS)) {
+    if (params.has(key)) values[key] = typeof fallback === "boolean"
+      ? params.get(key) === "1" : params.get(key) || "";
   }
-  if (loading) {
-    return { ready: false, reason: "loading", albums: [], omittedIds: [...favSet] };
+  return normalizeFilters(values);
+}
+
+/** @param {unknown} filters */
+function filtersToURL(filters) {
+  const params = new URLSearchParams({view: "1"});
+  for (const [key, value] of Object.entries(serializeFilters(filters))) {
+    params.set(key, typeof value === "boolean" ? (value ? "1" : "0") : value);
   }
-  const byId = new Map((albums || []).map((album) => [album.id, album]));
-  const exported = [];
-  const omittedIds = [];
-  for (const id of favSet) {
-    const album = byId.get(id);
-    if (album) exported.push(album);
-    else omittedIds.push(id);
-  }
-  return {
-    ready: exported.length > 0,
-    reason: omittedIds.length ? (exported.length ? "partial" : "missing") : "ok",
-    albums: exported,
-    omittedIds,
-  };
+  return "?" + params.toString();
 }
 
 if (typeof module !== "undefined") {
   module.exports = { FILTER_STORAGE_KEY, FILTER_DEFAULTS, defaultFilters,
     normalizeFilters, anyFilterActive, serializeFilters, readStored,
     writeStored, readFilters, writeFilters, matchSearch, sortAlbums,
-    formatPrice, isSearchShortcut, favouritesExportPlan };
+    formatPrice, isSearchShortcut, filtersFromURL, filtersToURL };
 }

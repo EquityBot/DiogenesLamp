@@ -11,6 +11,8 @@
     ]
   },
   "files": [
+    "viewer/discovery.js",
+    "viewer/user-store.js",
     "viewer/filters.js",
     "viewer/view-state.js",
     "viewer/catalogue.js",

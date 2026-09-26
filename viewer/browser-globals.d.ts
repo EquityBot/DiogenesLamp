@@ -7,3 +7,6 @@ declare const sortAlbums: typeof import("./filters.js").sortAlbums;
 declare const clampCursor: typeof import("./catalogue.js").clampCursor;
 declare const collapseDups: typeof import("./dedup.js").collapseDups;
 declare const ageInDays: typeof import("./age.js").ageInDays;
+
+declare const itemKeys: typeof import("./dedup.js").itemKeys;
+declare const compileCatalogueSearch: typeof import("./discovery.js").compileCatalogueSearch;
