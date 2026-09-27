@@ -67,3 +67,73 @@ test("malformed shards fail instead of accepting executable URLs or cover paths"
   assert.equal(validCatalogueShard({schema_version:2,albums:[record]},"example"),false);
   assert.equal(validCatalogueShard({albums:[record,record]},"example"),false);
 });
+
+test("pasted agent and 1688 links find the album they name", () => {
+  const { keyForUrl } = require("../../viewer/discovery.js");
+  const wd = { ...album, id: "200", links: [{ platform: "weidian", url: "https://weidian.com/item.html?itemID=7652831688" }] };
+  const ali = { ...album, id: "201", links: [{ platform: "1688", url: "https://detail.1688.com/offer/691234567890.html" }] };
+  prepareAlbumSearch(wd); prepareAlbumSearch(ali);
+  for (const q of ["https://hoobuy.com/product/2/7652831688",
+    "https://www.kakobuy.com/item/details?url=https%3A%2F%2Fweidian.com%2Fitem.html%3FitemID%3D7652831688&affcode=x",
+    "https://cnfans.com/product/?shop_type=weidian&id=7652831688"]) {
+    assert.equal(compileCatalogueSearch(q).reason(wd), "Purchase link", q);
+    assert.equal(compileCatalogueSearch(q).matches(ali), false, q);
+  }
+  assert.equal(compileCatalogueSearch("https://m.1688.com/offer/691234567890.html").reason(ali), "Purchase link");
+  assert.equal(compileCatalogueSearch("691234567890").reason(ali), "Exact item ID");
+  assert.equal(keyForUrl("https://weidian.com/?userid=5"), "");
+});
+
+test("descriptions are searched after titles and named as the reason", () => {
+  const withText = { ...album, id: "300", title: "Plain hoodie", description: "Batch LJR, code HD-2201" };
+  prepareAlbumSearch(withText);
+  assert.equal(compileCatalogueSearch("hd-2201").reason(withText), "Description");
+  assert.equal(compileCatalogueSearch("hoodie ljr").reason(withText), "Description");
+  assert.equal(compileCatalogueSearch("hoodie").reason(withText), "Title");
+  assert.equal(compileCatalogueSearch("hd-2201").matches(album), false);
+});
+
+test("CSV carries descriptions, kinds and every agent link for the chosen agent", () => {
+  const two = { ...album, description: "Size chart in photos", kind: "tees", links: [
+    { platform: "weidian", url: "https://weidian.com/item.html?itemID=1" },
+    { platform: "taobao", url: "https://item.taobao.com/item.htm?id=2" }] };
+  const csv = catalogueCsv([two], "complete", "hoobuy");
+  assert.ok(csv.includes('"description","kind","agent_links"'));
+  assert.ok(csv.includes('"https://hoobuy.com/product/2/1 https://hoobuy.com/product/1/2"'));
+  assert.ok(csv.includes('"Size chart in photos","tees"'));
+  assert.ok(catalogueCsv([two], "complete").endsWith(',"tees",""\r\n'), "no agent chosen leaves the column empty");
+});
+
+test("spreadsheet cross-reference reads quoted cells, semicolons and BOMs and keys only URLs", () => {
+  const { sheetItemKeys, parseDelimited } = require("../../viewer/discovery.js");
+  const text = "﻿name;price;link\r\n" +
+    "\"Fur slides, black\";27.43;\"https://www.kakobuy.com/item/details?url=https%3A%2F%2Fweidian.com%2Fitem.html%3FitemID%3D7652831688\"\r\n" +
+    "Runner;115;hoobuy.com/product/1/560198996624 and https://detail.1688.com/offer/691234567890.html.\r\n" +
+    "No link;42;see notes 7652831688\n";
+  const sheet = sheetItemKeys(text);
+  assert.equal(sheet.rows, 4);
+  assert.equal(sheet.urls, 3);
+  assert.deepEqual([...sheet.keys].sort(), ["1688:691234567890", "taobao:560198996624", "weidian:7652831688"]);
+  assert.deepEqual(parseDelimited('a,"b ""q"" c",d\n1,,3'), [["a", 'b "q" c', "d"], ["1", "", "3"]]);
+  assert.throws(() => sheetItemKeys("a\nb\nc", 2));
+});
+
+test("spreadsheet candidates start at a URL boundary, so lookalike hosts yield nothing", () => {
+  const { sheetItemKeys } = require("../../viewer/discovery.js");
+  const sheet = sheetItemKeys("evil-taobao.com/item.htm?id=123,https://evil-taobao.com/item.htm?id=124," +
+    "taobao.com.evil.example/item.htm?id=125,user@weidian.com/item.html?itemID=126,https://item.taobao.com/item.htm?id=127");
+  assert.deepEqual([...sheet.keys], ["taobao:127"]);
+});
+
+test("the delimiter is read outside quotes, so quoted commas and newlines survive a semicolon sheet", () => {
+  const { parseDelimited, matchSheet } = require("../../viewer/discovery.js");
+  const rows = parseDelimited('name;"a,b,c\ncontinued";link\r\nx;y;https://weidian.com/item.html?itemID=1\r\n');
+  assert.deepEqual(rows, [["name", "a,b,c\ncontinued", "link"], ["x", "y", "https://weidian.com/item.html?itemID=1"]]);
+  // an album with two links in the sheet counts once, and both items count as found
+  const two = { id: "9", search_keys: ["weidian:1", "taobao:2"] };
+  const one = { id: "8", search_keys: ["taobao:2"] };
+  const none = { id: "7", search_keys: ["weidian:5"] };
+  const result = matchSheet([two, one, none], new Set(["weidian:1", "taobao:2", "1688:3"]));
+  assert.deepEqual(result.matched.map(a => a.id), ["9", "8"]);
+  assert.deepEqual([...result.found].sort(), ["taobao:2", "weidian:1"]);
+});

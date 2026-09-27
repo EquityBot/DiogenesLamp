@@ -39,7 +39,8 @@ def metadata_files(root: Path) -> list[Path]:
 def diagnose(root: Path) -> dict:
     issues: list[str] = []
     report: dict = {"schema_version": 1, "albums": 0, "missing_covers": 0, "unpriced": 0,
-              "without_detail_date": 0, "gone": 0, "detail_failures": 0, "issues": issues}
+              "without_detail_date": 0, "without_description": 0, "gone": 0,
+              "detail_failures": 0, "issues": issues}
     try:
         index = read_metadata(data_path(root, "index.json"), "index.json")
     except (OSError, ValueError) as exc:
@@ -60,6 +61,8 @@ def diagnose(root: Path) -> dict:
                 report["unpriced"] += int(not album.get("price"))
                 report["gone"] += int(bool(album.get("gone_since")))
                 report["without_detail_date"] += int(not album.get("updated_at"))
+                # Absent, not empty: records written before descriptions were kept.
+                report["without_description"] += int("description" not in album)
                 if album.get("thumb") and not data_path(root, album["thumb"], "cover").is_file():
                     report["missing_covers"] += 1
             run_relative = f"runs/{seller['id']}.json"

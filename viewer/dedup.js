@@ -22,16 +22,72 @@ function normTitle(title) {
     .replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
-// One identity key per link that points at a single purchasable item:
-//   - taobao/tmall/weidian item pages carry ?id= / ?itemID=
-//   - m.tb.cn and k.youshop10.com shortlinks identify the item by path token
-// Shop/homepage links (weidian ?userid=, bare domains) identify the seller,
-// not an item, and contribute nothing - otherwise every album that repeats
-// the seller's shop link would collapse into one group.
-// URL() does the parsing so stray fragments ("?id=695#detail" pasted from
-// album text) and encoding never leak into the key, and a link entry whose
-// url is missing or malformed is skipped instead of throwing - one bad
-// link must not cost the whole shard.
+// Shortlinks identify an item by path token rather than an id. links.py
+// keeps the same list; a parity test holds them equal.
+const SHORTLINK_HOSTS = ["m.tb.cn", "k.youshop10.com"];
+
+// The item page each marketplace serves for a bare item id, as links.py
+// builds it when it unwraps an agent link.
+/** @type {Record<import("./agents.js").Marketplace, string>} */
+const ITEM_URLS = {
+  taobao: "https://item.taobao.com/item.htm?id=",
+  tmall: "https://detail.tmall.com/item.htm?id=",
+  weidian: "https://weidian.com/item.html?itemID=",
+  "1688": "https://detail.1688.com/offer/",
+};
+
+/** @param {string} hostname @param {string} host */
+function hostIs(hostname, host) {
+  return hostname === host || hostname.endsWith("." + host);
+}
+
+// The marketplace item a URL points at: taobao/tmall/weidian item pages
+// carry ?id= / ?itemID=, 1688 offers carry the id in the path. Shop and
+// homepage links (weidian ?userid=, bare domains) identify the seller, not
+// an item, and yield null - otherwise every album that repeats the seller's
+// shop link would collapse into one group. URL() does the parsing so stray
+// fragments ("?id=695#detail" pasted from album text) and encoding never
+// leak into the key, and a malformed string yields null instead of throwing.
+/**
+ * @param {unknown} raw
+ * @returns {import("./agents.js").MarketplaceItem | null}
+ */
+function marketplaceItem(raw) {
+  if (typeof raw !== "string") return null;
+  let url;
+  try { url = new URL(raw); } catch { return null; }
+  const hostname = url.hostname.toLowerCase();
+  /** @type {import("./agents.js").Marketplace | null} */
+  const platform = hostIs(hostname, "taobao.com") ? "taobao" : hostIs(hostname, "tmall.com") ? "tmall"
+    : hostIs(hostname, "weidian.com") ? "weidian" : hostIs(hostname, "1688.com") ? "1688" : null;
+  if (!platform) return null;
+  // Repeated, conflicting ids ("?id=1&id=2") name no single item: reject
+  // the ambiguity rather than trust whichever came first.
+  const ids = new Set();
+  for (const [k, v] of url.searchParams) {
+    const kl = k.toLowerCase();
+    if (v && (kl === "id" || kl === "itemid")) ids.add(v);
+  }
+  if (platform === "1688") {
+    const offer = /^\/offer\/([0-9]+)\.html$/.exec(url.pathname)?.[1];
+    if (offer) ids.add(offer);
+  }
+  if (ids.size !== 1) return null;
+  const id = ids.values().next().value;
+  return /^[0-9]{1,24}$/.test(id) ? { platform, id } : null;
+}
+
+/** @param {import("./agents.js").MarketplaceItem} item */
+function marketplaceUrl(item) {
+  return ITEM_URLS[item.platform] + item.id + (item.platform === "1688" ? ".html" : "");
+}
+
+// One identity key per link that points at a single purchasable item. The
+// platform comes from the validated host, never from the stored label, so
+// a record cannot claim a weidian identity with a link elsewhere; tmall and
+// taobao ids stay in separate namespaces as before. A link entry whose url
+// is missing or malformed is skipped instead of throwing - one bad link
+// must not cost the whole shard.
 /**
  * @param {PurchaseLink[]} links
  * @returns {Set<string>}
@@ -40,16 +96,11 @@ function itemKeys(links) {
   const keys = new Set();
   for (const link of links) {
     if (!link || typeof link.url !== "string") continue;
+    const item = marketplaceItem(link.url);
+    if (item) { keys.add(`${item.platform}:${item.id}`); continue; }
     let url;
     try { url = new URL(link.url); } catch { continue; }
-    let id = "";
-    for (const [k, v] of url.searchParams) {
-      const kl = k.toLowerCase();
-      if (v && (kl === "id" || kl === "itemid")) { id = v; break; }
-    }
-    if (id) { keys.add(`${link.platform}:${id}`); continue; }
-    if ((url.hostname === "m.tb.cn" || url.hostname === "k.youshop10.com") &&
-        url.pathname.length > 1) {
+    if (SHORTLINK_HOSTS.includes(url.hostname) && url.pathname.length > 1) {
       keys.add(`url:${url.hostname}${url.pathname}`);
     }
   }
@@ -198,6 +249,6 @@ function collapseDups(list, banned = bannedTitleKeys(list)) {
 }
 
 if (typeof module !== "undefined") {
-  module.exports = { normTitle, titleWeight, itemKeys, dupKey, better,
-    bannedTitleKeys, registerTitleKeys, collapseDups };
+  module.exports = { normTitle, titleWeight, SHORTLINK_HOSTS, marketplaceItem, marketplaceUrl,
+    itemKeys, dupKey, better, bannedTitleKeys, registerTitleKeys, collapseDups };
 }

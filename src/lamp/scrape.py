@@ -30,6 +30,9 @@ from lamp.storage import (
     write_shard,
 )
 
+# Stored album text: enough for product codes, sizes and batch names, small
+# enough that 40,000 records add megabytes rather than tens of them.
+DESCRIPTION_LIMIT = 500
 _BLOCKED_STREAK_LIMIT = 3
 _THUMB_BLOCKED_STREAK_LIMIT = 3
 
@@ -334,6 +337,10 @@ def scrape_seller(client, source: Source, data_dir: Path,
             "album_url": album_url,
             "links": [{"platform": link.platform, "url": link.url} for link in links],
             "category": detail.category,
+            # Bounded, and present (possibly empty) whenever the album page
+            # was read, so the viewer can tell "no description on Yupoo"
+            # from "not fetched since descriptions were kept".
+            "description": detail.description[:DESCRIPTION_LIMIT],
             "price": price,
             "price_evidence": evidence,
             "photo_count": detail.photo_count or stub.photo_count,
@@ -342,6 +349,8 @@ def scrape_seller(client, source: Source, data_dir: Path,
             "first_seen": "",
             "updated_at": "",
         }
+        if len(detail.description) > DESCRIPTION_LIMIT:
+            record["description_truncated"] = True
         if stub.thumb_url and cover_current and thumb_path.is_file():
             record.update(cover_facts(thumb_path))
             if cover_downloaded:

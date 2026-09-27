@@ -183,7 +183,10 @@ kept and filled solid in the second ink when it is.
   returns focus to the originating card; edited forms warn before discarding.
 - **Saved work.** Additional filters and backup import use a native disclosure
   beneath the main filters. Notes and collections live in the preview, leaving
-  the cover marks and virtual grid dimensions unchanged.
+  the cover marks and virtual grid dimensions unchanged. A second disclosure
+  of the same form, **Links and prices**, holds the agent, lookup and price
+  rate preferences; a converted price prints in the existing price figure's
+  footprint, marked ≈ with its currency code, never as a new mark on the cover.
 - **Form field.** A baseline rule rather than a box, thickening into the
   second ink on focus. Selects carry a drawn caret as a data URI rather than
   the platform arrow.

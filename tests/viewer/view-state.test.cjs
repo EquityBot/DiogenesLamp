@@ -113,3 +113,12 @@ test("saved tags retain delisted albums and still apply the other filters", () =
   assert.deepEqual(select({ tag: "gift", seller: "one" }), ["a"]);
   assert.deepEqual(select({ tag: "missing" }), []);
 });
+
+test("the experimental kind filter selects only albums read as that kind", () => {
+  const kinds = [{ ...albums[0], kind: "tees" }, { ...albums[2], kind: "shoes" }];
+  const select = filters => selectCatalogue(createViewState(filters),
+    { albums: kinds, favorites: new Set(), bannedKeys: new Set() }).filtered.map(a => a.id);
+  assert.deepEqual(select({ kind: "shoes" }), ["c"]);
+  assert.deepEqual(select({ kind: "" }).sort(), ["a", "c"]);
+  assert.deepEqual(select({ kind: "bags" }), []);
+});

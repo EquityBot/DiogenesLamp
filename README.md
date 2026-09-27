@@ -102,7 +102,14 @@ works outside the source tree.
    and `lamp --sources other.toml scrape`.
 
    Search titles and seller IDs, or paste an exact album ID, marketplace item
-   ID, Yupoo album URL or recognised purchase link. Press `/` to focus search.
+   ID, Yupoo album URL or purchase link. A pasted shopping-agent link
+   (KakoBuy, Hoobuy, Oopbuy, Mulebuy, Joyagoo, CSSBuy, Sugargoo, Superbuy,
+   LoongBuy, Pikobuy, and the retired CNFans, AllChinaBuy and Pandabuy) is
+   unwrapped to the taobao, tmall, weidian or 1688 item it carries, the same
+   way the scraper stores such links from album text. Stored descriptions are
+   searched after titles and named as the match reason; the panel under
+   **More filters and saved work** says how many loaded albums have one
+   recorded. Press `/` to focus search.
    Filter by seller, category or posting age, and sort by price, photo count or
    newest first. **More filters and saved work** includes minimum and maximum
    CNY prices, a separate unknown-price toggle, collections, tags and review
@@ -139,7 +146,43 @@ works outside the source tree.
    downloaded backup before clearing browser data or changing ports. Filter
    URLs and named searches restore the current view; Back restores earlier
    filters. **Export current results as CSV** exports the visible result set,
-   with catalogue completeness and filter scope recorded in every row.
+   with catalogue completeness and filter scope recorded in every row, plus
+   the stored description, the title-read kind and, when an agent is chosen,
+   a rebuilt agent link for every marketplace item.
+
+   **Cross-reference a spreadsheet** takes a community finds sheet (CSV or
+   TSV, comma, semicolon or tab separated, up to 20 MB and 100,000 rows),
+   reads every marketplace and agent link in it, matches them to albums by
+   item and tags the matches `sheet:<file name>`; the Tag filter then shows
+   which followed sellers carry them. Tags are additive, so nothing saved is
+   overwritten. The status line gives rows, links, distinct items, matches
+   and items not found in the loaded catalogue.
+
+   **Kind, read from titles (experimental)** groups albums across sellers by
+   a garment kind guessed from title keywords in English and Chinese: shoes,
+   jackets, hoodies, tees, pants, shorts, sets, bags, watches, jewellery,
+   accessories. A title with no keyword is Unsorted, and a part such as a
+   watch strap or shoelaces is an accessory. Precision on real catalogues is
+   unmeasured; the seller's own category filter is unchanged.
+
+   **Links and prices** holds three choices that stay in this browser:
+
+   - **Open purchase links on** an agent. Card marks keep their platform name
+     and open on the agent; the preview shows the marketplace link and the
+     agent link side by side. Links are rebuilt from the item id with no
+     referral codes, from formats read from the public converters on
+     27 September 2026 (`viewer/agents.js` records the date). An agent that
+     shuts down leaves the menu but its old links still resolve. Agents that
+     name the marketplace by a channel code have none for tmall, so a tmall
+     item keeps its marketplace link only; the agents that wrap the whole
+     URL carry it.
+   - **QC photo lookups** add a link per marketplace item in the preview to
+     rep.tools' QC finder. Off by default: following one sends the item link
+     to rep.tools, which may keep it. Nothing is fetched until you click.
+   - **Show prices in** a currency at your own rate, entered as 1 CNY = rate.
+     The card figure prints the converted amount marked ≈; the preview keeps
+     the CNY figure and the rate. It is your estimate before fees and
+     shipping, not a quote. Sorting, price bounds and CSV stay in CNY.
 
    The grid is a keyboard surface. Tab reaches one card - the one under the
    cursor, whose cover link, favourite, preview and purchase links follow it, while
@@ -176,6 +219,14 @@ use **Back up saved work** to preserve them.
 Metadata uses schema version 1. Existing unversioned shards remain readable.
 Unsupported versions, malformed records and unsafe paths fail visibly.
 
+Each album fetched since descriptions were kept carries `description`, the
+album text cut at 500 characters (`description_truncated` marks a cut), after
+the whole text has been read for links and prices. Records written earlier
+have no such field; they gain one when their detail page is next fetched,
+which the refresh budget does oldest first, so coverage grows with each
+budgeted run. `--full` fetches everything, covers included, and is not a
+description-only operation.
+
 ### Diagnostics and recovery
 
     lamp --data data doctor
@@ -183,8 +234,8 @@ Unsupported versions, malformed records and unsafe paths fail visibly.
     lamp --data data restore data/snapshots/<snapshot-name>.zip
 
 `doctor` reads files without changing them. It reports invalid or missing
-metadata, duplicate IDs, cover coverage, unknown prices, missing detail dates
-and recorded detail failures. It returns a non-zero exit code for structural
+metadata, duplicate IDs, cover coverage, unknown prices, missing detail dates,
+albums without a recorded description and recorded detail failures. It returns a non-zero exit code for structural
 errors. It does not verify whether a remote listing or extracted price is current.
 
 `snapshot` saves metadata only, excluding images, browser annotations, source
@@ -230,6 +281,9 @@ accuracy rate on real products.
 - HTML responses are limited to 8 MiB after decompression. Larger pages fail
   with a size-limit error.
 - Public pages only. No login, no paywall, no captcha handling.
+- The viewer makes no request beyond this machine. Agent links are built
+  locally from item ids, and the optional QC photo lookup is a plain link
+  that reaches rep.tools only when you follow it.
 
 ## Development
 

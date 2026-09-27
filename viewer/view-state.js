@@ -12,7 +12,8 @@
  * @typedef {import("./filters.js").SortableAlbum & import("./dedup.js").DuplicateAlbum
  *   & {seller: string, category: string, first_seen: string, published_ms: number,
  *      title_lc: string, is_new?: boolean, gone_since?: string, updated_at?: string,
- *      history?: {at: string}[], search_ids?: string[], search_keys?: string[]}} CatalogueAlbum
+ *      history?: {at: string}[], search_ids?: string[], search_keys?: string[],
+ *      kind?: string}} CatalogueAlbum
  */
 
 // Catalogue choices and transitions. app.js owns DOM, storage, scroll and focus.
@@ -106,6 +107,7 @@ function selectCatalogue(view, catalogue, now = Date.now()) {
       (!album.gone_since || filters.favsOnly || !!filters.collection || !!filters.tag || filters.changed) &&
       (!filters.seller || album.seller === filters.seller) &&
       (!filters.category || album.category === filters.category) &&
+      (!filters.kind || album.kind === filters.kind) &&
       (!filters.newOnly || album.is_new) &&
       (!filters.favsOnly || favorites.has(album.id)) &&
       (!maxDays || VIEW_HELPERS.ageInDays(album.published_ms, now) <= maxDays) &&
