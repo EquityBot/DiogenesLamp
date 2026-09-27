@@ -104,7 +104,9 @@ works outside the source tree.
    Search titles and seller IDs, or paste an exact album ID, marketplace item
    ID, Yupoo album URL or purchase link. A pasted shopping-agent link
    (KakoBuy, Hoobuy, Oopbuy, Mulebuy, Joyagoo, CSSBuy, Sugargoo, Superbuy,
-   LoongBuy, Pikobuy, and the retired CNFans, AllChinaBuy and Pandabuy) is
+   LoongBuy, Pikobuy, iTaobuy, BBDbuy, Ootdbuy, Lovegobuy, Cnshopper, Alleurobuy,
+   RizzitGO, Vigorbuy, USFans, Litbuy, hipobuy, GTBuy, and the retired CNFans,
+   AllChinaBuy and Pandabuy) is
    unwrapped to the taobao, tmall, weidian or 1688 item it carries, the same
    way the scraper stores such links from album text. Stored descriptions are
    searched after titles and named as the match reason; the panel under
