@@ -273,3 +273,18 @@ def test_invisible_characters_end_a_url_instead_of_splicing_it():
 def test_item_link_builds_only_well_formed_items(platform, item_id, expected):
     link = item_link(platform, item_id)
     assert (link.url if link else None) == expected
+
+
+@pytest.mark.parametrize("text,expected", [
+    # The wrapped value is judged as one URL by its own host: a marketplace
+    # URL riding inside another site's query string names nothing.
+    ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fevil.example%2F%3Fnext%3Dhttps%3A%2F%2F"
+     "weidian.com%2Fitem.html%3FitemID%3D123", []),
+    ("https://www.kakobuy.com/item/details?url=weidian.com%2Fitem.html%3FitemID%3D123", [
+        Link("weidian", "https://weidian.com/item.html?itemID=123")]),
+    ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fitem.taobao.com%2Fitem.htm%3Fid%3D5%23detail", [
+        Link("taobao", "https://item.taobao.com/item.htm?id=5")]),
+    ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fweidian.com%40evil.example%2Fitem.html%3FitemID%3D1", []),
+])
+def test_wrapped_urls_are_judged_whole(text, expected):
+    assert extract_links(text) == expected

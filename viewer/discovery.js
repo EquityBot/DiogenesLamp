@@ -99,16 +99,32 @@ function catalogueCsv(albums, status, agentId = "") {
   return "\uFEFF" + rows.map(row => row.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }
 
+// The delimiter a sheet uses: comma, semicolon or tab, whichever occurs
+// most in the first record, counted outside quoted cells so a quoted
+// "a,b,c" cannot pass a semicolon sheet off as a comma one.
+/** @param {string} body */
+function detectDelimiter(body) {
+  const counts = { ",": 0, ";": 0, "\t": 0 };
+  let quoted = false;
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+    if (quoted) { if (ch === '"') quoted = body[i + 1] === '"' ? (i++, true) : false; }
+    else if (ch === '"') quoted = true;
+    else if (ch === "\n" || ch === "\r") break;
+    else if (ch in counts) counts[/** @type {keyof typeof counts} */ (ch)] += 1;
+  }
+  return /** @type {(keyof typeof counts)[]} */ ([",", ";", "\t"])
+    .reduce((best, candidate) => counts[candidate] > counts[best] ? candidate : best, ",");
+}
+
 // Split delimited text into rows of cells: RFC 4180 quoting, CRLF or LF,
-// an optional BOM, and the delimiter read from the first line (comma,
-// semicolon or tab, whichever occurs most). A community spreadsheet
-// export is the input, so nothing about its columns is assumed.
+// an optional BOM, and the delimiter read from the first record. A
+// community spreadsheet export is the input, so nothing about its columns
+// is assumed.
 /** @param {string} text @returns {string[][]} */
 function parseDelimited(text) {
   const body = text.replace(/^\uFEFF/, "");
-  const firstLine = body.split(/\r?\n/, 1)[0] || "";
-  const delimiter = /** @type {string[]} */ ([",", ";", "\t"]).reduce((best, candidate) =>
-    firstLine.split(candidate).length > firstLine.split(best).length ? candidate : best, ",");
+  const delimiter = detectDelimiter(body);
   /** @type {string[][]} */
   const rows = [];
   /** @type {string[]} */
@@ -132,7 +148,9 @@ function parseDelimited(text) {
   return rows;
 }
 
-const SHEET_URL = /(?:https?:\/\/)?(?:[a-z0-9-]+\.)*(?:taobao\.com|tmall\.com|weidian\.com|1688\.com|m\.tb\.cn|k\.youshop10\.com|[a-z0-9-]+buy\.com|cnfans\.com|joyagoo\.com|sugargoo\.com)(?:\/[^\s"'<>]*|\?[^\s"'<>]*)?/gi;
+// A candidate starts at a URL boundary and its host ends at one, so a
+// lookalike such as evil-taobao.com never yields its suffix as a match.
+const SHEET_URL = /(?<![a-z0-9.@-])(?:https?:\/\/)?(?:[a-z0-9-]+\.)*(?:taobao\.com|tmall\.com|weidian\.com|1688\.com|m\.tb\.cn|k\.youshop10\.com|[a-z0-9-]+buy\.com|cnfans\.com|joyagoo\.com|sugargoo\.com)(?!\.?[a-z0-9-]|@)(?:\/[^\s"'<>]*|\?[^\s"'<>]*)?/gi;
 
 /**
  * Every purchasable item a spreadsheet names, keyed the way albums are:
@@ -158,6 +176,25 @@ function sheetItemKeys(text, maxRows = 100000) {
     }
   }
   return { keys, rows: rows.length, urls };
+}
+
+/**
+ * The albums whose item keys a sheet names, and every named key that was
+ * found: an album with two links in the sheet counts once, both keys count.
+ * @template {{id: string, search_keys?: string[]}} T
+ * @param {T[]} albums @param {Set<string>} keys
+ */
+function matchSheet(albums, keys) {
+  const found = new Set();
+  /** @type {T[]} */
+  const matched = [];
+  for (const album of albums) {
+    const hits = (album.search_keys || []).filter(key => keys.has(key));
+    if (!hits.length) continue;
+    matched.push(album);
+    for (const key of hits) found.add(key);
+  }
+  return { matched, found };
 }
 
 /** @param {number} value */
@@ -230,6 +267,6 @@ function validCatalogueShard(raw, seller) {
 
 if (typeof module !== "undefined") {
   module.exports = { prepareAlbumSearch, keyForUrl, compileCatalogueSearch, csvCell, albumAgentLinks,
-    catalogueCsv, parseDelimited, sheetItemKeys,
+    catalogueCsv, parseDelimited, sheetItemKeys, matchSheet,
     similarCovers, validCatalogueShard };
 }

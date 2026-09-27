@@ -28,10 +28,11 @@ const KINDS = [
   { id: "tees", label: "Tees and shirts", latin: ["tee", "tees", "t-shirt", "tshirt", "t-shirts", "shirt", "shirts",
     "polo", "polos", "tank", "jersey", "jerseys", "longsleeve", "long-sleeve"],
     cjk: ["短袖", "T恤", "衬衫", "长袖", "球衣", "背心"] },
+  // Shorts before pants: 短裤 and 泳裤 contain 裤, and the specific token must win.
+  { id: "shorts", label: "Shorts", latin: ["shorts", "swim", "trunks"], cjk: ["短裤", "泳裤"] },
   { id: "pants", label: "Pants", latin: ["pants", "jeans", "denim", "trousers", "joggers", "sweatpants", "cargo",
     "cargos", "chinos", "leggings", "tights"],
     cjk: ["裤", "牛仔"] },
-  { id: "shorts", label: "Shorts", latin: ["shorts", "swim", "trunks"], cjk: ["短裤", "泳裤"] },
   { id: "bags", label: "Bags and wallets", latin: ["bag", "bags", "backpack", "backpacks", "tote", "totes", "wallet",
     "wallets", "cardholder", "card holder", "purse", "pouch", "crossbody", "handbag", "duffle", "duffel", "clutch",
     "briefcase", "luggage", "suitcase"],

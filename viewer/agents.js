@@ -18,23 +18,39 @@ const AGENT_DEDUP = typeof module !== "undefined" ? require("./dedup.js") : { ma
 
 /** @param {MarketplaceItem} item */
 const wrapped = item => encodeURIComponent(AGENT_DEDUP.marketplaceUrl(item));
-/** @param {MarketplaceItem} item */
-const taobaoOrOther = item => item.platform === "tmall" ? "taobao" : item.platform;
+
+// Agents that name the marketplace by a channel code have no code for tmall:
+// their taobao channel opens the item, but a link built that way unwraps to
+// a taobao identity and would miss the tmall album it came from. Such
+// agents offer no tmall link; the marketplace link itself stays available.
+/**
+ * @param {Partial<Record<Marketplace, string | number>>} channels
+ * @param {(channel: string | number, id: string) => string} template
+ * @returns {(item: MarketplaceItem) => string}
+ */
+const channelled = (channels, template) => item => {
+  const channel = channels[item.platform];
+  return channel === undefined ? "" : template(channel, item.id);
+};
 
 /** @type {Agent[]} */
 const AGENTS = [
   { id: "kakobuy", name: "KakoBuy", host: "kakobuy.com", checked: "2026-09-27",
     build: item => `https://www.kakobuy.com/item/details?url=${wrapped(item)}` },
   { id: "hoobuy", name: "Hoobuy", host: "hoobuy.com", checked: "2026-09-27",
-    build: item => `https://hoobuy.com/product/${{ "1688": 0, taobao: 1, tmall: 1, weidian: 2 }[item.platform]}/${item.id}` },
+    build: channelled({ "1688": 0, taobao: 1, weidian: 2 }, (channel, id) => `https://hoobuy.com/product/${channel}/${id}`) },
   { id: "oopbuy", name: "Oopbuy", host: "oopbuy.com", checked: "2026-09-27",
-    build: item => `https://oopbuy.com/goods/details?id=${item.id}&channel=${taobaoOrOther(item)}` },
+    build: channelled({ "1688": "1688", taobao: "taobao", weidian: "weidian" },
+      (channel, id) => `https://oopbuy.com/goods/details?id=${id}&channel=${channel}`) },
   { id: "mulebuy", name: "Mulebuy", host: "mulebuy.com", checked: "2026-09-27",
-    build: item => `https://mulebuy.com/product/?shop_type=${item.platform === "1688" ? "ali_1688" : taobaoOrOther(item)}&id=${item.id}` },
+    build: channelled({ "1688": "ali_1688", taobao: "taobao", weidian: "weidian" },
+      (channel, id) => `https://mulebuy.com/product/?shop_type=${channel}&id=${id}`) },
   { id: "joyagoo", name: "Joyagoo", host: "joyagoo.com", checked: "2026-09-27",
-    build: item => `https://joyagoo.com/product/?shop_type=${item.platform === "1688" ? "ali_1688" : taobaoOrOther(item)}&id=${item.id}` },
+    build: channelled({ "1688": "ali_1688", taobao: "taobao", weidian: "weidian" },
+      (channel, id) => `https://joyagoo.com/product/?shop_type=${channel}&id=${id}`) },
   { id: "cssbuy", name: "CSSBuy", host: "cssbuy.com", checked: "2026-09-27",
-    build: item => `https://www.cssbuy.com/item-${{ "1688": "1688-", weidian: "micro-", taobao: "", tmall: "" }[item.platform]}${item.id}.html` },
+    build: channelled({ "1688": "1688-", taobao: "", weidian: "micro-" },
+      (prefix, id) => `https://www.cssbuy.com/item-${prefix}${id}.html`) },
   { id: "sugargoo", name: "Sugargoo", host: "sugargoo.com", checked: "2026-09-27",
     build: item => `https://www.sugargoo.com/productDetail?productLink=${wrapped(item)}` },
   { id: "superbuy", name: "Superbuy", host: "superbuy.com", checked: "2026-09-27",

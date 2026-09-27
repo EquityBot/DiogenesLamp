@@ -172,7 +172,10 @@ works outside the source tree.
      agent link side by side. Links are rebuilt from the item id with no
      referral codes, from formats read from the public converters on
      27 September 2026 (`viewer/agents.js` records the date). An agent that
-     shuts down leaves the menu but its old links still resolve.
+     shuts down leaves the menu but its old links still resolve. Agents that
+     name the marketplace by a channel code have none for tmall, so a tmall
+     item keeps its marketplace link only; the agents that wrap the whole
+     URL carry it.
    - **QC photo lookups** add a link per marketplace item in the preview to
      rep.tools' QC finder. Off by default: following one sends the item link
      to rep.tools, which may keep it. Nothing is fetched until you click.

@@ -66,11 +66,15 @@ test("built links unwrap back to the item they were built from", () => {
       const item = { platform, id };
       assert.deepEqual(marketplaceItem(unwrapAgentLink(agentLink(agent.id, item))), item, `${agent.id} ${platform}`);
     }
-    // Tmall rides the taobao channel on the agents that name channels, so
-    // that trip is lossy by design and lands on the taobao item.
-    const tmall = marketplaceItem(unwrapAgentLink(agentLink(agent.id, { platform: "tmall", id: "77" })));
-    assert.ok(tmall && tmall.id === "77" && ["tmall", "taobao"].includes(tmall.platform), agent.id);
+    // A tmall link is offered only where the format keeps the tmall
+    // identity; agents that name a taobao channel offer none.
+    const link = agentLink(agent.id, { platform: "tmall", id: "77" });
+    if (link) assert.deepEqual(marketplaceItem(unwrapAgentLink(link)), { platform: "tmall", id: "77" }, agent.id);
+    else assert.ok(["hoobuy", "oopbuy", "mulebuy", "joyagoo", "cssbuy"].includes(agent.id), agent.id);
   }
+  assert.equal(agentLink("hoobuy", { platform: "tmall", id: "77" }), "");
+  assert.equal(agentLink("kakobuy", { platform: "tmall", id: "77" }),
+    "https://www.kakobuy.com/item/details?url=https%3A%2F%2Fdetail.tmall.com%2Fitem.htm%3Fid%3D77");
 });
 
 test("retired agents still unwrap but never build, and stay out of the menu", () => {
@@ -89,6 +93,8 @@ test("unwrapping refuses ambiguity, other sites and deep nesting", () => {
   const evil = "https%3A%2F%2Fevil.example%2Fitem.html%3FitemID%3D1";
   for (const url of [
     `https://www.kakobuy.com/item/details?url=${evil}`,
+    // an unrelated site carrying a marketplace URL in its own query string
+    "https://www.kakobuy.com/item/details?url=" + encodeURIComponent("https://evil.example/?next=https://weidian.com/item.html?itemID=123"),
     "https://oopbuy.com/goods/details?id=5&id=6&channel=weidian",
     "https://mulebuy.com/product/?shop_type=weidian&channel=taobao&id=5",
     "https://oopbuy.com/goods/details?id=5&channel=unknown",

@@ -178,11 +178,11 @@ def _unwrap_agent(agent: str, rest: str, depth: int) -> Link | None:
     for key in _WRAPPED_URL_PARAMS:
         wrapped = params.get(key, "")
         if wrapped:
-            # parse_qsl decoded the one layer the agent applied. The inner URL
-            # goes through the same candidate rules as album prose, so an
-            # agent link wrapping some other site yields nothing.
-            found = [link for link in _extract(wrapped, depth + 1) if link.platform in ITEM_URLS]
-            return found[0] if found else None
+            # parse_qsl decoded the one layer the agent applied. The wrapped
+            # value is one whole URL, judged by its own host: a marketplace
+            # URL riding inside some other site's query string is that site's
+            # business, not a purchase link.
+            return _wrapped_link(wrapped, depth + 1)
     ids = {params[key] for key in ("id", "itemid", "goodsid") if key in params}
     channels = {params[key].lower() for key in ("channel", "shop_type", "source") if key in params}
     if len(ids) > 1 or len(channels) > 1:
@@ -200,7 +200,28 @@ def _unwrap_agent(agent: str, rest: str, depth: int) -> Link | None:
     return None
 
 
-def _extract(text: str, depth: int) -> list[Link]:
+def _wrapped_link(url_text: str, depth: int) -> Link | None:
+    """The item one whole wrapped URL names: a marketplace item page, or one
+    layer deeper an agent link. Anything else, including an unrelated site
+    carrying a marketplace URL in its own query string, names nothing.
+    Two layers of wrapping is one agent quoting another; deeper nesting only
+    comes from crafted text, and stops here.
+    """
+    match = _URL_RE.fullmatch(url_text.strip())
+    if match is None:
+        return None
+    host = match.group("host").lower()
+    rest = _strip_fragment(match.group("rest") or "")
+    platform = _platform(host)
+    if platform != "other":
+        return Link(platform, _normalize(host, rest))
+    agent = _agent(host)
+    if agent and depth < 2:
+        return _unwrap_agent(agent, rest, depth)
+    return None
+
+
+def extract_links(text: str) -> list[Link]:
     seen: set[str] = set()
     links: list[Link] = []
     for match in _URL_RE.finditer(text):
@@ -214,9 +235,7 @@ def _extract(text: str, depth: int) -> list[Link]:
         if platform == "other":
             agent = _agent(host)
             if agent:
-                # Two layers of wrapping is one agent quoting another; deeper
-                # nesting only comes from crafted text, and stops here.
-                link = _unwrap_agent(agent, rest, depth) if depth < 2 else None
+                link = _unwrap_agent(agent, rest, 0)
                 if link is None or link.url in seen:
                     continue
                 seen.add(link.url)
@@ -232,7 +251,3 @@ def _extract(text: str, depth: int) -> list[Link]:
         seen.add(url)
         links.append(Link(platform, url))
     return links
-
-
-def extract_links(text: str) -> list[Link]:
-    return _extract(text, 0)

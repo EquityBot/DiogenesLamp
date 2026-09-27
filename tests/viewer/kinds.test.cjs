@@ -12,6 +12,7 @@ const CASES = [
   ["Cuban chain necklace", "jewellery"], ["Jewellery storage box", "accessories"], ["Short-sleeve shirt", "tees"],
   ["Nike shorts", "shorts"], ["Denim jeans", "pants"], ["Goyard tote bag", "bags"], ["Top quality version", UNSORTED],
   ["短袖T恤", "tees"], ["羽绒服", "jackets"], ["运动鞋", "shoes"], ["表带", "accessories"], ["首饰盒", "accessories"],
+  ["短裤", "shorts"], ["泳裤", "shorts"], ["牛仔裤", "pants"], ["Swim shorts", "shorts"],
   ["", UNSORTED], [null, UNSORTED], ["https://weidian.com/shoes-shop", UNSORTED],
   ["ＡＦ１ white", "shoes"],
 ];

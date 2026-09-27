@@ -117,3 +117,23 @@ test("spreadsheet cross-reference reads quoted cells, semicolons and BOMs and ke
   assert.deepEqual(parseDelimited('a,"b ""q"" c",d\n1,,3'), [["a", 'b "q" c', "d"], ["1", "", "3"]]);
   assert.throws(() => sheetItemKeys("a\nb\nc", 2));
 });
+
+test("spreadsheet candidates start at a URL boundary, so lookalike hosts yield nothing", () => {
+  const { sheetItemKeys } = require("../../viewer/discovery.js");
+  const sheet = sheetItemKeys("evil-taobao.com/item.htm?id=123,https://evil-taobao.com/item.htm?id=124," +
+    "taobao.com.evil.example/item.htm?id=125,user@weidian.com/item.html?itemID=126,https://item.taobao.com/item.htm?id=127");
+  assert.deepEqual([...sheet.keys], ["taobao:127"]);
+});
+
+test("the delimiter is read outside quotes, so quoted commas and newlines survive a semicolon sheet", () => {
+  const { parseDelimited, matchSheet } = require("../../viewer/discovery.js");
+  const rows = parseDelimited('name;"a,b,c\ncontinued";link\r\nx;y;https://weidian.com/item.html?itemID=1\r\n');
+  assert.deepEqual(rows, [["name", "a,b,c\ncontinued", "link"], ["x", "y", "https://weidian.com/item.html?itemID=1"]]);
+  // an album with two links in the sheet counts once, and both items count as found
+  const two = { id: "9", search_keys: ["weidian:1", "taobao:2"] };
+  const one = { id: "8", search_keys: ["taobao:2"] };
+  const none = { id: "7", search_keys: ["weidian:5"] };
+  const result = matchSheet([two, one, none], new Set(["weidian:1", "taobao:2", "1688:3"]));
+  assert.deepEqual(result.matched.map(a => a.id), ["9", "8"]);
+  assert.deepEqual([...result.found].sort(), ["taobao:2", "weidian:1"]);
+});

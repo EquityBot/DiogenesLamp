@@ -414,13 +414,9 @@ workEl("import-sheet").addEventListener("change", async event => {
     if (file.size > 20 * 1024 * 1024) throw new Error("Spreadsheet exceeds 20 MB.");
     const sheet = sheetItemKeys(await file.text());
     const tag = "sheet:" + file.name.replace(/\.[^.]*$/, "").slice(0, 44);
-    const found = new Set();
-    let matched = 0, full = 0;
-    for (const album of state.albums) {
-      const hit = (album.search_keys || []).find(key => sheet.keys.has(key));
-      if (!hit) continue;
-      matched++;
-      found.add(hit);
+    const { matched, found } = matchSheet(state.albums, sheet.keys);
+    let full = 0;
+    for (const album of matched) {
       const tags = userStore.get("tags", album.id) || [];
       if (tags.includes(tag)) continue;
       if (tags.length >= 20) { full++; continue; }
@@ -428,9 +424,9 @@ workEl("import-sheet").addEventListener("change", async event => {
     }
     refreshSavedState(false);
     actionStatus(`${sheet.rows} rows, ${sheet.urls} links, ${sheet.keys.size} distinct items. ` +
-      `${found.size} items matched ${matched} albums, tagged ${tag}; ${sheet.keys.size - found.size} items are not in the loaded catalogue` +
+      `${found.size} items matched ${matched.length} albums, tagged ${tag}; ${sheet.keys.size - found.size} items are not in the loaded catalogue` +
       (full ? `; ${full} matched albums already carry 20 tags` : "") + `. Catalogue: ${catalogueAvailability()}.`);
-    if (matched) useFilters({...state.view.filters, tag});
+    if (matched.length) useFilters({...state.view.filters, tag});
     else applyFilters();
   } catch (error) { savedDataError(error.message); }
   finally { event.target.value = ""; }
