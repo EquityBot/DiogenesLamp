@@ -24,6 +24,18 @@ const OBSERVED = {
     superbuy: `https://www.superbuy.com/en/page/buy/?url=${WD}`,
     loongbuy: `https://www.loongbuy.com/product-details?url=${WD}`,
     pikobuy: `https://www.pikobuy.com/product/detail?productUrl=${WD}`,
+    itaobuy: `https://www.itaobuy.com/product-detail?url=${WD}`,
+    bbdbuy: `https://bbdbuy.com/index/item/index.html?tp=taobao&tid=&searchlang=en&url=${WD}`,
+    ootdbuy: "https://www.ootdbuy.com/goods/details?id=7652831688&channel=weidian",
+    lovegobuy: "https://www.lovegobuy.com/product?id=7652831688&shop_type=weidian",
+    cnshopper: "https://cnshopper.com/goods/detail?keyword=7652831688&platform=weidian",
+    alleurobuy: "https://alleurobuy.com/index/detail-public?id=7652831688&type=weidian",
+    rizzitgo: "https://rizzitgo.com/detail-page?goodsId=7652831688&source=3",
+    vigorbuy: "https://vigorbuy.com/product/2/7652831688",
+    usfans: "https://usfans.com/product/3/7652831688",
+    litbuy: "https://www.litbuy.com/product/weidian/7652831688",
+    hipobuy: "https://hipobuy.com/product/weidian/7652831688",
+    gtbuy: "https://www.gtbuy.com/product/weidian/7652831688",
   },
   taobao: {
     kakobuy: `https://www.kakobuy.com/item/details?url=${TB}`,
@@ -36,6 +48,18 @@ const OBSERVED = {
     superbuy: `https://www.superbuy.com/en/page/buy/?url=${TB}`,
     loongbuy: `https://www.loongbuy.com/product-details?url=${TB}`,
     pikobuy: `https://www.pikobuy.com/product/detail?productUrl=${TB}`,
+    itaobuy: `https://www.itaobuy.com/product-detail?url=${TB}`,
+    bbdbuy: `https://bbdbuy.com/index/item/index.html?tp=taobao&tid=&searchlang=en&url=${TB}`,
+    ootdbuy: "https://www.ootdbuy.com/goods/details?id=560198996624&channel=TAOBAO",
+    lovegobuy: "https://www.lovegobuy.com/product?id=560198996624&shop_type=taobao",
+    cnshopper: "https://cnshopper.com/goods/detail?keyword=560198996624&platform=taobao",
+    alleurobuy: "https://alleurobuy.com/index/detail-public?id=560198996624&type=tao",
+    rizzitgo: "https://rizzitgo.com/detail-page?goodsId=560198996624&source=1",
+    vigorbuy: "https://vigorbuy.com/product/1/560198996624",
+    usfans: "https://usfans.com/product/2/560198996624",
+    litbuy: "https://www.litbuy.com/product/1/560198996624",
+    hipobuy: "https://hipobuy.com/product/1/560198996624",
+    gtbuy: "https://www.gtbuy.com/product/1/560198996624",
   },
   "1688": {
     kakobuy: `https://www.kakobuy.com/item/details?url=${ALI}`,
@@ -48,6 +72,18 @@ const OBSERVED = {
     superbuy: `https://www.superbuy.com/en/page/buy/?url=${ALI}`,
     loongbuy: `https://www.loongbuy.com/product-details?url=${ALI}`,
     pikobuy: `https://www.pikobuy.com/product/detail?productUrl=${ALI}`,
+    itaobuy: `https://www.itaobuy.com/product-detail?url=${ALI}`,
+    bbdbuy: `https://bbdbuy.com/index/item/index1688.html?tp=taobao&tid=&searchlang=en&url=${ALI}`,
+    ootdbuy: "https://www.ootdbuy.com/goods/details?id=691234567890&channel=1688",
+    lovegobuy: "https://www.lovegobuy.com/product?id=691234567890&shop_type=ali_1688",
+    cnshopper: "https://cnshopper.com/goods/detail?keyword=691234567890&platform=1688",
+    alleurobuy: "https://alleurobuy.com/index/detail-public?id=691234567890&type=ali",
+    rizzitgo: "https://rizzitgo.com/detail-page?goodsId=691234567890&source=2",
+    vigorbuy: "https://vigorbuy.com/product/0/691234567890",
+    usfans: "https://usfans.com/product/1/691234567890",
+    litbuy: "https://www.litbuy.com/product/0/691234567890",
+    hipobuy: "https://hipobuy.com/product/0/691234567890.html",
+    gtbuy: "https://www.gtbuy.com/product/0/691234567890",
   },
 };
 
@@ -70,7 +106,8 @@ test("built links unwrap back to the item they were built from", () => {
     // identity; agents that name a taobao channel offer none.
     const link = agentLink(agent.id, { platform: "tmall", id: "77" });
     if (link) assert.deepEqual(marketplaceItem(unwrapAgentLink(link)), { platform: "tmall", id: "77" }, agent.id);
-    else assert.ok(["hoobuy", "oopbuy", "mulebuy", "joyagoo", "cssbuy"].includes(agent.id), agent.id);
+    else assert.ok(["hoobuy", "oopbuy", "mulebuy", "joyagoo", "cssbuy", "ootdbuy", "lovegobuy", "cnshopper",
+      "alleurobuy", "rizzitgo", "vigorbuy", "usfans", "litbuy", "hipobuy", "gtbuy"].includes(agent.id), agent.id);
   }
   assert.equal(agentLink("hoobuy", { platform: "tmall", id: "77" }), "");
   assert.equal(agentLink("kakobuy", { platform: "tmall", id: "77" }),
@@ -99,12 +136,27 @@ test("unwrapping refuses ambiguity, other sites and deep nesting", () => {
     "https://mulebuy.com/product/?shop_type=weidian&channel=taobao&id=5",
     "https://oopbuy.com/goods/details?id=5&channel=unknown",
     "https://hoobuy.com/product/9/123",
+    "https://hoobuy.com/product/3/123",
+    "https://usfans.com/product/0/123",
+    "https://rizzitgo.com/detail-page?goodsId=5&source=weidian",
+    "https://www.litbuy.com/product/tmall/5",
+    "https://usfans.com/product/0/691234567890?keyword=691234567890&platform=1688",
+    "https://oopbuy.com/goods/details?keyword=7652831688&platform=weidian",
+    "https://cnshopper.com/goods/detail?id=7652831688&channel=weidian",
+    "https://www.kakobuy.com/item/details?id=7652831688&channel=weidian",
+    "https://oopbuy.com/goods/details?url=" + WD,
+    "https://oopbuy.com/goods/details?id=7652831688&keyword=6&channel=weidian",
     "https://www.cssbuy.com/item-abc.html",
     "https://notkakobuy.com/item/details?url=" + WD,
     "https://weidian.com/item.html?itemID=7652831688",
     "not a url",
   ]) assert.equal(unwrapAgentLink(url), null, url);
   // One agent quoting another is one more unwrap; a third layer is not followed.
+  // Query hints on a path or wrapped agent do not make its link ambiguous.
+  assert.equal(unwrapAgentLink("https://hoobuy.com/product/2/7652831688?id=5&keyword=6"),
+    "https://weidian.com/item.html?itemID=7652831688");
+  assert.equal(unwrapAgentLink("https://www.kakobuy.com/item/details?url=" + WD + "&id=1&id=2"),
+    "https://weidian.com/item.html?itemID=7652831688");
   const nested = "https://www.kakobuy.com/item/details?url=" + encodeURIComponent("https://hoobuy.com/product/2/7652831688");
   assert.equal(unwrapAgentLink(nested), "https://weidian.com/item.html?itemID=7652831688");
   const deeper = "https://www.kakobuy.com/item/details?url=" + encodeURIComponent(nested);
