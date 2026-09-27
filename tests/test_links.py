@@ -253,6 +253,10 @@ AGENT_CASES = [
     # wrapped agent reads only its wrapped URL.
     ("https://usfans.com/product/0/691234567890?keyword=691234567890&platform=1688", []),
     ("https://hoobuy.com/product/2/7652831688?id=5&channel=taobao", [WD]),
+    ("https://hoobuy.com/product/2/7652831688?id=5&keyword=6", [WD]),
+    ("https://www.cssbuy.com/item-micro-7652831688.html?id=1&id=2", [WD]),
+    ("https://oopbuy.com/goods/details?id=7652831688&keyword=6&channel=weidian", []),
+    (f"https://www.kakobuy.com/item/details?url={WD_ENC}&id=1&id=2", [WD]),
     ("https://oopbuy.com/goods/details?keyword=7652831688&platform=weidian", []),
     ("https://cnshopper.com/goods/detail?id=7652831688&channel=weidian", []),
     ("https://www.kakobuy.com/item/details?id=7652831688&channel=weidian", []),

@@ -203,17 +203,17 @@ def _unwrap_agent(agent: str, rest: str, depth: int) -> Link | None:
     for key, value in parse_qsl(query):
         if value:
             values.setdefault(key.lower(), set()).add(value)
-    # A parameter repeated with different values names no single item:
-    # refuse the ambiguity rather than trust whichever came first.
-    if any(len(found) > 1 for found in values.values()):
-        return None
+    # Only the parameters an agent's own format reads can make its link
+    # ambiguous: a path agent names the item in the path whatever rides in
+    # the query. A parameter repeated with different values, or two item ids
+    # or marketplace hints on a query agent, names no single item: refuse
+    # the ambiguity rather than trust whichever came first.
+    def ambiguous(keys: tuple[str, ...]) -> bool:
+        return any(len(values.get(key, set())) > 1 for key in keys)
     params = {key: next(iter(found)) for key, found in values.items()}
-    # Two item ids, or two marketplace hints, name no single item either.
-    ids = {params[key] for key in _ID_PARAMS if key in params}
-    channels = {params[key].lower() for key in _CHANNEL_PARAMS if key in params}
-    if len(ids) > 1 or len(channels) > 1:
-        return None
     if agent in _WRAPPED_AGENTS:
+        if ambiguous(_WRAPPED_URL_PARAMS):
+            return None
         for key in _WRAPPED_URL_PARAMS:
             wrapped = params.get(key, "")
             if wrapped:
@@ -225,6 +225,10 @@ def _unwrap_agent(agent: str, rest: str, depth: int) -> Link | None:
         return None
     keys = _AGENT_QUERY.get(agent)
     if keys:
+        ids = {params[key] for key in _ID_PARAMS if key in params}
+        channels = {params[key].lower() for key in _CHANNEL_PARAMS if key in params}
+        if ambiguous(_ID_PARAMS + _CHANNEL_PARAMS) or len(ids) > 1 or len(channels) > 1:
+            return None
         id_key, channel_key = keys
         if id_key not in params or channel_key not in params:
             return None

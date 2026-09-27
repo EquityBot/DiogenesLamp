@@ -133,6 +133,7 @@ const WRAPPED_AGENTS = new Set(["kakobuy", "superbuy", "sugargoo", "loongbuy", "
 const AGENT_QUERY = { oopbuy: ["id", "channel"], ootdbuy: ["id", "channel"], mulebuy: ["id", "shop_type"],
   joyagoo: ["id", "shop_type"], cnfans: ["id", "shop_type"], lovegobuy: ["id", "shop_type"],
   cnshopper: ["keyword", "platform"], alleurobuy: ["id", "type"], rizzitgo: ["goodsid", "source"] };
+const WRAPPED_PARAMS = ["url", "productlink", "producturl", "link"];
 const ID_PARAMS = ["id", "itemid", "goodsid", "keyword"];
 const CHANNEL_PARAMS = ["channel", "shop_type", "source", "platform", "type"];
 /** @type {Record<string, Marketplace>} */
@@ -161,15 +162,17 @@ function unwrapAgentLink(raw, depth = 0) {
     const key = k.toLowerCase();
     values.set(key, (values.get(key) || new Set()).add(v));
   }
-  if ([...values.values()].some(found => found.size > 1)) return null;
+  // Only the parameters an agent's own format reads can make its link
+  // ambiguous: a path agent names the item in the path whatever rides in
+  // the query. A parameter repeated with different values, or two item ids
+  // or marketplace hints on a query agent, names no single item.
+  /** @param {string[]} keys */
+  const ambiguous = keys => keys.some(key => (values.get(key)?.size || 0) > 1);
   /** @param {string} key */
   const param = key => values.get(key)?.values().next().value || "";
-  // Two item ids, or two marketplace hints, name no single item either.
-  const ids = new Set(ID_PARAMS.map(param).filter(Boolean));
-  const channels = new Set(CHANNEL_PARAMS.map(param).filter(Boolean).map(v => v.toLowerCase()));
-  if (ids.size > 1 || channels.size > 1) return null;
   if (WRAPPED_AGENTS.has(agent.id)) {
-    for (const key of ["url", "productlink", "producturl", "link"]) {
+    if (ambiguous(WRAPPED_PARAMS)) return null;
+    for (const key of WRAPPED_PARAMS) {
       const inner = param(key);
       if (!inner) continue;
       // URLSearchParams decoded the one layer the agent applied; an agent
@@ -185,6 +188,9 @@ function unwrapAgentLink(raw, depth = 0) {
     ? AGENT_DEDUP.marketplaceUrl({ platform, id: itemId }) : null;
   const query = AGENT_QUERY[agent.id];
   if (query) {
+    const ids = new Set(ID_PARAMS.map(param).filter(Boolean));
+    const channels = new Set(CHANNEL_PARAMS.map(param).filter(Boolean).map(v => v.toLowerCase()));
+    if (ambiguous([...ID_PARAMS, ...CHANNEL_PARAMS]) || ids.size > 1 || channels.size > 1) return null;
     const id = param(query[0]);
     const channel = param(query[1]).toLowerCase();
     if (!id || !channel) return null;

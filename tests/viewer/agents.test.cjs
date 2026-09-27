@@ -145,12 +145,18 @@ test("unwrapping refuses ambiguity, other sites and deep nesting", () => {
     "https://cnshopper.com/goods/detail?id=7652831688&channel=weidian",
     "https://www.kakobuy.com/item/details?id=7652831688&channel=weidian",
     "https://oopbuy.com/goods/details?url=" + WD,
+    "https://oopbuy.com/goods/details?id=7652831688&keyword=6&channel=weidian",
     "https://www.cssbuy.com/item-abc.html",
     "https://notkakobuy.com/item/details?url=" + WD,
     "https://weidian.com/item.html?itemID=7652831688",
     "not a url",
   ]) assert.equal(unwrapAgentLink(url), null, url);
   // One agent quoting another is one more unwrap; a third layer is not followed.
+  // Query hints on a path or wrapped agent do not make its link ambiguous.
+  assert.equal(unwrapAgentLink("https://hoobuy.com/product/2/7652831688?id=5&keyword=6"),
+    "https://weidian.com/item.html?itemID=7652831688");
+  assert.equal(unwrapAgentLink("https://www.kakobuy.com/item/details?url=" + WD + "&id=1&id=2"),
+    "https://weidian.com/item.html?itemID=7652831688");
   const nested = "https://www.kakobuy.com/item/details?url=" + encodeURIComponent("https://hoobuy.com/product/2/7652831688");
   assert.equal(unwrapAgentLink(nested), "https://weidian.com/item.html?itemID=7652831688");
   const deeper = "https://www.kakobuy.com/item/details?url=" + encodeURIComponent(nested);
