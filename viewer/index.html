@@ -139,6 +139,7 @@ provenance
       <p id="price-error" role="alert" hidden>Use prices from 0 to 99,999 CNY, with at most 2 decimal places. Maximum must be at least minimum.</p>
       <label>Collection <select id="collection-filter"><option value="">All collections</option></select></label>
       <label>Tag <select id="tag-filter"><option value="">All tags</option></select></label>
+      <label>Kind, read from titles (experimental) <select id="kind-filter"><option value="">All kinds</option></select></label>
       <label><input id="unreviewed" type="checkbox"> Added since review</label>
       <label><input id="changed" type="checkbox"> Changed since review</label>
       <button id="mark-reviewed" type="button">Mark seller reviewed</button>
@@ -148,7 +149,19 @@ provenance
       <button id="remove-search" type="button">Remove saved search</button>
       <button id="export-csv" type="button">Export current results as CSV</button>
       <label>Import saved work <input id="import-backup" type="file" accept=".json,application/json"></label>
-      <p class="tool-help">Choose a seller to mark its catalogue reviewed. Imports add missing saved fields; existing values stay. Saved work belongs to this browser and port.</p>
+      <label>Cross-reference a spreadsheet <input id="import-sheet" type="file" accept=".csv,.tsv,.txt,text/csv,text/tab-separated-values,text/plain"></label>
+      <p class="tool-help">Choose a seller to mark its catalogue reviewed. Imports add missing saved fields; existing values stay. A spreadsheet's marketplace and agent links are matched to albums by item and tagged sheet:&lt;file name&gt;. Saved work belongs to this browser and port.</p>
+      <p class="tool-help" id="description-coverage" role="status"></p>
+    </div>
+  </details>
+  <details id="viewer-prefs">
+    <summary>Links and prices</summary>
+    <div class="work-tools">
+      <label>Open purchase links on <select id="pref-agent"><option value="">The marketplace itself</option></select></label>
+      <label><input id="pref-lookups" type="checkbox"> Offer QC photo lookups in the preview (rep.tools receives the item link when you follow one, and may keep it)</label>
+      <label>Show prices in <input id="pref-currency" maxlength="3" autocomplete="off" placeholder="AUD" aria-describedby="pref-help"></label>
+      <label>at <input id="pref-rate" type="number" min="0" step="0.000001" placeholder="0.21" aria-describedby="pref-help"> per CNY</label>
+      <p class="tool-help" id="pref-help">Agent links are rebuilt from the item id with no referral codes; the marketplace link stays in the preview. A price at your rate is an estimate from the day you typed the rate. These choices stay in this browser.</p>
     </div>
   </details>
   <div id="load-progress" role="presentation"><div id="load-progress-bar"></div></div>
@@ -177,7 +190,9 @@ provenance
       <h1 id="preview-title"></h1>
       <p id="preview-facts"></p><p id="preview-match"></p>
       <p id="preview-price"></p><p id="preview-run"></p>
+      <p id="preview-description"></p>
       <div id="preview-links"></div>
+      <div id="preview-external"></div>
       <button id="preview-favourite" type="button" aria-pressed="false">Add to favourites</button>
       <details><summary>Recorded changes</summary><ul id="preview-history"></ul></details>
       <details id="preview-similar"><summary>Similar covers (experimental)</summary>
@@ -195,8 +210,11 @@ provenance
   </div>
 </dialog>
 <script src="dedup.js"></script>
+<script src="agents.js"></script>
 <script src="age.js"></script>
+<script src="kinds.js"></script>
 <script src="filters.js"></script>
+<script src="prefs.js"></script>
 <script src="anchor.js"></script>
 <script src="catalogue.js"></script>
 <script src="discovery.js"></script>

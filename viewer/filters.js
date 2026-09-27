@@ -4,7 +4,7 @@
  * @typedef {{search: string, seller: string, category: string, age: string,
  *   sort: string, newOnly: boolean, favsOnly: boolean, hideDups: boolean, priceMin: string,
  * priceMax: string, includeUnknown: boolean, collection: string, tag: string,
- * unreviewed: boolean, changed: boolean}} Filters
+ * unreviewed: boolean, changed: boolean, kind: string}} Filters
  * @typedef {{localStorage: Pick<Storage, "getItem" | "setItem">}} StorageHost
  * @typedef {{id: string, price?: number | null, photo_count?: number,
  *   published_ms?: number}} SortableAlbum
@@ -37,6 +37,7 @@ const FILTER_DEFAULTS = {
   tag: "",
   unreviewed: false,
   changed: false,
+  kind: "",
 };
 
 function defaultFilters() {
@@ -133,8 +134,10 @@ function readStored(host, key) {
 function writeStored(host, key, value) {
   try {
     host.localStorage.setItem(key, value);
+    return true;
   } catch {
     // Persistence is a convenience; the session still honours the choice.
+    return false;
   }
 }
 

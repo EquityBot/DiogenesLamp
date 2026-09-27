@@ -1017,3 +1017,26 @@ def test_a_second_ctrl_c_abandons_running_sellers_but_still_writes_the_index(tmp
         assert still_running and all(t.daemon for t in still_running)
     finally:
         release.set()
+
+
+def test_description_is_stored_bounded_after_the_full_text_is_used(tmp_path: Path):
+    from lamp.scrape import DESCRIPTION_LIMIT
+
+    long_desc = "x" * DESCRIPTION_LIMIT + " tail https://weidian.com/item.html?itemID=9090"
+    client = FakeClient({
+        "albums?page=1": LIST_ITEM.format(aid="301", title="Item C"),
+        "albums?page=2": EMPTY_PAGE,
+        "/albums/301": ALBUM_PAGE.format(title="Item C", desc=long_desc),
+    })
+    scrape_seller(client, SELLER, tmp_path, "2026-08-17T12:00:00+10:00")
+    album = load_shard(tmp_path, "sellerx")["301"]
+    assert album["description"] == "x" * DESCRIPTION_LIMIT
+    assert album["description_truncated"] is True
+    # The link past the cap still counts: extraction reads the full text.
+    assert album["links"] == [{"platform": "weidian", "url": "https://weidian.com/item.html?itemID=9090"}]
+    # A short description is stored whole, with no truncation flag, so the
+    # viewer can tell it from a record written before descriptions were kept.
+    scrape_seller(make_client(), SELLER, tmp_path / "plain", "2026-08-17T12:00:00+10:00")
+    plain = load_shard(tmp_path / "plain", "sellerx")["101"]
+    assert plain["description"] == "weidian.com/item.html?itemID=5"
+    assert "description_truncated" not in plain

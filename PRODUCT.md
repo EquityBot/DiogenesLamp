@@ -54,12 +54,19 @@ viewer routinely loads a partially available catalogue.
 - Catalogue loads stream: shards arrive concurrently and the UI refreshes at
   most every 200 ms while the operator is already scrolling.
 - Favourites, notes, tags, collections, review dates and saved searches use
-  per-field browser storage and versioned JSON backups. Filter selection and
-  colour theme also persist locally. Storage failures are visible.
-- Search matches titles, seller IDs, exact album/item IDs and recognised links.
+  per-field browser storage and versioned JSON backups. Filter selection,
+  colour theme and the link and price preferences (agent, QC lookups, exchange
+  rate) also persist locally, outside the backup. Storage failures are visible.
+- Search matches titles, seller IDs, exact album/item IDs, marketplace and
+  shopping-agent links, and stored descriptions where recorded.
   Filters include price bounds and unknown prices, seller, category, posting age,
   new since scrape or review, changed since review, favourites, collections,
-  tags and duplicates. Duplicate groups open as a peek view.
+  tags, duplicates and an experimental title-read kind. Duplicate groups open
+  as a peek view.
+- Purchase links are stored as marketplace items (taobao, tmall, weidian and
+  1688), with agent links unwrapped to the item they carry. The viewer can
+  rebuild a link for the operator's agent, and cross-reference a community
+  spreadsheet by item, without any request.
 - Titles open local previews with cached covers, provenance and recorded history.
   Covers keep their external destination. CSV exports describe their filter scope
   and catalogue completeness. Visual similarity is an opt-in local experiment,

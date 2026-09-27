@@ -191,3 +191,27 @@ test("collapseDups keeps first position, swaps in better member, counts", () => 
   assert.equal(counts.get(k), 2);
   assert.equal(counts.get("t:other"), 1);
 });
+
+test("marketplace identity comes from the validated host, never the stored label", () => {
+  const { marketplaceItem, marketplaceUrl } = require(path.join(__dirname, "..", "..", "viewer", "dedup.js"));
+  // a record cannot claim a weidian identity with a link elsewhere
+  assert.deepEqual(itemKeys([{ platform: "weidian", url: "https://evil.example/?id=456" }]), new Set());
+  assert.deepEqual(itemKeys([{ platform: "weidian", url: "https://item.taobao.com/item.htm?id=456" }]),
+    new Set(["taobao:456"]));
+  // desktop and mobile 1688 offers are one item; the id lives in the path
+  assert.deepEqual(itemKeys([
+    { platform: "1688", url: "https://detail.1688.com/offer/691234567890.html?spm=x" },
+    { platform: "1688", url: "https://m.1688.com/offer/691234567890.html" }]),
+    new Set(["1688:691234567890"]));
+  // conflicting repeated ids name nothing
+  assert.deepEqual(itemKeys([{ platform: "taobao", url: "https://item.taobao.com/item.htm?id=1&id=2" }]), new Set());
+  // ids stay strings beyond the safe-integer range
+  assert.deepEqual(marketplaceItem("https://weidian.com/item.html?itemID=98765432109876543210"),
+    { platform: "weidian", id: "98765432109876543210" });
+  assert.equal(marketplaceItem("https://weidian.com/item.html?itemID=abc"), null);
+  assert.equal(marketplaceUrl({ platform: "1688", id: "5" }), "https://detail.1688.com/offer/5.html");
+  // the same numeric id on two marketplaces is two items, so no single identity
+  assert.equal(dupKey(album({ links: [
+    { platform: "taobao", url: "https://item.taobao.com/item.htm?id=5" },
+    { platform: "weidian", url: "https://weidian.com/item.html?itemID=5" }] })), null);
+});

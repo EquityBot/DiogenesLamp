@@ -182,3 +182,21 @@ def test_decompression_bomb_does_not_abort_local_preparation(tmp_path, monkeypat
     result = prepare_covers(tmp_path, 1)
     assert result["resized"] == 0
     assert "cover dimensions exceed limits" in result["errors"][0]
+
+
+def test_doctor_counts_albums_without_recorded_descriptions(tmp_path):
+    catalogue(tmp_path)
+    assert diagnose(tmp_path)["without_description"] == 1
+
+
+def test_metadata_rejects_malformed_description_fields(tmp_path):
+    catalogue(tmp_path)
+    shard = json.loads((tmp_path / "catalog/example.json").read_text(encoding="utf-8"))
+    shard["albums"][0]["description"] = "kept"
+    shard["albums"][0]["description_truncated"] = True
+    validate_metadata(shard, "catalog/example.json")
+    for field, bad in (("description", 5), ("description_truncated", "yes")):
+        broken = json.loads(json.dumps(shard))
+        broken["albums"][0][field] = bad
+        with pytest.raises(ValueError):
+            validate_metadata(broken, "catalog/example.json")

@@ -62,10 +62,12 @@ def validate_metadata(value: object, relative: str) -> dict:
         for field in ("title", "thumb", "album_url"):
             if not isinstance(album.get(field), str):
                 raise ValueError(f"album {field} must be text")
-        for field in ("category", "first_seen", "updated_at",
+        for field in ("category", "description", "first_seen", "updated_at",
                       "thumb_version", "cover_hash"):
             if field in album and not isinstance(album[field], str):
                 raise ValueError(f"album {field} must be text")
+        if "description_truncated" in album and not isinstance(album["description_truncated"], bool):
+            raise ValueError("album description_truncated must be a boolean")
         if "price" in album and (type(album["price"]) not in (int, float)
                                  or not math.isfinite(album["price"]) or album["price"] < 0):
             raise ValueError("invalid price")
