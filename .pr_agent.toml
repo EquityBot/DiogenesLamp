@@ -17,8 +17,8 @@ push_commands = ["/agentic_review"]
 inline_comments_severity_threshold = 3
 # Bug and quality findings come from the Issues agent; rule violations come
 # from the Compliance agent, so each gets the guidance it acts on.
-issues_user_guidelines = "Australian English spellings are correct, not typos. Do not propose tax classifications, individual tax positions or Division 7A treatment."
-compliance_user_guidelines = "The archived catalogue data and the virtualised viewer assets are generated output, not hand-maintained source. Check AGENTS.md and DESIGN.md, and the verbatim ci.yml assertion in the test suite, before raising a rule violation. Do not raise rule violations that propose tax classifications, individual tax positions or Division 7A treatment."
+issues_user_guidelines = "Australian English spellings are correct, not typos."
+compliance_user_guidelines = "The archived catalogue data and the virtualised viewer assets are generated output, not hand-maintained source. Check AGENTS.md and DESIGN.md, and the verbatim ci.yml assertion in the test suite, before raising a rule violation."
 
 [review_agent_ux]
 show_daily_tips = false

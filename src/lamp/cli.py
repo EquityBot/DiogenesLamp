@@ -7,7 +7,7 @@ import json
 import math
 import sys
 import zipfile
-from datetime import UTC
+from datetime import UTC, datetime
 from pathlib import Path
 
 from lamp.ingest import load_sources, merge_sources, parse_dump, write_sources
@@ -138,8 +138,6 @@ def _cmd_import(args: argparse.Namespace) -> int:
 
 
 def _cmd_scrape(args: argparse.Namespace) -> int:
-    from datetime import datetime
-
     from lamp.scrape import SellerSummary, scrape_all
 
     sources = load_sources(args.sources)
