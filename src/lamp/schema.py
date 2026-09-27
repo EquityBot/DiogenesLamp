@@ -14,13 +14,19 @@ def data_path(root: Path, relative: str, kind: str = "metadata") -> Path:
                r"(?:index\.json|(?:catalog|runs)/[a-z0-9_-]+\.json)")
     if not isinstance(relative, str) or not re.fullmatch(pattern, relative):
         raise ValueError("unsafe catalogue path")
-    # Only the root is resolved, because it exists. Resolving the target raced
-    # with a sibling seller thread creating catalog/ or runs/: Windows realpath
-    # keeps the extended-length prefix when a component appears mid-call, and
-    # the prefixed path then failed this check.
     root = root.resolve()
     path = Path(os.path.normpath(root / relative))
     if not path.is_relative_to(root):
+        raise ValueError("catalogue path escapes data directory")
+    # Resolve only the deepest entry that exists: a linked catalog/ or runs/
+    # still fails containment, while the missing tail below it is created later
+    # by this process as plain directories. Resolving the missing target raced
+    # with a sibling seller thread creating catalog/ (Windows realpath keeps the
+    # extended-length prefix when a component appears mid-call).
+    existing = path
+    while existing != root and not os.path.lexists(existing):
+        existing = existing.parent
+    if not existing.resolve().is_relative_to(root):
         raise ValueError("catalogue path escapes data directory")
     return path
 
