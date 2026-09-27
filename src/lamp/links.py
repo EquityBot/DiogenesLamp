@@ -211,7 +211,7 @@ def _wrapped_link(url_text: str, depth: int) -> Link | None:
     if match is None:
         return None
     host = match.group("host").lower()
-    rest = _strip_fragment(match.group("rest") or "")
+    rest = _strip_fragment(_clean_rest(match.group("rest")))
     platform = _platform(host)
     if platform != "other":
         return Link(platform, _normalize(host, rest))
@@ -221,16 +221,22 @@ def _wrapped_link(url_text: str, depth: int) -> Link | None:
     return None
 
 
+def _clean_rest(rest: str | None) -> str:
+    """The path and query of a candidate, ended at the first invisible or
+    non-ASCII character and shorn of trailing prose punctuation. Chinese
+    prose in album descriptions is frequently pasted adjacent to URLs without
+    spaces, and the same text arrives percent-encoded inside agent links.
+    """
+    rest = _INVISIBLE.split(rest or "", maxsplit=1)[0]
+    return re.split(r"[^\x21-\x7e]", rest, maxsplit=1)[0].rstrip(_TRAILING_PUNCT)
+
+
 def extract_links(text: str) -> list[Link]:
     seen: set[str] = set()
     links: list[Link] = []
     for match in _URL_RE.finditer(text):
         host = match.group("host").lower()
-        rest = _INVISIBLE.split(match.group("rest") or "", maxsplit=1)[0]
-        # Chinese prose in album descriptions is frequently pasted adjacent to
-        # URLs without spaces. Discard non-ASCII / CJK text and trailing punctuation
-        # attached to the URL.
-        rest = re.split(r"[^\x21-\x7e]", rest, maxsplit=1)[0].rstrip(_TRAILING_PUNCT)
+        rest = _clean_rest(match.group("rest"))
         platform = _platform(host)
         if platform == "other":
             agent = _agent(host)

@@ -288,3 +288,17 @@ def test_item_link_builds_only_well_formed_items(platform, item_id, expected):
 ])
 def test_wrapped_urls_are_judged_whole(text, expected):
     assert extract_links(text) == expected
+
+
+@pytest.mark.parametrize("text,expected", [
+    # The decoded wrapped URL gets the same cleanup as prose candidates: an
+    # invisible character ends it and trailing punctuation falls away.
+    ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fweidian.com%2Fitem.html%3FitemID%3D12%0034", [
+        Link("weidian", "https://weidian.com/item.html?itemID=12")]),
+    ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fitem.taobao.com%2Fitem.htm%3Fid%3D5%29%E3%80%82", [
+        Link("taobao", "https://item.taobao.com/item.htm?id=5")]),
+    ("https://www.sugargoo.com/productDetail?productLink=https%3A%2F%2Fdetail.1688.com%2Foffer%2F7.html%E2%80%8B", [
+        Link("1688", "https://detail.1688.com/offer/7.html")]),
+])
+def test_wrapped_urls_get_the_same_cleanup_as_prose(text, expected):
+    assert extract_links(text) == expected
