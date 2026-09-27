@@ -68,6 +68,11 @@ function useFilters(filters) {
 window.addEventListener("popstate", () => useFilters(filtersFromURL(location.search) || defaultFilters()));
 window.addEventListener("storage", event => {
   if (event.key === null || event.key.startsWith(USER_PREFIX)) refreshSavedState();
+  if (event.key === null || event.key === PREFS_STORAGE_KEY) {
+    state.prefs = readPrefs(window);
+    showPrefs();
+    applyPrefs();
+  }
 });
 
 function downloadWork(text, name, type) {
@@ -117,7 +122,7 @@ workEl("import-backup").addEventListener("change", async event => {
 workEl("export-csv").addEventListener("click", () => {
   const availability = catalogueAvailability();
   const scope = `${availability}; current results; ${filtersToURL(state.view.filters)}`;
-  downloadWork(catalogueCsv(state.filtered, scope), "diogenes-results.csv", "text/csv;charset=utf-8");
+  downloadWork(catalogueCsv(state.filtered, scope, state.prefs.agent), "diogenes-results.csv", "text/csv;charset=utf-8");
   actionStatus(`Exported ${state.filtered.length} current results. Catalogue: ${availability}.`);
 });
 workEl("save-search").addEventListener("click", () => {
@@ -170,6 +175,51 @@ function updatePreviewFavourite() {
 }
 function localDate(value) { return value ? String(value).replace("T", " ") : "Not recorded"; }
 
+// The read-only part of the preview that preferences change: price, stored
+// text and links. Kept apart from showPreview so a changed agent or rate
+// never repopulates the notes form and discards an edit in progress.
+/** @param {Record<string, any> | undefined} album */
+function showPreviewLinks(album) {
+  if (!album) return;
+  const evidence = album.price_evidence;
+  const converted = convertedPrice(album.price, state.prefs);
+  workEl("preview-price").textContent = album.price ? `CNY ${album.price}` +
+    (evidence?.token && evidence?.rule ? ` · ${evidence.field || "album text"}: ${evidence.token} (${evidence.rule})` +
+      (evidence.candidates?.length > 1 ? ` · Other candidates: ${evidence.candidates.join(", ")}` : "") : " · Extraction evidence not recorded") +
+    (converted ? ` · ${converted} at 1 CNY = ${state.prefs.rate} ${state.prefs.currency}, your rate, before fees and shipping` : "")
+    : "Price unknown";
+  workEl("preview-description").textContent = !("description" in album) ? "Description not recorded: it is kept from the next detail fetch (refresh budget or full scrape)."
+    : !album.description ? "No description extracted at the last detail check."
+    : album.description + (album.description_truncated ? "\n(Saved excerpt; the description was longer.)" : "");
+  /** @param {HTMLElement} parent @param {string} text @param {string} href */
+  const addLink = (parent, text, href) => {
+    const url = new URL(href, location.href);
+    if (!["https:", "http:"].includes(url.protocol)) return;
+    const a = document.createElement("a");
+    a.href = url.href; a.target = "_blank"; a.rel = "noreferrer"; a.textContent = text;
+    parent.appendChild(a);
+  };
+  const links = workEl("preview-links");
+  links.replaceChildren();
+  addLink(links, "Original album", album.album_url);
+  const agent = ACTIVE_AGENTS.find(candidate => candidate.id === state.prefs.agent);
+  for (const link of album.links) {
+    addLink(links, link.platform, link.url);
+    const via = agent ? agentLink(agent.id, marketplaceItem(link.url)) : "";
+    if (via && agent) addLink(links, `${link.platform} on ${agent.name}`, via);
+  }
+  const external = workEl("preview-external");
+  external.replaceChildren();
+  if (state.prefs.lookups) {
+    const items = album.links.map(link => marketplaceItem(link.url)).filter(Boolean);
+    for (const item of items) {
+      addLink(external, `QC photos on rep.tools for ${item.platform} ${item.id}`,
+        "https://rep.tools/qc-finder?link=" + encodeURIComponent(marketplaceUrl(item)));
+    }
+    if (!items.length) external.textContent = "No marketplace item to look up.";
+  }
+}
+
 function showPreview() {
   const album = previewAlbum();
   if (!album) return;
@@ -178,15 +228,11 @@ function showPreview() {
   workEl("preview-prev").disabled = previewAt === 0;
   workEl("preview-next").disabled = previewAt + 1 === previewIds.length;
   workEl("preview-facts").textContent = `${album.seller} · Album ${album.id} · ${album.category || "No category"}` +
+    ` · Kind: ${album.kind || UNSORTED} (read from the title, experimental)` +
     `\nFirst seen: ${localDate(album.first_seen)}\nListed: ${localDate(album.last_seen)}\nDetails checked: ${localDate(album.updated_at)}` +
     (album.gone_since ? `\nNo longer listed since ${localDate(album.gone_since)}` : "");
   const reason = compileCatalogueSearch(state.view.filters.search).reason(album);
   workEl("preview-match").textContent = reason ? "Search match: " + reason : "";
-  const evidence = album.price_evidence;
-  workEl("preview-price").textContent = album.price ? `CNY ${album.price}` +
-    (evidence?.token && evidence?.rule ? ` · ${evidence.field || "album text"}: ${evidence.token} (${evidence.rule})` +
-      (evidence.candidates?.length > 1 ? ` · Other candidates: ${evidence.candidates.join(", ")}` : "") : " · Extraction evidence not recorded")
-    : "Price unknown";
   const run = state.index?.sellers.find(s => s.id === album.seller)?.run;
   workEl("preview-run").textContent = run ? `Seller last successful run: ${localDate(run.last_success)}` +
     (run.failed_ids?.length ? ` · ${run.failed_ids.length} detail failures awaiting retry` : "") : "Seller run status not recorded";
@@ -196,14 +242,7 @@ function showPreview() {
   cover.onerror = () => { cover.hidden = true; workEl("preview-no-cover").hidden = false; };
   if (album.thumb) cover.src = `data/${album.thumb}?v=${thumbVersion(album)}`;
   else cover.removeAttribute("src");
-  workEl("preview-links").replaceChildren();
-  for (const link of [{platform: "Original album", url: album.album_url}, ...album.links]) {
-    const url = new URL(link.url, location.href);
-    if (!["https:", "http:"].includes(url.protocol)) continue;
-    const a = document.createElement("a");
-    a.href = url.href; a.target = "_blank"; a.rel = "noreferrer"; a.textContent = link.platform;
-    workEl("preview-links").appendChild(a);
-  }
+  showPreviewLinks(album);
   const changes = [...(album.history || [])].reverse();
   workEl("preview-history").replaceChildren();
   for (const change of changes) {
@@ -326,4 +365,69 @@ workEl("preview-similar").addEventListener("toggle", () => {
 });
 window.addEventListener("beforeunload", event => {
   if (preview.open && previewDirty()) { event.preventDefault(); event.returnValue = ""; }
+});
+
+// Preferences: the agent purchase links open on, external lookups and the
+// operator's price rate. Validated by prefs.js; the typed values stay in the
+// fields while a half-entered currency and rate convert nothing.
+const prefEls = { agent: workEl("pref-agent"), lookups: workEl("pref-lookups"),
+  currency: workEl("pref-currency"), rate: workEl("pref-rate") };
+for (const agent of ACTIVE_AGENTS) prefEls.agent.add(new Option(agent.name, agent.id));
+function showPrefs() {
+  prefEls.agent.value = state.prefs.agent;
+  prefEls.lookups.checked = state.prefs.lookups;
+  prefEls.currency.value = state.prefs.currency;
+  prefEls.rate.value = state.prefs.rate;
+}
+// Cards are cached across renders and would keep their old destinations
+// and figures; the forced pass rebuilds the window.
+function applyPrefs() {
+  renderGrid(true);
+  if (preview.open) showPreviewLinks(previewAlbum());
+}
+showPrefs();
+{
+  const saved = /** @type {any} */ (storedPrefs(window));
+  if (saved?.agent && saved.agent !== state.prefs.agent) {
+    actionStatus(`The saved agent "${saved.agent}" is no longer offered; purchase links open on the marketplace until you choose another.`);
+  }
+}
+for (const el of Object.values(prefEls)) el.addEventListener("change", () => {
+  const wanted = { agent: prefEls.agent.value, lookups: prefEls.lookups.checked,
+    currency: prefEls.currency.value.trim().toUpperCase(), rate: prefEls.rate.value.trim() };
+  state.prefs = normalizePrefs(wanted);
+  const saved = writePrefs(window, state.prefs);
+  actionStatus(!saved ? "Applied for this session only: the browser refused to save the preference."
+    : (wanted.currency || wanted.rate) && !state.prefs.currency
+    ? "Prices stay in CNY until both a 3-letter currency code and a rate above 0 (up to 6 decimals) are entered." : "");
+  applyPrefs();
+});
+
+// A community spreadsheet names items by marketplace or agent link. Match
+// them to albums by item and tag the matches, so the Tag filter shows which
+// of the followed sellers carry them. Tags are additive, unlike a collection,
+// so nothing already saved is overwritten.
+workEl("import-sheet").addEventListener("change", async event => {
+  const file = event.target.files[0];
+  if (!file) return;
+  try {
+    if (file.size > 20 * 1024 * 1024) throw new Error("Spreadsheet exceeds 20 MB.");
+    const sheet = sheetItemKeys(await file.text());
+    const tag = "sheet:" + file.name.replace(/\.[^.]*$/, "").slice(0, 44);
+    const { matched, found } = matchSheet(state.albums, sheet.keys);
+    let full = 0;
+    for (const album of matched) {
+      const tags = userStore.get("tags", album.id) || [];
+      if (tags.includes(tag)) continue;
+      if (tags.length >= 20) { full++; continue; }
+      if (!userStore.set("tags", album.id, [...tags, tag])) throw new Error("Storage write failed.");
+    }
+    refreshSavedState(false);
+    actionStatus(`${sheet.rows} rows, ${sheet.urls} links, ${sheet.keys.size} distinct items. ` +
+      `${found.size} items matched ${matched.length} albums, tagged ${tag}; ${sheet.keys.size - found.size} items are not in the loaded catalogue` +
+      (full ? `; ${full} matched albums already carry 20 tags` : "") + `. Catalogue: ${catalogueAvailability()}.`);
+    if (matched.length) useFilters({...state.view.filters, tag});
+    else applyFilters();
+  } catch (error) { savedDataError(error.message); }
+  finally { event.target.value = ""; }
 });

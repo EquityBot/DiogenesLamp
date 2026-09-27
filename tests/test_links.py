@@ -3,7 +3,15 @@ from pathlib import Path
 
 import pytest
 
-from lamp.links import _SHORTLINK_HOSTS, Link, _platform, extract_links
+from lamp.links import (
+    _AGENT_HOSTS,
+    _SHORTLINK_HOSTS,
+    ITEM_URLS,
+    Link,
+    _platform,
+    extract_links,
+    item_link,
+)
 
 CASES = [
     (
@@ -107,14 +115,31 @@ def test_fragments_are_stripped_so_the_same_item_matches_itself():
     assert extract_links("https://m.tb.cn/h.ABC#x")[0].url == "https://m.tb.cn/h.ABC"
 
 
+def _viewer(name: str) -> str:
+    return (Path(__file__).resolve().parents[1] / "viewer" / name).read_text(encoding="utf-8")
+
+
 def test_shortlink_hosts_match_the_viewer_dedup_list():
     """A shortlink host the scraper stores but the viewer cannot key on would
     silently stop those albums from deduplicating."""
-    dedup_js = (Path(__file__).resolve().parents[1] / "viewer" / "dedup.js").read_text(
-        encoding="utf-8"
-    )
-    viewer_hosts = set(re.findall(r'url\.hostname === "([^"]+)"', dedup_js))
-    assert viewer_hosts == set(_SHORTLINK_HOSTS)
+    block = re.search(r"SHORTLINK_HOSTS = \[([^\]]*)\]", _viewer("dedup.js")).group(1)
+    assert set(re.findall(r'"([^"]+)"', block)) == set(_SHORTLINK_HOSTS)
+
+
+def test_agent_hosts_match_the_viewer_agent_table():
+    """An agent the scraper unwraps but the viewer cannot recognise would make
+    a pasted link of that agent miss the album the scraper keyed from it."""
+    assert set(re.findall(r'host: "([^"]+)"', _viewer("agents.js"))) == set(_AGENT_HOSTS)
+
+
+def test_item_urls_match_the_viewer_canonical_forms():
+    """Both sides rebuild a marketplace link from a bare id; they must agree."""
+    block = re.search(r"const ITEM_URLS = \{(.*?)\};", _viewer("dedup.js"), re.S).group(1)
+    prefixes = dict(re.findall(r'"?([a-z0-9]+)"?: "([^"]+)"', block))
+    assert set(prefixes) == set(ITEM_URLS)
+    for platform, template in ITEM_URLS.items():
+        suffix = ".html" if platform == "1688" else ""
+        assert template.format(id="123") == prefixes[platform] + "123" + suffix
 
 
 def test_control_and_invisible_characters_never_reach_a_url():
@@ -175,3 +200,105 @@ def test_a_suffix_lookalike_never_collapses_onto_the_real_host(text):
 def test_valid_hosts_still_match(text, host):
     links = extract_links(text)
     assert links and host in links[0].url
+
+
+WD = Link("weidian", "https://weidian.com/item.html?itemID=7652831688")
+TB = Link("taobao", "https://item.taobao.com/item.htm?id=560198996624")
+ALI = Link("1688", "https://detail.1688.com/offer/691234567890.html")
+WD_ENC = "https%3A%2F%2Fweidian.com%2Fitem.html%3FitemID%3D7652831688"
+
+# Agent formats read from the public link converters on 27 September 2026.
+AGENT_CASES = [
+    (f"https://www.kakobuy.com/item/details?url={WD_ENC}&affcode=thelude", [WD]),
+    ("https://hoobuy.com/product/1/560198996624", [TB]),
+    ("https://hoobuy.com/product/0/691234567890", [ALI]),
+    ("https://hoobuy.com/product/2/7652831688", [WD]),
+    ("https://oopbuy.com/goods/details?id=7652831688&channel=weidian", [WD]),
+    ("https://oopbuy.com/goods/details?id=691234567890&channel=1688", [ALI]),
+    ("https://mulebuy.com/product/?shop_type=ali_1688&id=691234567890", [ALI]),
+    ("https://joyagoo.com/product/?shop_type=taobao&id=560198996624", [TB]),
+    # A retired agent's link still names the item.
+    ("https://cnfans.com/product/?shop_type=weidian&id=7652831688", [WD]),
+    ("https://www.cssbuy.com/item-micro-7652831688.html", [WD]),
+    ("https://www.cssbuy.com/item-1688-691234567890.html", [ALI]),
+    ("https://www.cssbuy.com/item-560198996624.html", [TB]),
+    ("https://www.sugargoo.com/productDetail?productLink=https%3A%2F%2Fdetail.1688.com%2Foffer%2F691234567890.html", [ALI]),
+    ("https://www.superbuy.com/en/page/buy/?url=https%3A%2F%2Fitem.taobao.com%2Fitem.htm%3Fid%3D560198996624", [TB]),
+    (f"https://www.loongbuy.com/product-details?url={WD_ENC}", [WD]),
+    ("https://www.pikobuy.com/product/detail?productUrl=https%3A%2F%2Fdetail.1688.com%2Foffer%2F691234567890.html", [ALI]),
+    # One agent quoting another is one more unwrap; a third layer is not followed.
+    ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fhoobuy.com%2Fproduct%2F2%2F7652831688", [WD]),
+    ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fwww.kakobuy.com%2Fitem%2Fdetails%3Furl%3D"
+     "https%253A%252F%252Fhoobuy.com%252Fproduct%252F2%252F7652831688", []),
+    # 1688 direct forms keep the host they were given and drop tracking.
+    ("https://detail.1688.com/offer/691234567890.html?spm=a2615.7691456", [ALI]),
+    ("m.1688.com/offer/691234567890.html", [Link("1688", "https://m.1688.com/offer/691234567890.html")]),
+    # Glued to prose like every other link.
+    ("购买https://hoobuy.com/product/2/7652831688，尺码咨询", [WD]),
+    # Refused: other sites wrapped by an agent, ambiguity, unknown channels, lookalikes, credentials.
+    ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fevil.example%2Fitem.html%3FitemID%3D1", []),
+    ("https://hoobuy.com/product/9/123", []),
+    ("https://oopbuy.com/goods/details?id=5&channel=unknown", []),
+    ("https://oopbuy.com/goods/details?id=5&id=6&channel=weidian", []),
+    ("https://mulebuy.com/product/?shop_type=weidian&channel=taobao&id=5", []),
+    ("https://oopbuy.com/goods/details?id=abc&channel=weidian", []),
+    (f"https://notkakobuy.com/item/details?url={WD_ENC}", []),
+    ("https://weidian.com@evil.example/item.html?itemID=123", []),
+    ("https://user@weidian.com/item.html?itemID=123", []),
+]
+
+
+@pytest.mark.parametrize("text,expected", AGENT_CASES)
+def test_agent_links_unwrap_to_the_marketplace_item(text, expected):
+    assert extract_links(text) == expected
+
+
+def test_an_agent_link_and_the_direct_link_are_one_entry():
+    text = f"https://hoobuy.com/product/2/7652831688 or {WD.url}"
+    assert extract_links(text) == [WD]
+
+
+def test_invisible_characters_end_a_url_instead_of_splicing_it():
+    """"id=12<NUL>34" must not become id 1234, an id nobody wrote."""
+    links = extract_links("weidian.com/item.html?itemID=12\x0034")
+    assert links == [Link("weidian", "https://weidian.com/item.html?itemID=12")]
+
+
+@pytest.mark.parametrize("platform,item_id,expected", [
+    ("taobao", "1", TB.url.replace("560198996624", "1")),
+    ("1688", "691234567890", ALI.url),
+    ("weidian", "x", None),
+    ("nowhere", "1", None),
+])
+def test_item_link_builds_only_well_formed_items(platform, item_id, expected):
+    link = item_link(platform, item_id)
+    assert (link.url if link else None) == expected
+
+
+@pytest.mark.parametrize("text,expected", [
+    # The wrapped value is judged as one URL by its own host: a marketplace
+    # URL riding inside another site's query string names nothing.
+    ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fevil.example%2F%3Fnext%3Dhttps%3A%2F%2F"
+     "weidian.com%2Fitem.html%3FitemID%3D123", []),
+    ("https://www.kakobuy.com/item/details?url=weidian.com%2Fitem.html%3FitemID%3D123", [
+        Link("weidian", "https://weidian.com/item.html?itemID=123")]),
+    ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fitem.taobao.com%2Fitem.htm%3Fid%3D5%23detail", [
+        Link("taobao", "https://item.taobao.com/item.htm?id=5")]),
+    ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fweidian.com%40evil.example%2Fitem.html%3FitemID%3D1", []),
+])
+def test_wrapped_urls_are_judged_whole(text, expected):
+    assert extract_links(text) == expected
+
+
+@pytest.mark.parametrize("text,expected", [
+    # The decoded wrapped URL gets the same cleanup as prose candidates: an
+    # invisible character ends it and trailing punctuation falls away.
+    ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fweidian.com%2Fitem.html%3FitemID%3D12%0034", [
+        Link("weidian", "https://weidian.com/item.html?itemID=12")]),
+    ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fitem.taobao.com%2Fitem.htm%3Fid%3D5%29%E3%80%82", [
+        Link("taobao", "https://item.taobao.com/item.htm?id=5")]),
+    ("https://www.sugargoo.com/productDetail?productLink=https%3A%2F%2Fdetail.1688.com%2Foffer%2F7.html%E2%80%8B", [
+        Link("1688", "https://detail.1688.com/offer/7.html")]),
+])
+def test_wrapped_urls_get_the_same_cleanup_as_prose(text, expected):
+    assert extract_links(text) == expected

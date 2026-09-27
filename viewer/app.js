@@ -27,6 +27,7 @@ const state = {
   failedShards: [],    // sellers whose shard could not be fetched
   categories: new Set(), // every category seen, collected as shards arrive
   filterVersion: 0,    // bumped whenever `filtered` is rebuilt
+  prefs: readPrefs(window), // agent, lookups and currency choices (prefs.js)
 };
 
 const els = {
@@ -37,6 +38,8 @@ const els = {
   tag: document.getElementById("tag-filter"),
   unreviewed: document.getElementById("unreviewed"),
   changed: document.getElementById("changed"),
+  kind: document.getElementById("kind-filter"),
+  descriptionCoverage: document.getElementById("description-coverage"),
   search: document.getElementById("search"),
   seller: document.getElementById("seller-filter"),
   category: document.getElementById("category-filter"),
@@ -81,6 +84,7 @@ function currentFilters() {
     tag: els.tag.value,
     unreviewed: els.unreviewed.checked,
     changed: els.changed.checked,
+    kind: els.kind.value,
   };
 }
 
@@ -116,7 +120,11 @@ function applyStoredFilters() {
   }
   setSelectIfPresent(els.seller, storedFilters.seller);
   setSelectIfPresent(els.category, storedFilters.category);
+  setSelectIfPresent(els.kind, storedFilters.kind);
 }
+// Kinds are a fixed table, so their options exist before any filter is restored.
+for (const kind of KINDS) els.kind.add(new Option(kind.label, kind.id));
+els.kind.add(new Option("Unsorted: no kind found in the title", UNSORTED));
 applyStoredFilters();
 state.view = createViewState(storedFilters, currentFilters());
 
@@ -285,6 +293,7 @@ async function shardWorker() {
       if (!validCatalogueShard(shard, seller.id)) throw new Error("Invalid catalogue shard");
       for (const album of shard.albums) {
         album.dup_key = dupKey(album);
+        album.kind = kindOf(album.title);
         prepareAlbumSearch(album);
         album.published_ms = publishedMs(album);
       }
@@ -319,6 +328,25 @@ function rebuildAlbums() {
   }
 }
 
+// Descriptions arrive as albums are refetched, so for a long while the
+// search covers some albums' text and not others'. Say so, in numbers,
+// against the loaded corpus.
+function setDescriptionCoverage() {
+  let recorded = 0, empty = 0, excerpts = 0;
+  for (const album of state.albums) {
+    if (!("description" in album)) continue;
+    recorded += 1;
+    if (!album.description) empty += 1;
+    if (album.description_truncated) excerpts += 1;
+  }
+  const total = state.albums.length;
+  els.descriptionCoverage.textContent = !total ? "" :
+    `Descriptions recorded for ${recorded} of ${total} loaded albums` +
+    (empty ? `, ${empty} with no text extracted` : "") +
+    (excerpts ? `, ${excerpts} saved as excerpts` : "") +
+    `; ${total - recorded} not recorded yet. Search covers saved text only.`;
+}
+
 // With several shard fetches landing concurrently, refreshing the grid per
 // shard would filter and re-render the whole corpus dozens of times a
 // second. Coalesce to at most one refresh per 200ms.
@@ -337,6 +365,7 @@ function refreshUI() {
   // its pixel position after the rebuild instead.
   const anchor = topVisibleAlbum();
   rebuildAlbums();
+  setDescriptionCoverage();
   refreshCategoryOptions();
   applyFilters();
   restoreAnchor(anchor);
@@ -532,10 +561,16 @@ function makeCard(album) {
   // scraper constrains platform to a known set and builds URLs itself, so
   // nothing hostile is expected - but escaping is a line of code and the
   // alternative is trusting that forever.
-  const links = album.links.map((link) =>
-    `<a class="${escapeAttr(link.platform)}" href="${escapeAttr(link.url)}" ` +
-    `target="_blank" rel="noreferrer">${escapeHtml(link.platform)}</a>`
-  ).join("");
+  // With an agent chosen the mark keeps its platform name and opens on the
+  // agent, rebuilt from the item id; the marketplace link stays in the preview.
+  const agent = ACTIVE_AGENTS.find((candidate) => candidate.id === state.prefs.agent);
+  const links = album.links.map((link) => {
+    const via = agent ? agentLink(agent.id, marketplaceItem(link.url)) : "";
+    const opens = via && agent ? `${escapeAttr(link.platform)}, opens on ${escapeAttr(agent.name)}` : "";
+    return `<a class="${escapeAttr(link.platform)}" href="${escapeAttr(via || link.url)}" ` +
+      (opens ? `title="${opens}" aria-label="${opens}" ` : "") +
+      `target="_blank" rel="noreferrer">${escapeHtml(link.platform)}</a>`;
+  }).join("");
   const dupCount = album.dup_key ? state.dupCounts.get(album.dup_key) || 0 : 0;
   // Remember what the badge was built from: a later pass can reuse this
   // node only while that count still holds.
@@ -572,7 +607,7 @@ function makeCard(album) {
     // with the cover height at every breakpoint. They sit above the link so
     // it cannot swallow their clicks.
     (isNew ? `<span class="tag-new">NEW</span>` : "") +
-    (album.price ? `<span class="badge-price">${escapeHtml(formatPrice(album.price))}</span>` : "") +
+    (album.price ? `<span class="badge-price">${escapeHtml(displayPrice(album.price, state.prefs, formatPrice))}</span>` : "") +
     (dupCount > 1
       ? `<button class="badge-dup" type="button" ` +
         `aria-label="Show all ${dupCount} copies of this posting">` +
@@ -1017,7 +1052,7 @@ function restoreLateFilters() {
 function clearFilters() {
   state.view = nextViewState(state.view, { type: "clear-filters" });
   const filters = state.view.filters;
-  for (const key of ["search", "seller", "category", "age", "sort", "priceMin", "priceMax", "collection", "tag"]) els[key].value = filters[key];
+  for (const key of ["search", "seller", "category", "age", "sort", "priceMin", "priceMax", "collection", "tag", "kind"]) els[key].value = filters[key];
   for (const key of ["newOnly", "favsOnly", "hideDups", "includeUnknown", "unreviewed", "changed"]) els[key].checked = filters[key];
   writeFilters(window, filters);
   saveFilterURL();
@@ -1035,7 +1070,7 @@ els.search.addEventListener("input", () => {
 });
 for (const el of [els.seller, els.category, els.newOnly, els.favsOnly,
                   els.hideDups, els.age, els.sort, els.priceMin, els.priceMax, els.includeUnknown,
-                  els.collection, els.tag, els.unreviewed, els.changed]) {
+                  els.collection, els.tag, els.unreviewed, els.changed, els.kind]) {
   el.addEventListener("change", userFilterChange);
 }
 

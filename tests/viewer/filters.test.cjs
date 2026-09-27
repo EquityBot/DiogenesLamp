@@ -254,3 +254,10 @@ test("new + favourites + hide-dups still count as three independent filters", ()
   assert.deepEqual(serializeFilters(filters),
     { newOnly: true, favsOnly: true, hideDups: true });
 });
+
+test("kind is a persisted string filter", () => {
+  assert.equal(normalizeFilters({ kind: "shoes" }).kind, "shoes");
+  assert.equal(normalizeFilters({ kind: 5 }).kind, "");
+  assert.ok(anyFilterActive({ kind: "shoes" }));
+  assert.deepEqual(serializeFilters({ kind: "shoes" }), { kind: "shoes" });
+});
