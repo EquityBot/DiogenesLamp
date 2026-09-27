@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import os
 import re
 from pathlib import Path
 from urllib.parse import urlsplit
@@ -13,8 +14,13 @@ def data_path(root: Path, relative: str, kind: str = "metadata") -> Path:
                r"(?:index\.json|(?:catalog|runs)/[a-z0-9_-]+\.json)")
     if not isinstance(relative, str) or not re.fullmatch(pattern, relative):
         raise ValueError("unsafe catalogue path")
-    path = (root / relative).resolve()
-    if not path.is_relative_to(root.resolve()):
+    # Only the root is resolved, because it exists. Resolving the target raced
+    # with a sibling seller thread creating catalog/ or runs/: Windows realpath
+    # keeps the extended-length prefix when a component appears mid-call, and
+    # the prefixed path then failed this check.
+    root = root.resolve()
+    path = Path(os.path.normpath(root / relative))
+    if not path.is_relative_to(root):
         raise ValueError("catalogue path escapes data directory")
     return path
 
