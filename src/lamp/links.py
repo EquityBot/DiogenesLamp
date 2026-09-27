@@ -223,9 +223,9 @@ def _unwrap_agent(agent: str, rest: str, depth: int) -> Link | None:
                 # site's business, not a purchase link.
                 return _wrapped_link(wrapped, depth + 1)
         return None
-    query = _AGENT_QUERY.get(agent)
-    if query:
-        id_key, channel_key = query
+    keys = _AGENT_QUERY.get(agent)
+    if keys:
+        id_key, channel_key = keys
         if id_key not in params or channel_key not in params:
             return None
         names = _RIZZITGO_SOURCES if agent == "rizzitgo.com" else _AGENT_PLATFORMS
