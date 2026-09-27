@@ -23,6 +23,9 @@ _AGENT_HOSTS = (
     "kakobuy.com", "hoobuy.com", "oopbuy.com", "mulebuy.com", "joyagoo.com",
     "cssbuy.com", "sugargoo.com", "superbuy.com", "loongbuy.com", "pikobuy.com",
     "cnfans.com", "allchinabuy.com", "pandabuy.com",
+    "itaobuy.com", "bbdbuy.com", "ootdbuy.com", "lovegobuy.com", "cnshopper.com",
+    "alleurobuy.com", "rizzitgo.com", "vigorbuy.com", "usfans.com", "litbuy.com",
+    "hipobuy.com", "gtbuy.com",
 )
 
 _HOST_ALTERNATION = "|".join(
@@ -66,9 +69,21 @@ ITEM_URLS = {
 _AGENT_PLATFORMS = {
     "weidian": "weidian", "wd": "weidian", "taobao": "taobao", "tb": "taobao",
     "tmall": "tmall", "1688": "1688", "ali_1688": "1688", "alibaba": "1688",
+    "tao": "taobao", "ali": "1688",
 }
-# hoobuy numbers its channels in the path: /product/<channel>/<id>.
+# Some agents name the marketplace in the path: /product/<channel>/<id>. hoobuy
+# and vigorbuy number the channels one way, usfans another, and litbuy, hipobuy
+# and gtbuy spell weidian out; hipobuy ends a 1688 path with .html.
 _HOOBUY_CHANNELS = {"0": "1688", "1": "taobao", "2": "weidian"}
+_USFANS_CHANNELS = {"1": "1688", "2": "taobao", "3": "weidian"}
+_NAMED_CHANNELS = {"0": "1688", "1": "taobao", "weidian": "weidian"}
+_PATH_CHANNELS = {
+    "hoobuy.com": _HOOBUY_CHANNELS, "vigorbuy.com": _HOOBUY_CHANNELS,
+    "usfans.com": _USFANS_CHANNELS, "litbuy.com": _NAMED_CHANNELS,
+    "hipobuy.com": _NAMED_CHANNELS, "gtbuy.com": _NAMED_CHANNELS,
+}
+# rizzitgo numbers the marketplace in its source parameter.
+_RIZZITGO_SOURCES = {"1": "taobao", "2": "1688", "3": "weidian"}
 # cssbuy names the marketplace in the file name: item-<id>, item-micro-<id>, item-1688-<id>.
 _CSSBUY_PREFIXES = {"": "taobao", "micro-": "weidian", "1688-": "1688"}
 # Parameters that carry the whole marketplace URL, percent-encoded.
@@ -183,16 +198,19 @@ def _unwrap_agent(agent: str, rest: str, depth: int) -> Link | None:
             # URL riding inside some other site's query string is that site's
             # business, not a purchase link.
             return _wrapped_link(wrapped, depth + 1)
-    ids = {params[key] for key in ("id", "itemid", "goodsid") if key in params}
-    channels = {params[key].lower() for key in ("channel", "shop_type", "source") if key in params}
+    ids = {params[key] for key in ("id", "itemid", "goodsid", "keyword") if key in params}
+    channels = {params[key].lower() for key in ("channel", "shop_type", "source", "platform", "type")
+                if key in params}
     if len(ids) > 1 or len(channels) > 1:
         return None
     if ids and channels:
-        return item_link(_AGENT_PLATFORMS.get(next(iter(channels)), ""), next(iter(ids)))
-    if agent == "hoobuy.com":
-        match = re.fullmatch(r"/product/([0-9])/([0-9]+)/?", path)
+        names = _RIZZITGO_SOURCES if agent == "rizzitgo.com" else _AGENT_PLATFORMS
+        return item_link(names.get(next(iter(channels)), ""), next(iter(ids)))
+    codes = _PATH_CHANNELS.get(agent)
+    if codes:
+        match = re.fullmatch(r"/product/([A-Za-z0-9]+)/([0-9]+)(?:\.html)?/?", path)
         if match:
-            return item_link(_HOOBUY_CHANNELS.get(match.group(1), ""), match.group(2))
+            return item_link(codes.get(match.group(1).lower(), ""), match.group(2))
     if agent == "cssbuy.com":
         match = re.fullmatch(r"/item-(micro-|1688-)?([0-9]+)\.html", path)
         if match:
