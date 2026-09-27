@@ -6,7 +6,8 @@
  * search_keys?: string[]}} SearchAlbum */
 const SEARCH_DEDUP = typeof module !== "undefined" ? require("./dedup.js")
   : { itemKeys, marketplaceItem, SHORTLINK_HOSTS };
-const SEARCH_AGENTS = typeof module !== "undefined" ? require("./agents.js") : { unwrapAgentLink, agentLink };
+const SEARCH_AGENTS = typeof module !== "undefined" ? require("./agents.js")
+  : { unwrapAgentLink, agentLink, agentFor };
 
 /** @param {SearchAlbum} album */
 function prepareAlbumSearch(album) {
@@ -35,6 +36,23 @@ function keyForUrl(raw) {
   return "";
 }
 
+// Album text carries purchase links without a scheme and the scraper reads
+// them; a pasted copy of one gets its scheme back here, but only when the
+// host is one the catalogue keys on, so ordinary words with a dot stay a
+// text search. Throws like new URL() for anything else.
+/** @param {string} text */
+function pastedUrl(text) {
+  try { return new URL(text); } catch { /* try a scheme-less known host */ }
+  if (!/^[a-z0-9.-]+\.[a-z]{2,}(?:[/?]|$)/i.test(text)) throw new TypeError("not a URL");
+  const url = new URL("https://" + text);
+  const host = url.hostname.toLowerCase();
+  const known = host === "yupoo.com" || host.endsWith(".yupoo.com") ||
+    SEARCH_DEDUP.SHORTLINK_HOSTS.includes(host) || SEARCH_AGENTS.agentFor(host) !== null ||
+    SEARCH_DEDUP.marketplaceItem(url.href) !== null;
+  if (!known) throw new TypeError("not a known host");
+  return url;
+}
+
 /** @param {string} query */
 function compileCatalogueSearch(query) {
   const text = query.trim().normalize("NFKC");
@@ -42,7 +60,7 @@ function compileCatalogueSearch(query) {
   let exactKey = "";
   let isUrl = false;
   try {
-    const url = new URL(text);
+    const url = pastedUrl(text);
     isUrl = true;
     const host = url.hostname.toLowerCase();
     if (host.endsWith(".yupoo.com") || host === "yupoo.com") {

@@ -84,6 +84,24 @@ _PATH_CHANNELS = {
 }
 # rizzitgo numbers the marketplace in its source parameter.
 _RIZZITGO_SOURCES = {"1": "taobao", "2": "1688", "3": "weidian"}
+# Each agent names its item one way only. Wrapped agents carry the whole
+# marketplace URL in one of _WRAPPED_URL_PARAMS; query agents name the id
+# and the marketplace in the two parameters listed here; path agents are
+# in _PATH_CHANNELS and cssbuy spells the marketplace in its file name. A
+# parameter an agent does not use names nothing on that agent's pages.
+_WRAPPED_AGENTS = frozenset({
+    "kakobuy.com", "superbuy.com", "sugargoo.com", "loongbuy.com", "pikobuy.com",
+    "itaobuy.com", "bbdbuy.com", "allchinabuy.com", "pandabuy.com",
+})
+_AGENT_QUERY = {
+    "oopbuy.com": ("id", "channel"), "ootdbuy.com": ("id", "channel"),
+    "mulebuy.com": ("id", "shop_type"), "joyagoo.com": ("id", "shop_type"),
+    "cnfans.com": ("id", "shop_type"), "lovegobuy.com": ("id", "shop_type"),
+    "cnshopper.com": ("keyword", "platform"), "alleurobuy.com": ("id", "type"),
+    "rizzitgo.com": ("goodsid", "source"),
+}
+_ID_PARAMS = ("id", "itemid", "goodsid", "keyword")
+_CHANNEL_PARAMS = ("channel", "shop_type", "source", "platform", "type")
 # cssbuy names the marketplace in the file name: item-<id>, item-micro-<id>, item-1688-<id>.
 _CSSBUY_PREFIXES = {"": "taobao", "micro-": "weidian", "1688-": "1688"}
 # Parameters that carry the whole marketplace URL, percent-encoded.
@@ -190,22 +208,28 @@ def _unwrap_agent(agent: str, rest: str, depth: int) -> Link | None:
     if any(len(found) > 1 for found in values.values()):
         return None
     params = {key: next(iter(found)) for key, found in values.items()}
-    for key in _WRAPPED_URL_PARAMS:
-        wrapped = params.get(key, "")
-        if wrapped:
-            # parse_qsl decoded the one layer the agent applied. The wrapped
-            # value is one whole URL, judged by its own host: a marketplace
-            # URL riding inside some other site's query string is that site's
-            # business, not a purchase link.
-            return _wrapped_link(wrapped, depth + 1)
-    ids = {params[key] for key in ("id", "itemid", "goodsid", "keyword") if key in params}
-    channels = {params[key].lower() for key in ("channel", "shop_type", "source", "platform", "type")
-                if key in params}
+    # Two item ids, or two marketplace hints, name no single item either.
+    ids = {params[key] for key in _ID_PARAMS if key in params}
+    channels = {params[key].lower() for key in _CHANNEL_PARAMS if key in params}
     if len(ids) > 1 or len(channels) > 1:
         return None
-    if ids and channels:
+    if agent in _WRAPPED_AGENTS:
+        for key in _WRAPPED_URL_PARAMS:
+            wrapped = params.get(key, "")
+            if wrapped:
+                # parse_qsl decoded the one layer the agent applied. The wrapped
+                # value is one whole URL, judged by its own host: a marketplace
+                # URL riding inside some other site's query string is that
+                # site's business, not a purchase link.
+                return _wrapped_link(wrapped, depth + 1)
+        return None
+    query = _AGENT_QUERY.get(agent)
+    if query:
+        id_key, channel_key = query
+        if id_key not in params or channel_key not in params:
+            return None
         names = _RIZZITGO_SOURCES if agent == "rizzitgo.com" else _AGENT_PLATFORMS
-        return item_link(names.get(next(iter(channels)), ""), next(iter(ids)))
+        return item_link(names.get(params[channel_key].lower(), ""), params[id_key])
     codes = _PATH_CHANNELS.get(agent)
     if codes:
         match = re.fullmatch(r"/product/([A-Za-z0-9]+)/([0-9]+)(?:\.html)?/?", path)

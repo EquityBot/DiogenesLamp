@@ -123,6 +123,18 @@ const PATH_CHANNELS = { hoobuy: HOOBUY_CHANNELS, vigorbuy: HOOBUY_CHANNELS, usfa
   litbuy: NAMED_CHANNELS, hipobuy: NAMED_CHANNELS, gtbuy: NAMED_CHANNELS };
 /** @type {Record<string, Marketplace>} */
 const RIZZITGO_SOURCES = { "1": "taobao", "2": "1688", "3": "weidian" };
+// Each agent names its item one way only: wrapped agents carry the whole
+// marketplace URL in a parameter, query agents name the id and marketplace
+// in the two parameters listed here, path agents are in PATH_CHANNELS and
+// cssbuy spells the marketplace in its file name. links.py keeps the same.
+const WRAPPED_AGENTS = new Set(["kakobuy", "superbuy", "sugargoo", "loongbuy", "pikobuy", "itaobuy", "bbdbuy",
+  "allchinabuy", "pandabuy"]);
+/** @type {Record<string, [string, string]>} */
+const AGENT_QUERY = { oopbuy: ["id", "channel"], ootdbuy: ["id", "channel"], mulebuy: ["id", "shop_type"],
+  joyagoo: ["id", "shop_type"], cnfans: ["id", "shop_type"], lovegobuy: ["id", "shop_type"],
+  cnshopper: ["keyword", "platform"], alleurobuy: ["id", "type"], rizzitgo: ["goodsid", "source"] };
+const ID_PARAMS = ["id", "itemid", "goodsid", "keyword"];
+const CHANNEL_PARAMS = ["channel", "shop_type", "source", "platform", "type"];
 /** @type {Record<string, Marketplace>} */
 const CSSBUY_PREFIXES = { "": "taobao", "micro-": "weidian", "1688-": "1688" };
 
@@ -152,25 +164,32 @@ function unwrapAgentLink(raw, depth = 0) {
   if ([...values.values()].some(found => found.size > 1)) return null;
   /** @param {string} key */
   const param = key => values.get(key)?.values().next().value || "";
-  for (const key of ["url", "productlink", "producturl", "link"]) {
-    const inner = param(key);
-    if (!inner) continue;
-    // URLSearchParams decoded the one layer the agent applied; an agent
-    // quoting another agent is one more unwrap, and nothing deeper.
-    const item = AGENT_DEDUP.marketplaceItem(inner) ||
-      AGENT_DEDUP.marketplaceItem(unwrapAgentLink(inner, depth + 1) || "");
-    return item ? AGENT_DEDUP.marketplaceUrl(item) : null;
-  }
-  const ids = new Set(["id", "itemid", "goodsid", "keyword"].map(param).filter(Boolean));
-  const channels = new Set(["channel", "shop_type", "source", "platform", "type"].map(param).filter(Boolean)
-    .map(v => v.toLowerCase()));
+  // Two item ids, or two marketplace hints, name no single item either.
+  const ids = new Set(ID_PARAMS.map(param).filter(Boolean));
+  const channels = new Set(CHANNEL_PARAMS.map(param).filter(Boolean).map(v => v.toLowerCase()));
   if (ids.size > 1 || channels.size > 1) return null;
-  const id = ids.values().next().value || "";
-  const channel = channels.values().next().value || "";
+  if (WRAPPED_AGENTS.has(agent.id)) {
+    for (const key of ["url", "productlink", "producturl", "link"]) {
+      const inner = param(key);
+      if (!inner) continue;
+      // URLSearchParams decoded the one layer the agent applied; an agent
+      // quoting another agent is one more unwrap, and nothing deeper.
+      const item = AGENT_DEDUP.marketplaceItem(inner) ||
+        AGENT_DEDUP.marketplaceItem(unwrapAgentLink(inner, depth + 1) || "");
+      return item ? AGENT_DEDUP.marketplaceUrl(item) : null;
+    }
+    return null;
+  }
   /** @param {Marketplace | undefined} platform @param {string} itemId */
   const item = (platform, itemId) => platform && /^[0-9]{1,24}$/.test(itemId)
     ? AGENT_DEDUP.marketplaceUrl({ platform, id: itemId }) : null;
-  if (id && channel) return item((agent.id === "rizzitgo" ? RIZZITGO_SOURCES : AGENT_PLATFORMS)[channel], id);
+  const query = AGENT_QUERY[agent.id];
+  if (query) {
+    const id = param(query[0]);
+    const channel = param(query[1]).toLowerCase();
+    if (!id || !channel) return null;
+    return item((agent.id === "rizzitgo" ? RIZZITGO_SOURCES : AGENT_PLATFORMS)[channel], id);
+  }
   const codes = PATH_CHANNELS[agent.id];
   if (codes) {
     const match = /^\/product\/([A-Za-z0-9]+)\/([0-9]+)(?:\.html)?\/?$/.exec(url.pathname);

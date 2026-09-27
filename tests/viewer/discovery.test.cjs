@@ -82,6 +82,17 @@ test("pasted agent and 1688 links find the album they name", () => {
   assert.equal(compileCatalogueSearch("https://m.1688.com/offer/691234567890.html").reason(ali), "Purchase link");
   assert.equal(compileCatalogueSearch("691234567890").reason(ali), "Exact item ID");
   assert.equal(keyForUrl("https://weidian.com/?userid=5"), "");
+  // A pasted link without its scheme, as album text carries them, still
+  // keys on the item when its host is a known agent or marketplace.
+  for (const q of ["cnshopper.com/goods/detail?keyword=7652831688&platform=weidian",
+    "hoobuy.com/product/2/7652831688", "weidian.com/item.html?itemID=7652831688"]) {
+    assert.equal(compileCatalogueSearch(q).reason(wd), "Purchase link", q);
+  }
+  assert.equal(compileCatalogueSearch("m.1688.com/offer/691234567890.html").reason(ali), "Purchase link");
+  // An unknown host with a dot is a text search, not a failed link.
+  const named = { ...album, id: "202", title: "see nike.com/air for the sample" };
+  prepareAlbumSearch(named);
+  assert.equal(compileCatalogueSearch("nike.com/air").reason(named), "Title");
 });
 
 test("descriptions are searched after titles and named as the reason", () => {

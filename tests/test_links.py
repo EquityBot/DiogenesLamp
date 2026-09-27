@@ -248,6 +248,15 @@ AGENT_CASES = [
     ("https://usfans.com/product/0/691234567890", []),
     ("https://rizzitgo.com/detail-page?goodsId=5&source=weidian", []),
     ("https://www.litbuy.com/product/tmall/5", []),
+    # A parameter an agent does not use names nothing on its pages: a path
+    # agent ignores query hints, a query agent reads only its own keys, and a
+    # wrapped agent reads only its wrapped URL.
+    ("https://usfans.com/product/0/691234567890?keyword=691234567890&platform=1688", []),
+    ("https://hoobuy.com/product/2/7652831688?id=5&channel=taobao", [WD]),
+    ("https://oopbuy.com/goods/details?keyword=7652831688&platform=weidian", []),
+    ("https://cnshopper.com/goods/detail?id=7652831688&channel=weidian", []),
+    ("https://www.kakobuy.com/item/details?id=7652831688&channel=weidian", []),
+    ("https://oopbuy.com/goods/details?url=" + WD_ENC, []),
     # One agent quoting another is one more unwrap; a third layer is not followed.
     ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fhoobuy.com%2Fproduct%2F2%2F7652831688", [WD]),
     ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fwww.kakobuy.com%2Fitem%2Fdetails%3Furl%3D"
