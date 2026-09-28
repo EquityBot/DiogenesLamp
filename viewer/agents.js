@@ -59,6 +59,36 @@ const AGENTS = [
     build: item => `https://www.loongbuy.com/product-details?url=${wrapped(item)}` },
   { id: "pikobuy", name: "Pikobuy", host: "pikobuy.com", checked: "2026-09-27",
     build: item => `https://www.pikobuy.com/product/detail?productUrl=${wrapped(item)}` },
+  { id: "itaobuy", name: "iTaobuy", host: "itaobuy.com", checked: "2026-09-27",
+    build: item => `https://www.itaobuy.com/product-detail?url=${wrapped(item)}` },
+  { id: "bbdbuy", name: "BBDbuy", host: "bbdbuy.com", checked: "2026-09-27",
+    build: item => `https://bbdbuy.com/index/item/${item.platform === "1688" ? "index1688" : "index"}.html?tp=taobao&tid=&searchlang=en&url=${wrapped(item)}` },
+  { id: "ootdbuy", name: "Ootdbuy", host: "ootdbuy.com", checked: "2026-09-27",
+    build: channelled({ "1688": "1688", taobao: "TAOBAO", weidian: "weidian" },
+      (channel, id) => `https://www.ootdbuy.com/goods/details?id=${id}&channel=${channel}`) },
+  { id: "lovegobuy", name: "Lovegobuy", host: "lovegobuy.com", checked: "2026-09-27",
+    build: channelled({ "1688": "ali_1688", taobao: "taobao", weidian: "weidian" },
+      (channel, id) => `https://www.lovegobuy.com/product?id=${id}&shop_type=${channel}`) },
+  { id: "cnshopper", name: "Cnshopper", host: "cnshopper.com", checked: "2026-09-27",
+    build: channelled({ "1688": "1688", taobao: "taobao", weidian: "weidian" },
+      (channel, id) => `https://cnshopper.com/goods/detail?keyword=${id}&platform=${channel}`) },
+  { id: "alleurobuy", name: "Alleurobuy", host: "alleurobuy.com", checked: "2026-09-27",
+    build: channelled({ "1688": "ali", taobao: "tao", weidian: "weidian" },
+      (channel, id) => `https://alleurobuy.com/index/detail-public?id=${id}&type=${channel}`) },
+  { id: "rizzitgo", name: "RizzitGO", host: "rizzitgo.com", checked: "2026-09-27",
+    build: channelled({ "1688": 2, taobao: 1, weidian: 3 },
+      (channel, id) => `https://rizzitgo.com/detail-page?goodsId=${id}&source=${channel}`) },
+  { id: "vigorbuy", name: "Vigorbuy", host: "vigorbuy.com", checked: "2026-09-27",
+    build: channelled({ "1688": 0, taobao: 1, weidian: 2 }, (channel, id) => `https://vigorbuy.com/product/${channel}/${id}`) },
+  { id: "usfans", name: "USFans", host: "usfans.com", checked: "2026-09-27",
+    build: channelled({ "1688": 1, taobao: 2, weidian: 3 }, (channel, id) => `https://usfans.com/product/${channel}/${id}`) },
+  { id: "litbuy", name: "Litbuy", host: "litbuy.com", checked: "2026-09-27",
+    build: channelled({ "1688": 0, taobao: 1, weidian: "weidian" }, (channel, id) => `https://www.litbuy.com/product/${channel}/${id}`) },
+  { id: "hipobuy", name: "hipobuy", host: "hipobuy.com", checked: "2026-09-27",
+    build: channelled({ "1688": 0, taobao: 1, weidian: "weidian" },
+      (channel, id) => `https://hipobuy.com/product/${channel}/${id}${channel === 0 ? ".html" : ""}`) },
+  { id: "gtbuy", name: "GTBuy", host: "gtbuy.com", checked: "2026-09-27",
+    build: channelled({ "1688": 0, taobao: 1, weidian: "weidian" }, (channel, id) => `https://www.gtbuy.com/product/${channel}/${id}`) },
   { id: "cnfans", name: "CNFans", host: "cnfans.com", checked: "2026-09-27", retired: "2026-08" },
   { id: "allchinabuy", name: "AllChinaBuy", host: "allchinabuy.com", checked: "2026-09-27", retired: "2026-08" },
   { id: "pandabuy", name: "Pandabuy", host: "pandabuy.com", checked: "2026-09-27", retired: "2024-04" },
@@ -79,9 +109,33 @@ function agentFor(hostname) {
 
 /** @type {Record<string, Marketplace>} */
 const AGENT_PLATFORMS = { weidian: "weidian", wd: "weidian", taobao: "taobao", tb: "taobao",
-  tmall: "tmall", "1688": "1688", ali_1688: "1688", alibaba: "1688" };
+  tmall: "tmall", "1688": "1688", ali_1688: "1688", alibaba: "1688", tao: "taobao", ali: "1688" };
 /** @type {Record<string, Marketplace>} */
 const HOOBUY_CHANNELS = { "0": "1688", "1": "taobao", "2": "weidian" };
+/** @type {Record<string, Marketplace>} */
+const USFANS_CHANNELS = { "1": "1688", "2": "taobao", "3": "weidian" };
+/** @type {Record<string, Marketplace>} */
+const NAMED_CHANNELS = { "0": "1688", "1": "taobao", weidian: "weidian" };
+// Agents that name the marketplace in the path, /product/<channel>/<id>, and
+// how each numbers or names its channels. links.py keeps the same maps.
+/** @type {Record<string, Record<string, Marketplace>>} */
+const PATH_CHANNELS = { hoobuy: HOOBUY_CHANNELS, vigorbuy: HOOBUY_CHANNELS, usfans: USFANS_CHANNELS,
+  litbuy: NAMED_CHANNELS, hipobuy: NAMED_CHANNELS, gtbuy: NAMED_CHANNELS };
+/** @type {Record<string, Marketplace>} */
+const RIZZITGO_SOURCES = { "1": "taobao", "2": "1688", "3": "weidian" };
+// Each agent names its item one way only: wrapped agents carry the whole
+// marketplace URL in a parameter, query agents name the id and marketplace
+// in the two parameters listed here, path agents are in PATH_CHANNELS and
+// cssbuy spells the marketplace in its file name. links.py keeps the same.
+const WRAPPED_AGENTS = new Set(["kakobuy", "superbuy", "sugargoo", "loongbuy", "pikobuy", "itaobuy", "bbdbuy",
+  "allchinabuy", "pandabuy"]);
+/** @type {Record<string, [string, string]>} */
+const AGENT_QUERY = { oopbuy: ["id", "channel"], ootdbuy: ["id", "channel"], mulebuy: ["id", "shop_type"],
+  joyagoo: ["id", "shop_type"], cnfans: ["id", "shop_type"], lovegobuy: ["id", "shop_type"],
+  cnshopper: ["keyword", "platform"], alleurobuy: ["id", "type"], rizzitgo: ["goodsid", "source"] };
+const WRAPPED_PARAMS = ["url", "productlink", "producturl", "link"];
+const ID_PARAMS = ["id", "itemid", "goodsid", "keyword"];
+const CHANNEL_PARAMS = ["channel", "shop_type", "source", "platform", "type"];
 /** @type {Record<string, Marketplace>} */
 const CSSBUY_PREFIXES = { "": "taobao", "micro-": "weidian", "1688-": "1688" };
 
@@ -108,30 +162,44 @@ function unwrapAgentLink(raw, depth = 0) {
     const key = k.toLowerCase();
     values.set(key, (values.get(key) || new Set()).add(v));
   }
-  if ([...values.values()].some(found => found.size > 1)) return null;
+  // Only the parameters an agent's own format reads can make its link
+  // ambiguous: a path agent names the item in the path whatever rides in
+  // the query. A parameter repeated with different values, or two item ids
+  // or marketplace hints on a query agent, names no single item.
+  /** @param {string[]} keys */
+  const ambiguous = keys => keys.some(key => (values.get(key)?.size || 0) > 1);
   /** @param {string} key */
   const param = key => values.get(key)?.values().next().value || "";
-  for (const key of ["url", "productlink", "producturl", "link"]) {
-    const inner = param(key);
-    if (!inner) continue;
-    // URLSearchParams decoded the one layer the agent applied; an agent
-    // quoting another agent is one more unwrap, and nothing deeper.
-    const item = AGENT_DEDUP.marketplaceItem(inner) ||
-      AGENT_DEDUP.marketplaceItem(unwrapAgentLink(inner, depth + 1) || "");
-    return item ? AGENT_DEDUP.marketplaceUrl(item) : null;
+  if (WRAPPED_AGENTS.has(agent.id)) {
+    if (ambiguous(WRAPPED_PARAMS)) return null;
+    for (const key of WRAPPED_PARAMS) {
+      const inner = param(key);
+      if (!inner) continue;
+      // URLSearchParams decoded the one layer the agent applied; an agent
+      // quoting another agent is one more unwrap, and nothing deeper.
+      const item = AGENT_DEDUP.marketplaceItem(inner) ||
+        AGENT_DEDUP.marketplaceItem(unwrapAgentLink(inner, depth + 1) || "");
+      return item ? AGENT_DEDUP.marketplaceUrl(item) : null;
+    }
+    return null;
   }
-  const ids = new Set(["id", "itemid", "goodsid"].map(param).filter(Boolean));
-  const channels = new Set(["channel", "shop_type", "source"].map(param).filter(Boolean).map(v => v.toLowerCase()));
-  if (ids.size > 1 || channels.size > 1) return null;
-  const id = ids.values().next().value || "";
-  const channel = channels.values().next().value || "";
   /** @param {Marketplace | undefined} platform @param {string} itemId */
   const item = (platform, itemId) => platform && /^[0-9]{1,24}$/.test(itemId)
     ? AGENT_DEDUP.marketplaceUrl({ platform, id: itemId }) : null;
-  if (id && channel) return item(AGENT_PLATFORMS[channel], id);
-  if (agent.id === "hoobuy") {
-    const match = /^\/product\/([0-9])\/([0-9]+)\/?$/.exec(url.pathname);
-    if (match) return item(HOOBUY_CHANNELS[match[1]], match[2]);
+  const query = AGENT_QUERY[agent.id];
+  if (query) {
+    const ids = new Set(ID_PARAMS.map(param).filter(Boolean));
+    const channels = new Set(CHANNEL_PARAMS.map(param).filter(Boolean).map(v => v.toLowerCase()));
+    if (ambiguous([...ID_PARAMS, ...CHANNEL_PARAMS]) || ids.size > 1 || channels.size > 1) return null;
+    const id = param(query[0]);
+    const channel = param(query[1]).toLowerCase();
+    if (!id || !channel) return null;
+    return item((agent.id === "rizzitgo" ? RIZZITGO_SOURCES : AGENT_PLATFORMS)[channel], id);
+  }
+  const codes = PATH_CHANNELS[agent.id];
+  if (codes) {
+    const match = /^\/product\/([A-Za-z0-9]+)\/([0-9]+)(?:\.html)?\/?$/.exec(url.pathname);
+    if (match) return item(codes[match[1].toLowerCase()], match[2]);
   }
   if (agent.id === "cssbuy") {
     const match = /^\/item-(micro-|1688-)?([0-9]+)\.html$/.exec(url.pathname);

@@ -23,6 +23,9 @@ _AGENT_HOSTS = (
     "kakobuy.com", "hoobuy.com", "oopbuy.com", "mulebuy.com", "joyagoo.com",
     "cssbuy.com", "sugargoo.com", "superbuy.com", "loongbuy.com", "pikobuy.com",
     "cnfans.com", "allchinabuy.com", "pandabuy.com",
+    "itaobuy.com", "bbdbuy.com", "ootdbuy.com", "lovegobuy.com", "cnshopper.com",
+    "alleurobuy.com", "rizzitgo.com", "vigorbuy.com", "usfans.com", "litbuy.com",
+    "hipobuy.com", "gtbuy.com",
 )
 
 _HOST_ALTERNATION = "|".join(
@@ -66,9 +69,39 @@ ITEM_URLS = {
 _AGENT_PLATFORMS = {
     "weidian": "weidian", "wd": "weidian", "taobao": "taobao", "tb": "taobao",
     "tmall": "tmall", "1688": "1688", "ali_1688": "1688", "alibaba": "1688",
+    "tao": "taobao", "ali": "1688",
 }
-# hoobuy numbers its channels in the path: /product/<channel>/<id>.
+# Some agents name the marketplace in the path: /product/<channel>/<id>. hoobuy
+# and vigorbuy number the channels one way, usfans another, and litbuy, hipobuy
+# and gtbuy spell weidian out; hipobuy ends a 1688 path with .html.
 _HOOBUY_CHANNELS = {"0": "1688", "1": "taobao", "2": "weidian"}
+_USFANS_CHANNELS = {"1": "1688", "2": "taobao", "3": "weidian"}
+_NAMED_CHANNELS = {"0": "1688", "1": "taobao", "weidian": "weidian"}
+_PATH_CHANNELS = {
+    "hoobuy.com": _HOOBUY_CHANNELS, "vigorbuy.com": _HOOBUY_CHANNELS,
+    "usfans.com": _USFANS_CHANNELS, "litbuy.com": _NAMED_CHANNELS,
+    "hipobuy.com": _NAMED_CHANNELS, "gtbuy.com": _NAMED_CHANNELS,
+}
+# rizzitgo numbers the marketplace in its source parameter.
+_RIZZITGO_SOURCES = {"1": "taobao", "2": "1688", "3": "weidian"}
+# Each agent names its item one way only. Wrapped agents carry the whole
+# marketplace URL in one of _WRAPPED_URL_PARAMS; query agents name the id
+# and the marketplace in the two parameters listed here; path agents are
+# in _PATH_CHANNELS and cssbuy spells the marketplace in its file name. A
+# parameter an agent does not use names nothing on that agent's pages.
+_WRAPPED_AGENTS = frozenset({
+    "kakobuy.com", "superbuy.com", "sugargoo.com", "loongbuy.com", "pikobuy.com",
+    "itaobuy.com", "bbdbuy.com", "allchinabuy.com", "pandabuy.com",
+})
+_AGENT_QUERY = {
+    "oopbuy.com": ("id", "channel"), "ootdbuy.com": ("id", "channel"),
+    "mulebuy.com": ("id", "shop_type"), "joyagoo.com": ("id", "shop_type"),
+    "cnfans.com": ("id", "shop_type"), "lovegobuy.com": ("id", "shop_type"),
+    "cnshopper.com": ("keyword", "platform"), "alleurobuy.com": ("id", "type"),
+    "rizzitgo.com": ("goodsid", "source"),
+}
+_ID_PARAMS = ("id", "itemid", "goodsid", "keyword")
+_CHANNEL_PARAMS = ("channel", "shop_type", "source", "platform", "type")
 # cssbuy names the marketplace in the file name: item-<id>, item-micro-<id>, item-1688-<id>.
 _CSSBUY_PREFIXES = {"": "taobao", "micro-": "weidian", "1688-": "1688"}
 # Parameters that carry the whole marketplace URL, percent-encoded.
@@ -170,29 +203,42 @@ def _unwrap_agent(agent: str, rest: str, depth: int) -> Link | None:
     for key, value in parse_qsl(query):
         if value:
             values.setdefault(key.lower(), set()).add(value)
-    # A parameter repeated with different values names no single item:
-    # refuse the ambiguity rather than trust whichever came first.
-    if any(len(found) > 1 for found in values.values()):
-        return None
+    # Only the parameters an agent's own format reads can make its link
+    # ambiguous: a path agent names the item in the path whatever rides in
+    # the query. A parameter repeated with different values, or two item ids
+    # or marketplace hints on a query agent, names no single item: refuse
+    # the ambiguity rather than trust whichever came first.
+    def ambiguous(keys: tuple[str, ...]) -> bool:
+        return any(len(values.get(key, set())) > 1 for key in keys)
     params = {key: next(iter(found)) for key, found in values.items()}
-    for key in _WRAPPED_URL_PARAMS:
-        wrapped = params.get(key, "")
-        if wrapped:
-            # parse_qsl decoded the one layer the agent applied. The wrapped
-            # value is one whole URL, judged by its own host: a marketplace
-            # URL riding inside some other site's query string is that site's
-            # business, not a purchase link.
-            return _wrapped_link(wrapped, depth + 1)
-    ids = {params[key] for key in ("id", "itemid", "goodsid") if key in params}
-    channels = {params[key].lower() for key in ("channel", "shop_type", "source") if key in params}
-    if len(ids) > 1 or len(channels) > 1:
+    if agent in _WRAPPED_AGENTS:
+        if ambiguous(_WRAPPED_URL_PARAMS):
+            return None
+        for key in _WRAPPED_URL_PARAMS:
+            wrapped = params.get(key, "")
+            if wrapped:
+                # parse_qsl decoded the one layer the agent applied. The wrapped
+                # value is one whole URL, judged by its own host: a marketplace
+                # URL riding inside some other site's query string is that
+                # site's business, not a purchase link.
+                return _wrapped_link(wrapped, depth + 1)
         return None
-    if ids and channels:
-        return item_link(_AGENT_PLATFORMS.get(next(iter(channels)), ""), next(iter(ids)))
-    if agent == "hoobuy.com":
-        match = re.fullmatch(r"/product/([0-9])/([0-9]+)/?", path)
+    keys = _AGENT_QUERY.get(agent)
+    if keys:
+        ids = {params[key] for key in _ID_PARAMS if key in params}
+        channels = {params[key].lower() for key in _CHANNEL_PARAMS if key in params}
+        if ambiguous(_ID_PARAMS + _CHANNEL_PARAMS) or len(ids) > 1 or len(channels) > 1:
+            return None
+        id_key, channel_key = keys
+        if id_key not in params or channel_key not in params:
+            return None
+        names = _RIZZITGO_SOURCES if agent == "rizzitgo.com" else _AGENT_PLATFORMS
+        return item_link(names.get(params[channel_key].lower(), ""), params[id_key])
+    codes = _PATH_CHANNELS.get(agent)
+    if codes:
+        match = re.fullmatch(r"/product/([A-Za-z0-9]+)/([0-9]+)(?:\.html)?/?", path)
         if match:
-            return item_link(_HOOBUY_CHANNELS.get(match.group(1), ""), match.group(2))
+            return item_link(codes.get(match.group(1).lower(), ""), match.group(2))
     if agent == "cssbuy.com":
         match = re.fullmatch(r"/item-(micro-|1688-)?([0-9]+)\.html", path)
         if match:

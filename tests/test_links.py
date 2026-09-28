@@ -226,6 +226,41 @@ AGENT_CASES = [
     ("https://www.superbuy.com/en/page/buy/?url=https%3A%2F%2Fitem.taobao.com%2Fitem.htm%3Fid%3D560198996624", [TB]),
     (f"https://www.loongbuy.com/product-details?url={WD_ENC}", [WD]),
     ("https://www.pikobuy.com/product/detail?productUrl=https%3A%2F%2Fdetail.1688.com%2Foffer%2F691234567890.html", [ALI]),
+    # Twelve more agents, formats read from the same converter the same day.
+    (f"https://www.itaobuy.com/product-detail?url={WD_ENC}", [WD]),
+    ("https://bbdbuy.com/index/item/index1688.html?tp=taobao&tid=&searchlang=en&url="
+     "https%3A%2F%2Fdetail.1688.com%2Foffer%2F691234567890.html", [ALI]),
+    ("https://www.ootdbuy.com/goods/details?id=560198996624&channel=TAOBAO", [TB]),
+    ("https://www.lovegobuy.com/product?id=691234567890&shop_type=ali_1688", [ALI]),
+    ("https://cnshopper.com/goods/detail?keyword=7652831688&platform=weidian", [WD]),
+    ("https://alleurobuy.com/index/detail-public?id=560198996624&type=tao", [TB]),
+    ("https://alleurobuy.com/index/detail-public?id=691234567890&type=ali", [ALI]),
+    ("https://rizzitgo.com/detail-page?goodsId=7652831688&source=3", [WD]),
+    ("https://rizzitgo.com/detail-page?goodsId=691234567890&source=2", [ALI]),
+    ("https://vigorbuy.com/product/1/560198996624", [TB]),
+    ("https://usfans.com/product/1/691234567890", [ALI]),
+    ("https://usfans.com/product/3/7652831688", [WD]),
+    ("https://www.litbuy.com/product/weidian/7652831688", [WD]),
+    ("https://hipobuy.com/product/0/691234567890.html", [ALI]),
+    ("https://www.gtbuy.com/product/1/560198996624", [TB]),
+    # A code one agent uses is not another's: usfans 3 is weidian, hoobuy has no 3.
+    ("https://hoobuy.com/product/3/7652831688", []),
+    ("https://usfans.com/product/0/691234567890", []),
+    ("https://rizzitgo.com/detail-page?goodsId=5&source=weidian", []),
+    ("https://www.litbuy.com/product/tmall/5", []),
+    # A parameter an agent does not use names nothing on its pages: a path
+    # agent ignores query hints, a query agent reads only its own keys, and a
+    # wrapped agent reads only its wrapped URL.
+    ("https://usfans.com/product/0/691234567890?keyword=691234567890&platform=1688", []),
+    ("https://hoobuy.com/product/2/7652831688?id=5&channel=taobao", [WD]),
+    ("https://hoobuy.com/product/2/7652831688?id=5&keyword=6", [WD]),
+    ("https://www.cssbuy.com/item-micro-7652831688.html?id=1&id=2", [WD]),
+    ("https://oopbuy.com/goods/details?id=7652831688&keyword=6&channel=weidian", []),
+    (f"https://www.kakobuy.com/item/details?url={WD_ENC}&id=1&id=2", [WD]),
+    ("https://oopbuy.com/goods/details?keyword=7652831688&platform=weidian", []),
+    ("https://cnshopper.com/goods/detail?id=7652831688&channel=weidian", []),
+    ("https://www.kakobuy.com/item/details?id=7652831688&channel=weidian", []),
+    ("https://oopbuy.com/goods/details?url=" + WD_ENC, []),
     # One agent quoting another is one more unwrap; a third layer is not followed.
     ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fhoobuy.com%2Fproduct%2F2%2F7652831688", [WD]),
     ("https://www.kakobuy.com/item/details?url=https%3A%2F%2Fwww.kakobuy.com%2Fitem%2Fdetails%3Furl%3D"
