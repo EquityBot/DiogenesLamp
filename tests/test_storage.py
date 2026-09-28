@@ -1,10 +1,13 @@
 import json
+import ntpath
+import os
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import pytest
 
+from lamp.schema import data_path
 from lamp.storage import (
     atomic_write_json,
     load_shard,
@@ -210,3 +213,45 @@ def test_concurrent_atomic_writes_use_independent_temporary_files(tmp_path, monk
     assert len(set(seen)) == 2
     assert json.loads(target.read_text())["writer"] in ("A", "B")
     assert list(tmp_path.iterdir()) == [target]
+
+
+def test_data_path_survives_a_sibling_creating_its_directory_mid_call(tmp_path, monkeypatch):
+    """Two scrape_all seller threads raced: one resolved catalog/<seller>.json
+    while catalog/ was missing and the other created it mid-call. Windows
+    realpath then kept the extended-length prefix on the result, which failed
+    the containment check. The mkdir is replayed inside the first failing
+    lookup so the interleaving is exact and needs no threads."""
+    lookup = getattr(ntpath, "_getfinalpathname", None)
+    if lookup is None:
+        pytest.skip("replays a Windows realpath internal")
+
+    def racing(path):
+        try:
+            return lookup(path)
+        except OSError:
+            (tmp_path / "catalog").mkdir(exist_ok=True)
+            raise
+
+    monkeypatch.setattr(ntpath, "_getfinalpathname", racing)
+    expected = tmp_path.resolve() / "catalog" / "sellery.json"
+    assert data_path(tmp_path, "catalog/sellery.json") == expected
+
+
+def test_data_path_rejects_a_catalogue_directory_linked_outside_the_data_directory(tmp_path):
+    """A catalog/ link that leaves the data directory fails containment, as it
+    did when the whole target was resolved."""
+    root = tmp_path / "data"
+    root.mkdir()
+    outside = tmp_path / "outside"
+    outside.mkdir()
+    try:
+        os.symlink(outside, root / "catalog", target_is_directory=True)
+    except OSError:
+        pytest.skip("creating symlinks needs a privilege this account lacks")
+    with pytest.raises(ValueError, match="escapes data directory"):
+        data_path(root, "catalog/sellerx.json")
+
+
+def test_data_path_works_before_the_data_directory_exists(tmp_path):
+    root = tmp_path / "missing"
+    assert data_path(root, "index.json") == root.resolve() / "index.json"
