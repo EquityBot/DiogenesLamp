@@ -136,6 +136,8 @@ def prepare_covers(root: Path, limit: int) -> dict:
         result["snapshot"] = str(_snapshot(root))
         index = read_metadata(data_path(root, "index.json"), "index.json")
         for seller in index["sellers"]:
+            if result["processed"] >= limit:
+                break
             relative = seller["shard"]
             shard = read_metadata(data_path(root, relative), relative)
             changed = False

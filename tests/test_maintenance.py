@@ -3,10 +3,12 @@ import math
 import sys
 import zipfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from PIL import Image, ImageDraw, ImageEnhance, ImageOps
 
+from lamp import maintenance
 from lamp.cli import main
 from lamp.covers import cover_facts, resize_cover
 from lamp.maintenance import diagnose, prepare_covers, restore, snapshot
@@ -277,3 +279,89 @@ def test_metadata_accepts_missing_price(tmp_path):
     shard = json.loads((tmp_path / "catalog/example.json").read_text(encoding="utf-8"))
     del shard["albums"][0]["price"]
     assert validate_metadata(shard, "catalog/example.json") is shard
+
+
+@pytest.fixture
+def several_sellers(tmp_path):
+    sellers = ["first", "second", "third"]
+    atomic_write_json(tmp_path / "index.json", {"sellers": [
+        {"id": seller, "shard": f"catalog/{seller}.json"} for seller in sellers]})
+    for position, seller in enumerate(sellers):
+        albums = []
+        for number in range(2):
+            album_id = str(position * 10 + number + 1)
+            thumb = f"thumbs/{seller}/{album_id}.png"
+            path = tmp_path / thumb
+            path.parent.mkdir(parents=True, exist_ok=True)
+            Image.new("RGB", (8, 8), "red").save(path)
+            albums.append({"id": album_id, "seller": seller, "title": "Synthetic",
+                           "album_url": f"https://{seller}.x.yupoo.com/albums/{album_id}",
+                           "links": [], "thumb": thumb})
+        atomic_write_json(tmp_path / f"catalog/{seller}.json", {"seller": seller, "albums": albums})
+    return tmp_path
+
+
+@pytest.mark.parametrize("limit,shard_reads", [
+    (0, [1, 1, 1]), (1, [2, 1, 1]), (2, [2, 1, 1]),
+    (3, [2, 2, 1]), (9, [2, 2, 2]),
+])
+def test_cover_limit_stops_later_shard_reads_after_validating_snapshot(
+    several_sellers, limit, shard_reads,
+):
+    root = several_sellers
+    before = {path.relative_to(root).as_posix(): path.read_bytes()
+              for path in [root / "index.json", *sorted((root / "catalog").glob("*.json"))]}
+    with patch.object(maintenance, "read_metadata", wraps=maintenance.read_metadata) as reads:
+        result = prepare_covers(root, limit)
+    assert result["processed"] == min(limit, 6)
+    assert result["errors"] == []
+    names = [call.args[1] for call in reads.call_args_list]
+    counts = [names.count(f"catalog/{seller}.json") for seller in ("first", "second", "third")]
+    assert counts == shard_reads
+    with zipfile.ZipFile(result["snapshot"]) as saved:
+        assert {name: saved.read(name) for name in saved.namelist()} == before
+    albums = [album for seller in ("first", "second", "third")
+              for album in json.loads((root / f"catalog/{seller}.json").read_text())["albums"]]
+    prepared = [album.get("cover_prepared", 0) for album in albums]
+    assert prepared == [1] * min(limit, 6) + [0] * max(6 - limit, 0)
+    assert (root / "index.json").read_bytes() == before["index.json"]
+    for seller, count in zip(("first", "second", "third"), shard_reads):
+        if count == 1:
+            relative = f"catalog/{seller}.json"
+            assert (root / relative).read_bytes() == before[relative]
+
+
+def test_cover_batches_resume_across_sellers(several_sellers):
+    root = several_sellers
+    for expected in ([1, 0], [1, 1]):
+        assert prepare_covers(root, 1)["processed"] == 1
+        shard = json.loads((root / "catalog/first.json").read_text())
+        assert [album.get("cover_prepared", 0) for album in shard["albums"]] == expected
+    assert prepare_covers(root, 1)["processed"] == 1
+    shard = json.loads((root / "catalog/second.json").read_text())
+    assert [album.get("cover_prepared", 0) for album in shard["albums"]] == [1, 0]
+
+
+def test_failed_cover_attempt_consumes_the_batch_and_remains_retryable(several_sellers):
+    root = several_sellers
+    (root / "thumbs/first/1.png").unlink()
+    before = {path: path.read_bytes() for path in (root / "catalog").glob("*.json")}
+    for _ in range(2):
+        with patch.object(maintenance, "read_metadata", wraps=maintenance.read_metadata) as reads:
+            result = prepare_covers(root, 1)
+        assert result["processed"] == 1
+        assert len(result["errors"]) == 1
+        names = [call.args[1] for call in reads.call_args_list]
+        assert names.count("catalog/first.json") == 2
+        assert names.count("catalog/second.json") == names.count("catalog/third.json") == 1
+        assert {path: path.read_bytes() for path in before} == before
+
+
+def test_cover_limit_preserves_validation_of_later_shards(several_sellers):
+    root = several_sellers
+    (root / "catalog/third.json").write_text("invalid", encoding="utf-8")
+    before = {path: path.read_bytes() for path in root.rglob("*") if path.is_file()}
+    with pytest.raises(ValueError):
+        prepare_covers(root, 1)
+    assert {path: path.read_bytes() for path in before} == before
+    assert not (root / "snapshots").exists()
