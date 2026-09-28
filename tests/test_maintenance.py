@@ -1,4 +1,6 @@
 import json
+import math
+import sys
 import zipfile
 from pathlib import Path
 
@@ -9,7 +11,7 @@ from lamp.cli import main
 from lamp.covers import cover_facts, resize_cover
 from lamp.maintenance import diagnose, prepare_covers, restore, snapshot
 from lamp.schema import data_path, validate_metadata
-from lamp.storage import atomic_write_json
+from lamp.storage import atomic_write_json, load_shard
 
 
 def catalogue(root):
@@ -200,3 +202,78 @@ def test_metadata_rejects_malformed_description_fields(tmp_path):
         broken["albums"][0][field] = bad
         with pytest.raises(ValueError):
             validate_metadata(broken, "catalog/example.json")
+
+
+@pytest.mark.parametrize("price", [
+    0, -0.0, 1, 12.5, pytest.param(10**308, id="large-integer"),
+    pytest.param(sys.float_info.max, id="largest-float"),
+    pytest.param(int(sys.float_info.max), id="largest-float-as-integer"),
+    pytest.param(int(sys.float_info.max) + 1, id="integer-rounding-to-largest-float"),
+])
+def test_metadata_accepts_finite_non_negative_prices(tmp_path, price):
+    catalogue(tmp_path)
+    shard = json.loads((tmp_path / "catalog/example.json").read_text(encoding="utf-8"))
+    shard["albums"][0]["price"] = price
+    assert validate_metadata(shard, "catalog/example.json") is shard
+    assert shard["albums"][0]["price"] == price
+
+
+@pytest.mark.parametrize("price", [
+    True, False, None, "1", [], {}, -1, -0.1,
+    math.nan, math.inf, -math.inf,
+    pytest.param(10**400, id="oversized-positive"),
+    pytest.param(-(10**400), id="oversized-negative"),
+])
+def test_metadata_rejects_invalid_prices_consistently(tmp_path, price):
+    catalogue(tmp_path)
+    shard = json.loads((tmp_path / "catalog/example.json").read_text(encoding="utf-8"))
+    shard["albums"][0]["price"] = price
+    with pytest.raises(ValueError, match="invalid price"):
+        validate_metadata(shard, "catalog/example.json")
+
+
+@pytest.mark.parametrize("command", ["doctor", "snapshot", "restore"])
+@pytest.mark.parametrize("price", [pytest.param(10**400, id="oversized"), -1])
+def test_maintenance_reports_invalid_price_without_changing_metadata(
+    tmp_path, capsys, command, price,
+):
+    catalogue(tmp_path)
+    files = [tmp_path / "index.json", tmp_path / "catalog/example.json"]
+    shard = json.loads(files[1].read_text(encoding="utf-8"))
+    shard["albums"][0]["price"] = price
+    arguments = ["--data", str(tmp_path), command]
+    if command == "restore":
+        archive_path = tmp_path / "bad.zip"
+        with zipfile.ZipFile(archive_path, "w") as archive:
+            archive.writestr("index.json", files[0].read_bytes())
+            archive.writestr("catalog/example.json", json.dumps(shard))
+        arguments.append(str(archive_path))
+    else:
+        atomic_write_json(files[1], shard)
+    before = {path: path.read_bytes() for path in files}
+
+    assert main(arguments) == 1
+
+    output = capsys.readouterr()
+    assert "invalid price" in output.out + output.err
+    if command == "doctor":
+        assert json.loads(output.out)["issues"]
+    assert {path: path.read_bytes() for path in files} == before
+    assert not (tmp_path / "snapshots").exists()
+
+
+def test_load_shard_reports_oversized_price_as_corrupt_metadata(tmp_path):
+    catalogue(tmp_path)
+    path = tmp_path / "catalog/example.json"
+    shard = json.loads(path.read_text(encoding="utf-8"))
+    shard["albums"][0]["price"] = 10**400
+    atomic_write_json(path, shard)
+    with pytest.raises(ValueError, match="corrupt shard .*invalid price"):
+        load_shard(tmp_path, "example")
+
+
+def test_metadata_accepts_missing_price(tmp_path):
+    catalogue(tmp_path)
+    shard = json.loads((tmp_path / "catalog/example.json").read_text(encoding="utf-8"))
+    del shard["albums"][0]["price"]
+    assert validate_metadata(shard, "catalog/example.json") is shard
