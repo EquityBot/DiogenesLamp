@@ -80,9 +80,12 @@ def validate_metadata(value: object, relative: str) -> dict:
                 raise ValueError(f"album {field} must be text")
         if "description_truncated" in album and not isinstance(album["description_truncated"], bool):
             raise ValueError("album description_truncated must be a boolean")
-        if "price" in album and (type(album["price"]) not in (int, float)
-                                 or not math.isfinite(album["price"]) or album["price"] < 0):
-            raise ValueError("invalid price")
+        try:
+            if "price" in album and (type(album["price"]) not in (int, float)
+                                     or not math.isfinite(album["price"]) or album["price"] < 0):
+                raise ValueError("invalid price")
+        except OverflowError:
+            raise ValueError("invalid price") from None
         if album.get("thumb") and not re.fullmatch(r"thumbs/[a-z0-9_-]+/[0-9]+\.(?:jpg|png|webp)", album["thumb"]):
             raise ValueError("unsafe cover path")
         links = album.get("links")
