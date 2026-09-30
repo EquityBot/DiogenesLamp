@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 import time
+from contextlib import suppress
 from pathlib import Path
 
 from lamp.schema import data_path, validate_metadata
@@ -28,25 +29,25 @@ def atomic_write_json(path: Path, obj: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     # Compact separators: shards are machine-read by the viewer, and the
     # indent=1 form measured ~35% larger on real catalogue data.
-    with tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
-                                     prefix=path.name + ".", suffix=".tmp", delete=False) as file:
-        tmp = Path(file.name)
-        try:
-            file.write(body)
-        except BaseException:
-            file.close()
-            tmp.unlink(missing_ok=True)
-            raise
+    file = tempfile.NamedTemporaryFile(mode="w", encoding="utf-8", dir=path.parent,
+                                       prefix=path.name + ".", suffix=".tmp", delete=False)
+    tmp = Path(file.name)
     try:
+        with file:
+            file.write(body)
         for attempt in range(5):
             try:
                 os.replace(tmp, path)
-                return
+                break
             except OSError:
                 if attempt == 4:
                     raise
                 time.sleep(0.1 * 2**attempt)
-    finally:
+    except BaseException:
+        with suppress(OSError):
+            tmp.unlink(missing_ok=True)
+        raise
+    else:
         tmp.unlink(missing_ok=True)
 
 
