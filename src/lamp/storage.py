@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 import time
+from contextlib import suppress
 from pathlib import Path
 
 from lamp.schema import data_path, validate_metadata
@@ -37,12 +38,16 @@ def atomic_write_json(path: Path, obj: object) -> None:
         for attempt in range(5):
             try:
                 os.replace(tmp, path)
-                return
+                break
             except OSError:
                 if attempt == 4:
                     raise
                 time.sleep(0.1 * 2**attempt)
-    finally:
+    except BaseException:
+        with suppress(OSError):
+            tmp.unlink(missing_ok=True)
+        raise
+    else:
         tmp.unlink(missing_ok=True)
 
 

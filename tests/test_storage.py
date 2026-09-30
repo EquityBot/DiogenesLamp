@@ -142,7 +142,8 @@ def test_atomic_write_failure_preserves_original(tmp_path: Path):
     assert list(tmp_path.iterdir()) == [target]
 
 
-def test_atomic_write_close_failure_removes_temporary_file(tmp_path, monkeypatch):
+@pytest.mark.parametrize("cleanup_fails", [False, True])
+def test_atomic_write_close_failure_removes_temporary_file(tmp_path, monkeypatch, cleanup_fails):
     from lamp import storage
 
     target = tmp_path / "x.json"
@@ -173,12 +174,33 @@ def test_atomic_write_close_failure_removes_temporary_file(tmp_path, monkeypatch
 
     monkeypatch.setattr(storage.tempfile, "NamedTemporaryFile", temporary)
     monkeypatch.setattr(storage.os, "replace", unexpected_replace)
+    if cleanup_fails:
+        def refuse_cleanup(self, **_kwargs):
+            raise PermissionError("injected cleanup refusal")
+        monkeypatch.setattr(Path, "unlink", refuse_cleanup)
     with pytest.raises(OSError) as result:
         atomic_write_json(target, {"new": True})
     assert result.value is failure
     assert target.read_text(encoding="utf-8") == '{"old":true}'
     assert streams[0].closed
-    assert list(tmp_path.iterdir()) == [target]
+    if cleanup_fails:
+        assert len(list(tmp_path.glob("*.tmp"))) == 1
+    else:
+        assert list(tmp_path.iterdir()) == [target]
+
+
+def test_atomic_write_reports_a_standalone_cleanup_failure(tmp_path, monkeypatch):
+    target = tmp_path / "x.json"
+    failure = PermissionError("injected cleanup refusal")
+
+    def refuse_cleanup(self, **_kwargs):
+        raise failure
+
+    monkeypatch.setattr(Path, "unlink", refuse_cleanup)
+    with pytest.raises(PermissionError) as result:
+        atomic_write_json(target, {"ok": 1})
+    assert result.value is failure
+    assert json.loads(target.read_text(encoding="utf-8")) == {"ok": 1}
 
 
 def test_atomic_write_encoding_failure_preserves_original(tmp_path):
