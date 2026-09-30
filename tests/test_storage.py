@@ -1,3 +1,4 @@
+import io
 import json
 import ntpath
 import os
@@ -138,6 +139,54 @@ def test_atomic_write_failure_preserves_original(tmp_path: Path):
     with pytest.raises(TypeError):
         atomic_write_json(target, {"bad": {1, 2}})  # sets are not JSON-serialisable
     assert json.loads(target.read_text(encoding="utf-8")) == {"ok": 1}
+    assert list(tmp_path.iterdir()) == [target]
+
+
+def test_atomic_write_close_failure_removes_temporary_file(tmp_path, monkeypatch):
+    from lamp import storage
+
+    target = tmp_path / "x.json"
+    target.write_text('{"old":true}', encoding="utf-8")
+    failure = OSError(28, "injected buffered write failure")
+    real_temporary = storage.tempfile.NamedTemporaryFile
+    streams = []
+
+    class FailingRaw(io.RawIOBase):
+        def __init__(self, name):
+            self.name = name
+
+        def writable(self):
+            return True
+
+        def write(self, _data):
+            raise failure
+
+    def temporary(**kwargs):
+        with real_temporary(**kwargs) as original:
+            name = original.name
+        stream = io.TextIOWrapper(io.BufferedWriter(FailingRaw(name)), encoding="utf-8")
+        streams.append(stream)
+        return stream
+
+    def unexpected_replace(*_args):
+        pytest.fail("replacement must not run after a staging failure")
+
+    monkeypatch.setattr(storage.tempfile, "NamedTemporaryFile", temporary)
+    monkeypatch.setattr(storage.os, "replace", unexpected_replace)
+    with pytest.raises(OSError) as result:
+        atomic_write_json(target, {"new": True})
+    assert result.value is failure
+    assert target.read_text(encoding="utf-8") == '{"old":true}'
+    assert streams[0].closed
+    assert list(tmp_path.iterdir()) == [target]
+
+
+def test_atomic_write_encoding_failure_preserves_original(tmp_path):
+    target = tmp_path / "x.json"
+    target.write_text('{"old":true}', encoding="utf-8")
+    with pytest.raises(UnicodeEncodeError):
+        atomic_write_json(target, {"bad": "\ud800"})
+    assert target.read_text(encoding="utf-8") == '{"old":true}'
     assert list(tmp_path.iterdir()) == [target]
 
 
