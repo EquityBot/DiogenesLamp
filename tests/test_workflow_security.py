@@ -25,9 +25,9 @@ EXPECTED_ACTIONS = {
         "v7.0.0",
     ),
     "astral-sh/setup-uv": (
-        "bec219d24cd3e171d82865faccec33120bb574f4",
-        "v10.1.0",
-        "v10.1.0",
+        "c18668ad3cf93ea998bef934396af7bb5c839dc7",
+        "v10.2.0",
+        "v10.2.0",
     ),
 }
 
