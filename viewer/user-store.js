@@ -3,6 +3,8 @@
 /**
  * @typedef {"favorite"|"note"|"tags"|"collection"|"review"|"search"|"dismiss"} UserKind
  * @typedef {{kind: UserKind, id: string, value: unknown}} UserEntry
+ * @typedef {{favorite: boolean, note: string, tags: string[], collection: string,
+ * review: number, search: Record<string, string | boolean> | null, dismiss: boolean}} UserValues
  * @typedef {{localStorage: Pick<Storage, "getItem"|"setItem"|"key"|"length">}} UserHost
  */
 
@@ -86,7 +88,8 @@ function createUserStore(host, onError = () => {}) {
       return true;
     } catch (error) { fail(error); return false; }
   }
-  /** @param {UserKind} kind @param {string} id */
+  /** @template {UserKind} K @param {K} kind @param {string} id
+   * @returns {UserValues[K] | undefined} */
   function get(kind, id) {
     const key = keyFor(kind, id);
     try {
@@ -97,7 +100,7 @@ function createUserStore(host, onError = () => {}) {
         throw new Error("An invalid saved entry needs recovery.");
       }
       return undefined;
-    } catch (error) { fail(error); return cached.get(key)?.value; }
+    } catch (error) { fail(error); return /** @type {UserValues[K] | undefined} */ (cached.get(key)?.value); }
   }
   /** @param {UserKind} kind @param {string} id */
   function has(kind, id) {
@@ -129,9 +132,9 @@ function createUserStore(host, onError = () => {}) {
     return new Set(load().filter(entry => entry.kind === "favorite" && entry.value === true)
       .map(entry => entry.id));
   }
-  /** @param {UserKind} kind */
+  /** @template {UserKind} K @param {K} kind @returns {Map<string, UserValues[K]>} */
   function section(kind) {
-    return new Map(load().filter(entry => entry.kind === kind).map(entry => [entry.id, entry.value]));
+    return new Map(load().filter(entry => entry.kind === kind).map(entry => [entry.id, /** @type {UserValues[K]} */ (entry.value)]));
   }
   migrate();
   load();

@@ -311,12 +311,15 @@ stylesheet at runtime. Its logic modules have their own tests, run by
 
     node --test tests/viewer/*.test.cjs
 
-For strict type checking of the viewer's logic modules and compile-only
+For strict type checking of the viewer's logic modules, controllers and compile-only
 contract tests, run `npm ci` then `npm run typecheck`. TypeScript and the Node
 type declarations are development tools only; the check emits no files and
-the browser still loads the same JavaScript. `app.js`, `saved-work.js` and their DOM interactions
-are outside the type-check scope and require browser verification. `viewer/browser-globals.d.ts` gives the script
-loading path the same helper signatures as the Node test imports.
+the browser still loads the same JavaScript. `viewer/controller-types.d.ts`
+describes catalogue state and the elements owned by `index.html`; a Node test
+checks the declared element IDs and tags. `viewer/browser-globals.d.ts` gives the
+script loading path the same helper signatures as the Node test imports.
+Compiler checks cover saved-value reads, DOM access and controller calls;
+browser verification still checks focus, layout and keyboard behaviour.
 
 To work on the viewer without scraping anything, generate synthetic data:
 
