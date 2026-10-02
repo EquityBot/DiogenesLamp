@@ -6,11 +6,14 @@
     "strict": true,
     "target": "ES2022",
     "module": "NodeNext",
+    "moduleDetection": "legacy",
     "types": [
       "node"
     ]
   },
   "files": [
+    "viewer/app.js",
+    "viewer/saved-work.js",
     "viewer/discovery.js",
     "viewer/user-store.js",
     "viewer/filters.js",

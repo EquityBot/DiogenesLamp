@@ -1,5 +1,6 @@
 "use strict";
 
+/** @param {string} message */
 function savedDataError(message) {
   const notice = document.getElementById("persistence-note");
   notice.textContent = message;
@@ -7,6 +8,7 @@ function savedDataError(message) {
 }
 const userStore = createUserStore(window, savedDataError);
 
+/** @type {import("./controller-types.js").ViewerState} */
 const state = {
   index: null,
   albums: [],          // all loaded albums, in shard order
@@ -20,7 +22,7 @@ const state = {
   generatedAt: "",
   dupCounts: new Map(), // dup_key -> group size, valid for current filter pass
   dupHidden: 0,
-  view: null,         // catalogue choices, initialised after reading controls
+  view: /** @type {import("./view-state.js").ViewState} */ (/** @type {unknown} */ (null)),         // catalogue choices, initialised after reading controls
   bannedKeys: new Set(), // corpus-global category-label keys, grown per shard
   titleKeyCounts: new Map(), // running t:-key counts feeding bannedKeys
   shardAlbums: new Map(), // seller id -> annotated albums, in fetch order
@@ -67,6 +69,7 @@ const els = {
 };
 
 // Current control values in the shape filters.js persists.
+/** @returns {import("./filters.js").Filters} */
 function currentFilters() {
   return {
     search: els.search.value,
@@ -93,6 +96,7 @@ function currentFilters() {
 // dropdown actually holds are written back. The options for both arrive
 // later than this runs, which is why applyStoredFilters is called again as
 // they are added.
+/** @param {HTMLSelectElement} select @param {string} value */
 function setSelectIfPresent(select, value) {
   if (!value) return;
   if ([...select.options].some((option) => option.value === value)) {
@@ -114,7 +118,7 @@ function applyStoredFilters() {
   els.includeUnknown.checked = storedFilters.includeUnknown;
   els.unreviewed.checked = storedFilters.unreviewed;
   els.changed.checked = storedFilters.changed;
-  for (const key of ["collection", "tag"]) {
+  for (const key of /** @type {const} */ (["collection", "tag"])) {
     if (storedFilters[key]) els[key].add(new Option(storedFilters[key], storedFilters[key]));
     els[key].value = storedFilters[key];
   }
@@ -131,6 +135,7 @@ state.view = createViewState(storedFilters, currentFilters());
 // A figure in the tally, held at the width its largest value will need. The
 // counts climb the whole time the catalogue streams in, and a number that
 // widens as it grows would shift everything beside it on every shard.
+/** @param {number} value @param {number} ceiling */
 function tallyFigure(value, ceiling) {
   const span = document.createElement("span");
   span.className = "fig-n";
@@ -187,6 +192,7 @@ function setStatus() {
 // The blank grid is the single most confusing state in the viewer: it looks
 // identical whether nothing has loaded yet, nothing matched, or every match
 // was collapsed as a duplicate. Name which one it is.
+/** @param {boolean} loading */
 function setGridMessage(loading) {
   if (state.filtered.length) {
     els.message.hidden = true;
@@ -212,6 +218,7 @@ function setGridMessage(loading) {
 // user never sees. Surface them once the load settles, and let them be
 // dismissed rather than sitting there for the session.
 let noteDismissed = false;
+/** @param {boolean} loading */
 function setLoadNote(loading) {
   const failed = state.failedShards.length;
   if (loading || !failed || noteDismissed) {
@@ -228,6 +235,7 @@ function setLoadNote(loading) {
 const SHARD_CONCURRENCY = 6;
 
 async function loadAll() {
+  /** @type {import("./controller-types.js").CatalogueIndex} */
   let index;
   try {
     const response = await fetch("data/index.json");
@@ -289,7 +297,7 @@ async function shardWorker() {
       // syntax error instead of a missing seller.
       const response = await fetch(`data/${seller.shard}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const shard = await response.json();
+      const shard = /** @type {import("./controller-types.js").CatalogueShard} */ (await response.json());
       if (!validCatalogueShard(shard, seller.id)) throw new Error("Invalid catalogue shard");
       for (const album of shard.albums) {
         album.dup_key = dupKey(album);
@@ -322,7 +330,7 @@ async function shardWorker() {
 // across reloads instead of varying with network timing.
 function rebuildAlbums() {
   state.albums = [];
-  for (const seller of state.index.sellers) {
+  for (const seller of /** @type {import("./controller-types.js").CatalogueIndex} */ (state.index).sellers) {
     const albums = state.shardAlbums.get(seller.id);
     if (albums) state.albums.push(...albums);
   }
@@ -350,6 +358,7 @@ function setDescriptionCoverage() {
 // With several shard fetches landing concurrently, refreshing the grid per
 // shard would filter and re-render the whole corpus dozens of times a
 // second. Coalesce to at most one refresh per 200ms.
+/** @type {number | ReturnType<typeof setTimeout>} */
 let refreshTimer = 0;
 function scheduleRefresh() {
   if (refreshTimer) return;
@@ -389,6 +398,7 @@ function topVisibleAlbum() {
 
 // Put the anchored album back at its pixel offset. No-op when the album is
 // gone (filtered out by a late category restore) or nothing moved.
+/** @param {{key: string, offset: number} | null} anchor */
 function restoreAnchor(anchor) {
   if (!anchor) return;
   const idx = state.filtered.findIndex((a) => cardKey(a) === anchor.key);
@@ -466,6 +476,7 @@ function setGroupGeometry() {
 
 // A posted date, for the strip page: the whole question a group answers is
 // which seller posted the same thing and when.
+/** @param {import("./controller-types.js").ViewerAlbum} album */
 function postedOn(album) {
   if (!album.published_ms) return "no date";
   return new Date(album.published_ms).toISOString().slice(0, 10);
@@ -473,6 +484,7 @@ function postedOn(album) {
 
 // Text content only: the DOM escapes &, < and > but leaves quotes alone,
 // which is fine between tags and unsafe inside an attribute.
+/** @param {string} text */
 function escapeHtml(text) {
   const div = document.createElement("div");
   div.textContent = text;
@@ -481,6 +493,7 @@ function escapeHtml(text) {
 
 // Attribute values need the quotes escaped too, or a value containing one
 // closes the attribute early and everything after it is parsed as markup.
+/** @param {string | null | undefined} value */
 function escapeAttr(value) {
   return escapeHtml(value ?? "").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
@@ -488,6 +501,7 @@ function escapeAttr(value) {
 // Stable hue per album, so a cover-less card keeps the same colour across
 // reloads and neighbouring cards rarely match. Any cheap string hash does;
 // this is FNV-1a folded onto the colour wheel.
+/** @param {string} seed */
 function coverHue(seed) {
   let hash = 2166136261;
   for (let i = 0; i < seed.length; i += 1) {
@@ -497,6 +511,7 @@ function coverHue(seed) {
   return Math.abs(hash) % 360;
 }
 
+/** @param {import("./controller-types.js").ViewerAlbum} album */
 function thumbVersion(album) {
   return encodeURIComponent(album.thumb_version || album.date_modified || album.updated_at || "");
 }
@@ -506,6 +521,7 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 // One drawn mark from the sheet in index.html. Built rather than written as
 // markup so the same mark set serves the cards, the buttons and the labels
 // without 3 copies of the same path data.
+/** @param {string} id */
 function drawnMark(id, className = "mark") {
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("class", className);
@@ -521,6 +537,7 @@ function drawnMark(id, className = "mark") {
 // Built from text nodes rather than interpolated markup: the title is scraped
 // remote HTML, and the offsets here would be the one place an escape could go
 // missing.
+/** @param {HTMLElement} el @param {string} title @param {string} query */
 function fillTitle(el, title, query) {
   const ranges = matchRanges(title, query);
   if (!ranges.length) {
@@ -544,13 +561,15 @@ function fillTitle(el, title, query) {
 // the filter changes, so the marks drawn for the previous query stayed on the
 // title. Refill only when the query actually changed, so scrolling still
 // leaves the cards it reuses alone.
+/** @param {HTMLDivElement} card @param {import("./controller-types.js").ViewerAlbum} album @param {string} query */
 function refreshCardTitle(card, album, query) {
   if (card.dataset.markQuery === query) return false;
-  fillTitle(card.querySelector(".card-title span"), album.title, query);
+  fillTitle(/** @type {HTMLElement} */ (card.querySelector(".card-title span")), album.title, query);
   card.dataset.markQuery = query;
   return true;
 }
 
+/** @param {import("./controller-types.js").ViewerAlbum} album */
 function makeCard(album) {
   const card = document.createElement("div");
   card.className = "card";
@@ -629,8 +648,8 @@ function makeCard(album) {
   // no unsafe-inline, so a style attribute written into parsed HTML never
   // applies. Setting the property through the CSSOM is not inline style and
   // is unaffected.
-  card.firstElementChild.style.setProperty("--cover-hue", String(coverHue(album.id)));
-  card.querySelector(".fav-btn").appendChild(drawnMark("mark-mount"));
+  /** @type {HTMLElement} */ (card.firstElementChild).style.setProperty("--cover-hue", String(coverHue(album.id)));
+  /** @type {HTMLButtonElement} */ (card.querySelector(".fav-btn")).appendChild(drawnMark("mark-mount"));
   refreshCardTitle(card, album, markQuery);
   // An inline onerror attribute did this before. Binding it here keeps the
   // markup free of executable attributes, which is what lets a strict
@@ -638,18 +657,18 @@ function makeCard(album) {
   const thumb = card.querySelector(".card-thumb");
   if (thumb) {
     thumb.addEventListener("error", (event) => {
-      event.currentTarget.style.display = "none";
+      /** @type {HTMLElement} */ (event.currentTarget).style.display = "none";
     });
   }
-  card.querySelector(".fav-btn").addEventListener("click", (event) => {
-    toggleFavorite(album.id, event.currentTarget);
+  /** @type {HTMLButtonElement} */ (card.querySelector(".fav-btn")).addEventListener("click", (event) => {
+    toggleFavorite(album.id, /** @type {Element} */ (event.currentTarget));
   });
-  card.querySelector(".preview-btn").addEventListener("click", () => openPreview(album.id));
+  /** @type {HTMLButtonElement} */ (card.querySelector(".preview-btn")).addEventListener("click", () => openPreview(album.id));
   const dupBtn = card.querySelector(".badge-dup");
   if (dupBtn) {
     dupBtn.addEventListener("click", () => {
       state.view = nextViewState(state.view, {
-        type: "open-group", groupKey: album.dup_key, scrollY: window.scrollY,
+        type: "open-group", groupKey: /** @type {string} */ (album.dup_key), scrollY: window.scrollY,
       });
       window.scrollTo(0, 0);
       applyFilters();
@@ -662,10 +681,12 @@ function makeCard(album) {
 
 // The star alone carries no state for a screen reader, so the button owns
 // both a pressed state and a name that says what pressing it will do.
+/** @param {boolean} isFav */
 function favLabel(isFav) {
   return isFav ? "Remove from favourites" : "Add to favourites";
 }
 
+/** @param {string} albumId @param {Element | null} button */
 function toggleFavorite(albumId, button) {
   const wanted = userStore.get("favorite", albumId) !== true;
   if (!userStore.set("favorite", albumId, wanted)) return;
@@ -684,6 +705,7 @@ function toggleFavorite(albumId, button) {
 // leaving overlapping rows on a phone or after a window resize.
 function readGeometry() {
   const css = getComputedStyle(document.documentElement);
+  /** @param {string} name @param {number} fallback */
   const px = (name, fallback) => parseInt(css.getPropertyValue(name), 10) || fallback;
   const gap = px("--gap", 12);
   return { w: px("--card-w", 220) + gap, h: px("--card-h", 300) + gap, gap };
@@ -697,10 +719,12 @@ function columns() {
   return Math.max(1, Math.floor((width + geometry.gap) / geometry.w));
 }
 function rowHeight() { return geometry.h; }
+/** @param {number} count */
 function rowsFor(count) { return Math.ceil(count / columns()); }
 // cols is passed in, not read here: the render loop writes card.style.transform
 // and columns() reads container.clientWidth, so reading it per card forced a
 // synchronous layout on every card of every scroll frame.
+/** @param {number} i @param {number} cols */
 function placeCard(i, cols) {
   const x = (i % cols) * geometry.w;
   const y = Math.floor(i / cols) * geometry.h;
@@ -709,6 +733,7 @@ function placeCard(i, cols) {
 
 // Windowed rendering: only rows near the viewport exist in the DOM.
 const OVERSCAN_ROWS = 3;
+/** @type {{start: number, end: number, cols: number, count: number, version: number, cursor?: number}} */
 let lastRange = { start: -1, end: -1, cols: -1, count: -1, version: -1, cursor: -1 };
 // Cards currently in the grid. Scroll-driven renders keep them (same nodes,
 // listeners, decoded thumbs) and touch only the rows entering and leaving
@@ -720,7 +745,9 @@ let lastRange = { start: -1, end: -1, cols: -1, count: -1, version: -1, cursor: 
 // control characters: a literal NUL in a source file is invisible to the
 // next reader and makes the file binary to grep and ripgrep, which then
 // report "binary file matches" and print no lines at all.
+/** @type {Map<string, HTMLDivElement>} */
 let cardCache = new Map();
+/** @param {import("./controller-types.js").ViewerAlbum} album */
 const cardKey = (album) => `${album.seller}\u0000${album.id}`;
 
 function renderGrid(force = false) {
@@ -760,12 +787,14 @@ function renderGrid(force = false) {
   // Apply only the difference. Re-appending every card each scroll step
   // re-parented ~150 nodes to move by one row; now the cards that stay put
   // are left alone and only the entering and leaving rows are touched.
+  /** @type {Map<string, HTMLDivElement>} */
   const next = new Map();
   const startIdx = firstRow * cols;
   const endIdx = Math.min(state.filtered.length, lastRow * cols);
   for (let i = startIdx; i < endIdx; i += 1) {
     const album = state.filtered[i];
     const key = cardKey(album);
+    /** @type {HTMLDivElement | null | undefined} */
     let card = cardCache.get(key);
     if (card) {
       cardCache.delete(key);  // claimed - whatever is left over has scrolled off
@@ -784,7 +813,7 @@ function renderGrid(force = false) {
       card = makeCard(album);
       els.grid.appendChild(card);
     }
-    const fav = card.querySelector(".fav-btn");
+    const fav = /** @type {HTMLButtonElement} */ (card.querySelector(".fav-btn"));
     setIfChanged(fav, "aria-pressed", String(state.favorites.has(album.id)));
     setIfChanged(fav, "aria-label", favLabel(state.favorites.has(album.id)));
     const transform = placeCard(i, cols);
@@ -823,6 +852,7 @@ function renderGrid(force = false) {
   // after the surviving ones, so tabbing threw the viewport backwards by
   // whole screens. Surviving cards are already in relative order, so this
   // moves only the cards that actually entered.
+  /** @type {HTMLDivElement | null} */
   let previous = null;
   for (const card of next.values()) {
     if (card.previousElementSibling !== previous) {
@@ -832,6 +862,7 @@ function renderGrid(force = false) {
   }
 }
 
+/** @param {Element} el @param {string} name @param {string} value */
 function setIfChanged(el, name, value) {
   if (el.getAttribute(name) !== value) el.setAttribute(name, value);
 }
@@ -847,6 +878,7 @@ const CARD_STOPS = ".cover-link, .fav-btn, .badge-dup, .card-links a, .preview-b
 
 // The card under the cursor is the stop, and its own controls follow it, so
 // they stay reachable by Tab without every other card offering them too.
+/** @param {HTMLDivElement} card @param {boolean} isCursor */
 function setCardTabStop(card, isCursor) {
   const value = isCursor ? "0" : "-1";
   setIfChanged(card, "tabindex", value);
@@ -865,6 +897,7 @@ function setCardTabStop(card, isCursor) {
 // cursor, so the outgoing index no longer names the outgoing card. The window
 // holds a few dozen cards and setIfChanged writes only what actually differs,
 // which is what the render loop does on every pass anyway.
+/** @param {number} next */
 function setCursor(next) {
   state.view = nextViewState(state.view, {
     type: "cursor", index: next, count: state.filtered.length,
@@ -878,6 +911,7 @@ function setCursor(next) {
 // took the removed one's place; failing that, park it on the grid itself,
 // which is focusable for the skip link anyway. preventScroll throughout:
 // this runs mid-render and must not fight the scroll that triggered it.
+/** @param {HTMLDivElement[]} departed @param {Map<string, HTMLDivElement>} survivors */
 function rescueFocus(departed, survivors) {
   const active = document.activeElement;
   if (!active || !departed.some((node) => node.contains(active))) return;
@@ -886,7 +920,7 @@ function rescueFocus(departed, survivors) {
       : active.classList.contains("cover-link") ? ".cover-link" : null;
   if (selector) {
     for (const card of survivors.values()) {
-      const target = card.querySelector(selector);
+      const target = /** @type {HTMLElement | null} */ (card.querySelector(selector));
       if (target) {
         target.focus({ preventScroll: true });
         return;
@@ -917,6 +951,7 @@ function headroom() {
     ? topbar.offsetHeight + geometry.gap : geometry.gap;
 }
 
+/** @param {number} next */
 function moveCursor(next) {
   if (!state.filtered.length) return;
   setCursor(next);
@@ -952,7 +987,7 @@ els.grid.addEventListener("keydown", (event) => {
   }
   const album = state.filtered[state.view.cursor];
   if (!album) return;
-  if (event.key === "Enter" && event.target.closest("button, a")) return;
+  if (event.key === "Enter" && /** @type {Element} */ (event.target).closest("button, a")) return;
   if (event.key === "p" || event.key === "P") {
     event.preventDefault();
     openPreview(album.id);
@@ -968,7 +1003,7 @@ els.grid.addEventListener("keydown", (event) => {
 // Tabbing into a window makes it the cursor, so the arrows carry on from
 // wherever the user actually is rather than from where they last were.
 els.grid.addEventListener("focusin", (event) => {
-  const card = event.target.closest(".card");
+  const card = /** @type {Element} */ (event.target).closest(".card");
   if (!card) return;
   const at = Number(card.getAttribute("aria-posinset")) - 1;
   if (Number.isInteger(at) && at >= 0) setCursor(at);
@@ -989,11 +1024,13 @@ window.addEventListener("resize", () => {
   renderGrid(true);
 });
 
+/** @param {import("./controller-types.js").Shop[]} shops */
 function renderShops(shops) {
+  /** @type {Map<string, import("./controller-types.js").Shop[]>} */
   const groups = new Map();
   for (const shop of shops) {
     if (!groups.has(shop.platform)) groups.set(shop.platform, []);
-    groups.get(shop.platform).push(shop);
+    /** @type {import("./controller-types.js").Shop[]} */ (groups.get(shop.platform)).push(shop);
   }
   els.shopsPanel.replaceChildren();
   // A slide-over that covers the grid needs a way out that is not the
@@ -1046,14 +1083,14 @@ function restoreLateFilters() {
     },
   });
   // A pending search input still belongs to the control until its debounce.
-  for (const key of ["seller", "category", "sort"]) els[key].value = state.view.filters[key];
+  for (const key of /** @type {const} */ (["seller", "category", "sort"])) els[key].value = state.view.filters[key];
 }
 
 function clearFilters() {
   state.view = nextViewState(state.view, { type: "clear-filters" });
   const filters = state.view.filters;
-  for (const key of ["search", "seller", "category", "age", "sort", "priceMin", "priceMax", "collection", "tag", "kind"]) els[key].value = filters[key];
-  for (const key of ["newOnly", "favsOnly", "hideDups", "includeUnknown", "unreviewed", "changed"]) els[key].checked = filters[key];
+  for (const key of /** @type {const} */ (["search", "seller", "category", "age", "sort", "priceMin", "priceMax", "collection", "tag", "kind"])) els[key].value = filters[key];
+  for (const key of /** @type {const} */ (["newOnly", "favsOnly", "hideDups", "includeUnknown", "unreviewed", "changed"])) els[key].checked = filters[key];
   writeFilters(window, filters);
   saveFilterURL();
   setCursor(state.view.cursor);
@@ -1063,6 +1100,7 @@ function clearFilters() {
 }
 els.filtersClear.addEventListener("click", clearFilters);
 
+/** @type {number | ReturnType<typeof setTimeout>} */
 let searchTimer = 0;
 els.search.addEventListener("input", () => {
   clearTimeout(searchTimer);
@@ -1094,11 +1132,12 @@ els.groupClear.addEventListener("click", exitGroupView);
 
 // The shops panel is a slide-over: it covers content, so it owns focus while
 // open, says so on its toggle, and closes on Escape like any other overlay.
+/** @param {boolean | string} open */
 function setShopsOpen(open) {
   els.shopsPanel.hidden = !open;
   els.shopsToggle.setAttribute("aria-expanded", String(open));
   if (open) {
-    const first = els.shopsPanel.querySelector("button, a");
+    const first = /** @type {HTMLElement | null} */ (els.shopsPanel.querySelector("button, a"));
     if (first) first.focus();
   } else {
     els.shopsToggle.focus();
@@ -1131,17 +1170,20 @@ els.noteDismiss.addEventListener("click", () => {
 // the choice survives a reload, and reflected on <html> where the stylesheet
 // reads it.
 const THEME_CYCLE = ["system", "light", "dark"];
+/** @type {Record<string, string>} */
 const THEME_MARK = {
   system: "#mark-theme-system",
   light: "#mark-theme-light",
   dark: "#mark-theme-dark",
 };
+/** @type {Record<string, string>} */
 const THEME_LABEL = {
   system: "Colour theme: follow system",
   light: "Colour theme: light",
   dark: "Colour theme: dark",
 };
 
+/** @param {string} theme */
 function applyTheme(theme) {
   if (theme === "system") document.documentElement.removeAttribute("data-theme");
   else document.documentElement.setAttribute("data-theme", theme);
@@ -1151,7 +1193,7 @@ function applyTheme(theme) {
 }
 
 const storedTheme = readStored(window, "lamp.theme");
-let theme = THEME_CYCLE.includes(storedTheme) ? storedTheme : "system";
+let theme = /** @type {string} */ (THEME_CYCLE.includes(/** @type {string} */ (storedTheme)) ? storedTheme : "system");
 applyTheme(theme);
 els.themeToggle.addEventListener("click", () => {
   theme = THEME_CYCLE[(THEME_CYCLE.indexOf(theme) + 1) % THEME_CYCLE.length];
