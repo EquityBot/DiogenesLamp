@@ -1,13 +1,18 @@
 "use strict";
 
 // Local browser work is separate from fetched catalogue metadata.
+/** @template {keyof import("./controller-types.js").ViewerElements} K
+ * @param {K} id @returns {import("./controller-types.js").ViewerElements[K]} */
 const workEl = id => document.getElementById(id);
 const preview = workEl("album-preview");
+/** @type {string[]} */
 let previewIds = [];
 let previewAt = 0;
 let previewReturnId = "";
+/** @type {Partial<Record<"collection" | "tags" | "notes", string>>} */
 let previewInitial = {};
 
+/** @param {string} text */
 function actionStatus(text) {
   workEl("action-status").textContent = text;
   workEl("action-status").hidden = !text;
@@ -18,6 +23,7 @@ function saveFilterURL() {
   if (location.search !== query) history.pushState(null, "", query);
 }
 
+/** @param {HTMLSelectElement} select @param {string[]} values */
 function selectOptions(select, values, wanted = select.value) {
   const first = select.options[0].cloneNode(true);
   select.replaceChildren(first);
@@ -34,7 +40,9 @@ function selectOptions(select, values, wanted = select.value) {
 
 function refreshSavedState(render = true) {
   const entries = userStore.load();
-  const section = kind => new Map(entries.filter(e => e.kind === kind).map(e => [e.id, e.value]));
+  /** @template {import("./user-store.js").UserKind} K @param {K} kind
+   * @returns {Map<string, import("./user-store.js").UserValues[K]>} */
+  const section = kind => new Map(entries.filter(e => e.kind === kind).map(e => [e.id, /** @type {import("./user-store.js").UserValues[K]} */ (e.value)]));
   state.favorites = new Set(entries.filter(e => e.kind === "favorite" && e.value).map(e => e.id));
   state.collections = section("collection");
   state.tags = section("tags");
@@ -46,16 +54,17 @@ function refreshSavedState(render = true) {
   if (preview.open) updatePreviewFavourite();
 }
 
+/** @param {unknown} filters */
 function useFilters(filters) {
   const saved = normalizeFilters(filters);
   refreshSavedState(false);
-  for (const [key, value] of Object.entries(saved)) {
+  for (const [key, value] of /** @type {[keyof import("./filters.js").Filters, string | boolean][]} */ (Object.entries(saved))) {
     if (!els[key]) continue;
-    if (typeof value === "boolean") els[key].checked = value;
+    if (typeof value === "boolean") /** @type {HTMLInputElement} */ (els[key]).checked = value;
     else {
       if (els[key].tagName === "SELECT" && value &&
-          ![...els[key].options].some(o => o.value === value)) {
-        els[key].add(new Option(value + " (unavailable)", value));
+          ![.../** @type {HTMLSelectElement} */ (els[key]).options].some(o => o.value === value)) {
+        /** @type {HTMLSelectElement} */ (els[key]).add(new Option(value + " (unavailable)", value));
       }
       els[key].value = value;
     }
@@ -75,6 +84,7 @@ window.addEventListener("storage", event => {
   }
 });
 
+/** @param {string} text @param {string} name @param {string} type */
 function downloadWork(text, name, type) {
   const url = URL.createObjectURL(new Blob([text], {type}));
   const link = document.createElement("a");
@@ -109,14 +119,14 @@ els.exportFavs.addEventListener("click", () => {
 });
 
 workEl("import-backup").addEventListener("change", async event => {
-  const file = event.target.files[0];
+  const file = /** @type {FileList} */ (/** @type {HTMLInputElement} */ (event.target).files)[0];
   if (!file) return;
   try {
     if (file.size > 20 * 1024 * 1024) throw new Error("Backup exceeds 20 MB.");
     const count = importUserBackup(userStore, JSON.parse(await file.text()));
     actionStatus(`Imported ${count} saved fields. Existing values were kept.`);
-  } catch (error) { savedDataError(error.message); }
-  finally { refreshSavedState(); event.target.value = ""; }
+  } catch (error) { savedDataError(/** @type {Error} */ (error).message); }
+  finally { refreshSavedState(); /** @type {HTMLInputElement | HTMLSelectElement} */ (event.target).value = ""; }
 });
 
 workEl("export-csv").addEventListener("click", () => {
@@ -135,7 +145,7 @@ workEl("save-search").addEventListener("click", () => {
   }
 });
 workEl("saved-search").addEventListener("change", event => {
-  const name = event.target.value;
+  const name = /** @type {HTMLInputElement | HTMLSelectElement} */ (event.target).value;
   const filters = userStore.get("search", name);
   if (filters) { useFilters(filters); saveFilterURL(); workEl("search-name").value = name; }
 });
@@ -155,7 +165,7 @@ workEl("mark-reviewed").addEventListener("click", () => {
   }
   // Use the snapshot timestamp, not the wall clock: a later downloaded
   // catalogue can contain changes already older than today's browsing time.
-  const cutoff = state.shardAlbums.get(seller).reduce((latest, album) => {
+  const cutoff = /** @type {import("./controller-types.js").ViewerAlbum[]} */ (state.shardAlbums.get(seller)).reduce((latest, album) => {
     const date = Date.parse(album.last_seen || album.updated_at || "");
     return Number.isFinite(date) ? Math.max(latest, date) : latest;
   }, 0) || Date.parse(state.generatedAt);
@@ -173,19 +183,20 @@ function updatePreviewFavourite() {
   fav.setAttribute("aria-pressed", String(chosen));
   fav.textContent = favLabel(chosen);
 }
+/** @param {unknown} value */
 function localDate(value) { return value ? String(value).replace("T", " ") : "Not recorded"; }
 
 // The read-only part of the preview that preferences change: price, stored
 // text and links. Kept apart from showPreview so a changed agent or rate
 // never repopulates the notes form and discards an edit in progress.
-/** @param {Record<string, any> | undefined} album */
+/** @param {import("./controller-types.js").ViewerAlbum | undefined} album */
 function showPreviewLinks(album) {
   if (!album) return;
   const evidence = album.price_evidence;
   const converted = convertedPrice(album.price, state.prefs);
   workEl("preview-price").textContent = album.price ? `CNY ${album.price}` +
     (evidence?.token && evidence?.rule ? ` · ${evidence.field || "album text"}: ${evidence.token} (${evidence.rule})` +
-      (evidence.candidates?.length > 1 ? ` · Other candidates: ${evidence.candidates.join(", ")}` : "") : " · Extraction evidence not recorded") +
+      (/** @type {number} */ (evidence.candidates?.length) > 1 ? ` · Other candidates: ${/** @type {unknown[]} */ (evidence.candidates).join(", ")}` : "") : " · Extraction evidence not recorded") +
     (converted ? ` · ${converted} at 1 CNY = ${state.prefs.rate} ${state.prefs.currency}, your rate, before fees and shipping` : "")
     : "Price unknown";
   workEl("preview-description").textContent = !("description" in album) ? "Description not recorded: it is kept from the next detail fetch (refresh budget or full scrape)."
@@ -211,7 +222,7 @@ function showPreviewLinks(album) {
   const external = workEl("preview-external");
   external.replaceChildren();
   if (state.prefs.lookups) {
-    const items = album.links.map(link => marketplaceItem(link.url)).filter(Boolean);
+    const items = /** @type {import("./agents.js").MarketplaceItem[]} */ (album.links.map(link => marketplaceItem(link.url)).filter(Boolean));
     for (const item of items) {
       addLink(external, `QC photos on rep.tools for ${item.platform} ${item.id}`,
         "https://rep.tools/qc-finder?link=" + encodeURIComponent(marketplaceUrl(item)));
@@ -256,13 +267,14 @@ function showPreview() {
     tags: (userStore.get("tags", album.id) || []).join(", "),
     notes: userStore.get("note", album.id) || "",
   };
-  for (const [field, value] of Object.entries(previewInitial)) workEl("preview-" + field).value = value;
+  for (const [field, value] of /** @type {[keyof typeof previewInitial, string][]} */ (Object.entries(previewInitial))) workEl(/** @type {`preview-${keyof typeof previewInitial}`} */ ("preview-" + field)).value = value;
   workEl("preview-save-status").textContent = "";
   workEl("preview-similar").open = false;
   workEl("similar-results").replaceChildren();
   updatePreviewFavourite();
 }
 
+/** @param {string} id */
 function openPreview(id) {
   previewIds = state.filtered.map(a => a.id);
   previewAt = previewIds.indexOf(id);
@@ -272,11 +284,12 @@ function openPreview(id) {
   preview.showModal();
 }
 function previewDirty() {
-  return Object.entries(previewInitial).some(([key, value]) => workEl("preview-" + key).value !== value);
+  return /** @type {[keyof typeof previewInitial, string][]} */ (Object.entries(previewInitial)).some(([key, value]) => workEl(/** @type {`preview-${keyof typeof previewInitial}`} */ ("preview-" + key)).value !== value);
 }
 function leavePreviewAllowed() {
   return !previewDirty() || window.confirm("Discard the unsaved notes, tags or collection for this album?");
 }
+/** @param {number} delta */
 function stepPreview(delta) {
   const next = previewAt + delta;
   if (next < 0 || next >= previewIds.length || !leavePreviewAllowed()) return;
@@ -295,12 +308,12 @@ preview.addEventListener("close", () => {
 });
 preview.addEventListener("keydown", event => {
   if (event.ctrlKey || event.metaKey || event.altKey) return;
-  if (event.target.closest("input, textarea, select")) return;
+  if (/** @type {Element} */ (event.target).closest("input, textarea, select")) return;
   if (["ArrowLeft", "ArrowRight"].includes(event.key)) {
     event.preventDefault(); stepPreview(event.key === "ArrowLeft" ? -1 : 1);
   }
 });
-workEl("preview-favourite").addEventListener("click", event => toggleFavorite(previewIds[previewAt], event.currentTarget));
+workEl("preview-favourite").addEventListener("click", event => toggleFavorite(previewIds[previewAt], /** @type {Element} */ (event.currentTarget)));
 workEl("preview-form").addEventListener("submit", event => {
   event.preventDefault();
   const id = previewIds[previewAt];
@@ -311,8 +324,8 @@ workEl("preview-form").addEventListener("submit", event => {
   }
   // Only write edited fields. An unchanged open form must not revert a
   // different field saved by another tab after this preview opened.
-  for (const [field, kind] of [["collection", "collection"], ["tags", "tags"], ["notes", "note"]]) {
-    const value = workEl("preview-" + field).value;
+  for (const [field, kind] of /** @type {const} */ ([["collection", "collection"], ["tags", "tags"], ["notes", "note"]])) {
+    const value = workEl(/** @type {`preview-${keyof typeof previewInitial}`} */ ("preview-" + field)).value;
     if (value === previewInitial[field]) continue;
     if (!userStore.set(kind, id, field === "tags" ? [...new Set(tags)] : value)) {
       workEl("preview-save-status").textContent = "Save incomplete. Keep this form open and export a backup.";
@@ -331,7 +344,7 @@ if (!filtersFromURL(location.search)) {
 
 workEl("preview-similar").addEventListener("toggle", () => {
   if (!workEl("preview-similar").open) return;
-  const album = previewAlbum();
+  const album = /** @type {import("./controller-types.js").ViewerAlbum} */ (previewAlbum());
   const dismissed = new Set(userStore.load().filter(e => e.kind === "dismiss" && e.value === true &&
     e.id.startsWith(album.id + ":")).map(e => e.id.slice(album.id.length + 1)));
   const matches = similarCovers(state.albums, album, dismissed);
@@ -357,7 +370,7 @@ workEl("preview-similar").addEventListener("toggle", () => {
     dismiss.setAttribute("aria-label", "Dismiss similar cover: " + match.album.title);
     dismiss.addEventListener("click", () => {
       if (userStore.set("dismiss", album.id + ":" + match.album.id, true)) {
-        li.remove(); workEl("preview-similar").querySelector("summary").focus();
+        li.remove(); /** @type {HTMLElement} */ (workEl("preview-similar").querySelector("summary")).focus();
       }
     });
     li.append(view, dismiss); list.appendChild(li);
@@ -387,7 +400,7 @@ function applyPrefs() {
 }
 showPrefs();
 {
-  const saved = /** @type {any} */ (storedPrefs(window));
+  const saved = /** @type {Record<string, unknown> | null} */ (storedPrefs(window));
   if (saved?.agent && saved.agent !== state.prefs.agent) {
     actionStatus(`The saved agent "${saved.agent}" is no longer offered; purchase links open on the marketplace until you choose another.`);
   }
@@ -408,7 +421,7 @@ for (const el of Object.values(prefEls)) el.addEventListener("change", () => {
 // of the followed sellers carry them. Tags are additive, unlike a collection,
 // so nothing already saved is overwritten.
 workEl("import-sheet").addEventListener("change", async event => {
-  const file = event.target.files[0];
+  const file = /** @type {FileList} */ (/** @type {HTMLInputElement} */ (event.target).files)[0];
   if (!file) return;
   try {
     if (file.size > 20 * 1024 * 1024) throw new Error("Spreadsheet exceeds 20 MB.");
@@ -428,6 +441,6 @@ workEl("import-sheet").addEventListener("change", async event => {
       (full ? `; ${full} matched albums already carry 20 tags` : "") + `. Catalogue: ${catalogueAvailability()}.`);
     if (matched.length) useFilters({...state.view.filters, tag});
     else applyFilters();
-  } catch (error) { savedDataError(error.message); }
-  finally { event.target.value = ""; }
+  } catch (error) { savedDataError(/** @type {Error} */ (error).message); }
+  finally { /** @type {HTMLInputElement | HTMLSelectElement} */ (event.target).value = ""; }
 });

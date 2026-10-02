@@ -106,7 +106,7 @@ function clampCursor(cursor, count) {
 const RENDER_WINDOW_KEYS = ["start", "end", "cols", "count", "version", "cursor"];
 
 /**
- * @param {RenderWindow | null | undefined} drawn
+ * @param {Omit<RenderWindow, "cursor"> & {cursor?: number} | null | undefined} drawn
  * @param {RenderWindow | null | undefined} wanted
  */
 function sameRenderWindow(drawn, wanted) {
