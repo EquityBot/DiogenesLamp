@@ -9,6 +9,10 @@ from lamp.serve import make_server
 
 ROOT = Path(__file__).resolve().parents[1]
 
+# shutdown() waits for serve_forever's next poll; the 0.5 s default added up
+# to half a second to every test here.
+FAST_SHUTDOWN = {"poll_interval": 0.01}
+
 
 def _get(port: int, path: str) -> tuple[int, bytes]:
     with urllib.request.urlopen(f"http://127.0.0.1:{port}{path}") as resp:
@@ -33,7 +37,7 @@ def test_serves_viewer_and_data(tmp_path: Path):
 
     server = make_server(viewer, data, port=0)
     port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(target=server.serve_forever, kwargs=FAST_SHUTDOWN, daemon=True)
     thread.start()
     try:
         status, body = _get(port, "/")
@@ -57,7 +61,7 @@ def test_data_path_traversal_is_refused(tmp_path: Path):
 
     server = make_server(viewer, data, port=0)
     port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(target=server.serve_forever, kwargs=FAST_SHUTDOWN, daemon=True)
     thread.start()
     try:
         for attempt in (
@@ -101,7 +105,7 @@ def test_cache_headers_thumbs_only_and_only_on_success(tmp_path: Path):
 
     server = make_server(viewer, data, port=0)
     port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(target=server.serve_forever, kwargs=FAST_SHUTDOWN, daemon=True)
     thread.start()
     try:
         # existing thumb: cacheable (query mirrors the viewer's ?v= busting)
@@ -129,7 +133,7 @@ def test_revalidated_thumb_keeps_its_cache_header(tmp_path: Path):
 
     server = make_server(viewer, data, port=0)
     port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(target=server.serve_forever, kwargs=FAST_SHUTDOWN, daemon=True)
     thread.start()
     try:
         url = f"http://127.0.0.1:{port}/data/thumbs/s/1.jpg"
@@ -158,7 +162,7 @@ def test_catalogue_shards_revalidate_by_content(tmp_path: Path):
     original_stat = shard.stat()
     server = make_server(viewer, data, port=0)
     port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(target=server.serve_forever, kwargs=FAST_SHUTDOWN, daemon=True)
     thread.start()
 
     def request(headers=None, name="seller.json", method="GET"):
@@ -224,7 +228,7 @@ def test_directory_listings_are_refused(tmp_path: Path):
 
     server = make_server(viewer, data, port=0)
     port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(target=server.serve_forever, kwargs=FAST_SHUTDOWN, daemon=True)
     thread.start()
     try:
         for path in ("/data/catalog/", "/data/", "/data/....//x"):
@@ -250,7 +254,7 @@ def test_null_byte_path_gets_404_not_a_dead_handler(tmp_path: Path):
 
     server = make_server(viewer, data, port=0)
     port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(target=server.serve_forever, kwargs=FAST_SHUTDOWN, daemon=True)
     thread.start()
     try:
         # under /data/ (our handler) and on a viewer path (stdlib
@@ -279,7 +283,7 @@ def test_security_headers_on_every_response(tmp_path: Path):
 
     server = make_server(viewer, data, port=0)
     port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(target=server.serve_forever, kwargs=FAST_SHUTDOWN, daemon=True)
     thread.start()
     try:
         for path in ("/", "/data/index.json", "/missing"):
@@ -313,7 +317,7 @@ def test_viewer_declares_and_serves_the_pwa_manifest(tmp_path: Path):
     (data / "index.json").write_text("{}", encoding="utf-8")
     server = make_server(ROOT / "viewer", data, port=0)
     port = server.server_address[1]
-    thread = threading.Thread(target=server.serve_forever, daemon=True)
+    thread = threading.Thread(target=server.serve_forever, kwargs=FAST_SHUTDOWN, daemon=True)
     thread.start()
     try:
         status, body = _get(port, "/manifest.json")
