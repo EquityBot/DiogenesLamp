@@ -71,7 +71,7 @@ viewer routinely loads a partially available catalogue.
   Covers keep their external destination. CSV exports describe their filter scope
   and catalogue completeness. Visual similarity is an opt-in local experiment,
   separate from duplicate identities.
-- Python 3.11 or newer. Viewer logic modules are tested with `node --test`,
+- Python 3.14 or newer. Viewer logic modules are tested with `node --test`,
   everything else with `pytest`.
 - Covers and metadata only. Detail photos are never downloaded; every card
   links back to Yupoo.
