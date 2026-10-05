@@ -24,7 +24,7 @@ const VIEW_HELPERS = typeof module !== "undefined" ? {
   ...require("./age.js"),
   ...require("./discovery.js"),
 } : { normalizeFilters, defaultFilters, matchSearch, sortAlbums, clampCursor,
-  collapseDups, ageInDays, compileCatalogueSearch };
+  collapseDups, DAY_MS, localDayMs, compileCatalogueSearch };
 
 /**
  * @param {unknown} [storedFilters]
@@ -101,6 +101,8 @@ function selectCatalogue(view, catalogue, now = Date.now()) {
       min <= max && (price ? price >= min && price <= max : filters.includeUnknown);
     const reviewed = /** @param {T} album */ album => Number(catalogue.reviews?.get(album.seller) || 0);
     const maxDays = parseInt(filters.age, 10) || 0;
+    // The inclusive calendar cutoff is shared by every album in this pass.
+    const oldestMs = maxDays ? VIEW_HELPERS.localDayMs(now) - maxDays * VIEW_HELPERS.DAY_MS : 0;
     // An album deleted on Yupoo leads to a dead page, so it drops out of
     // browsing. Saved filters and change history keep it available for reference.
     filtered = albums.filter(album =>
@@ -110,7 +112,7 @@ function selectCatalogue(view, catalogue, now = Date.now()) {
       (!filters.kind || album.kind === filters.kind) &&
       (!filters.newOnly || album.is_new) &&
       (!filters.favsOnly || favorites.has(album.id)) &&
-      (!maxDays || VIEW_HELPERS.ageInDays(album.published_ms, now) <= maxDays) &&
+      (!maxDays || album.published_ms >= oldestMs) &&
       priceMatches(album.price) &&
       (!filters.collection || catalogue.collections?.get(album.id) === filters.collection) &&
       (!filters.tag || /** @type {string[]} */ (catalogue.tags?.get(album.id) || []).includes(filters.tag)) &&

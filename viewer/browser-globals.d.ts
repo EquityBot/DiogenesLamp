@@ -7,6 +7,8 @@ declare const sortAlbums: typeof import("./filters.js").sortAlbums;
 declare const clampCursor: typeof import("./catalogue.js").clampCursor;
 declare const collapseDups: typeof import("./dedup.js").collapseDups;
 declare const ageInDays: typeof import("./age.js").ageInDays;
+declare const DAY_MS: typeof import("./age.js").DAY_MS;
+declare const localDayMs: typeof import("./age.js").localDayMs;
 
 declare const marketplaceItem: typeof import("./dedup.js").marketplaceItem;
 declare const marketplaceUrl: typeof import("./dedup.js").marketplaceUrl;

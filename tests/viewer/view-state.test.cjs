@@ -11,6 +11,53 @@ const albums = [
 ];
 const catalogue = { albums, favorites: new Set(["a", "c"]), bannedKeys: new Set() };
 
+test("age filters include the cutoff day and refresh across local midnight", () => {
+  const { spawnSync } = require("node:child_process");
+  // Sydney starts daylight saving on 4 October 2026. UTC day and local day differ here.
+  const selectionPath = require.resolve("../../viewer/view-state.js");
+  const probe = `
+    const {createViewState, selectCatalogue} = require(${JSON.stringify(selectionPath)});
+    const DAY = 86400000, cutoff = Date.UTC(2026, 8, 4);
+    const published = [cutoff - 1, cutoff, cutoff + DAY - 1, cutoff + DAY, NaN, Infinity, -Infinity];
+    const albums = published.map((published_ms, id) => ({id:String(id), published_ms,
+      seller:"one", category:"shirts", title_lc:"", links:[], price:null}));
+    const catalogue = {albums, favorites:new Set(), bannedKeys:new Set()};
+    const view = createViewState({age:"30"});
+    const ids = now => selectCatalogue(view, catalogue, Date.parse(now)).filtered.map(a => a.id).sort();
+    console.log(JSON.stringify([
+      ids("2026-10-04T12:59:59Z"), ids("2026-10-04T13:00:00Z"),
+      selectCatalogue(createViewState(), catalogue, NaN).filtered.length,
+      selectCatalogue(view, catalogue, NaN).filtered.length,
+    ]));
+  `;
+  const result = spawnSync(process.execPath, ["-e", probe], {
+    env: { ...process.env, TZ: "Australia/Sydney" }, encoding: "utf8",
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.deepEqual(JSON.parse(result.stdout), [["1", "2", "3", "5"], ["3", "5"], 7, 0]);
+});
+
+test("script loading computes the calendar day once per age filter pass", () => {
+  const { readFileSync } = require("node:fs");
+  const { join } = require("node:path");
+  const { createContext, runInContext } = require("node:vm");
+  let dates = 0;
+  class CountingDate extends Date {
+    constructor(...args) { super(...args); dates++; }
+  }
+  const context = createContext({Date: CountingDate, URL, URLSearchParams});
+  for (const name of ["filters", "catalogue", "dedup", "agents", "age", "discovery", "view-state"]) {
+    runInContext(readFileSync(join(__dirname, "../../viewer", name + ".js"), "utf8"), context);
+  }
+  context.catalogue = catalogue;
+  context.now = Date.parse("1970-01-02T12:00:00Z");
+  runInContext('selectCatalogue(createViewState({age:"30"}), catalogue, now)', context);
+  assert.equal(dates, 1);
+  runInContext('selectCatalogue(createViewState(), catalogue, now)', context);
+  runInContext('selectCatalogue({...createViewState({age:"30"}), groupKey:"same"}, catalogue, now)', context);
+  assert.equal(dates, 1);
+});
+
 test("removed saved options clear filters so the available catalogue stays visible", () => {
   let view = createViewState({ seller: "removed", category: "removed" });
   view = nextViewState(view, { type: "restore-options", options: {
