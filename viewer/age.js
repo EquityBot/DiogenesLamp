@@ -64,13 +64,18 @@ function publishedMs(album) {
 // from the N-day filter. `today` is the viewer's local date, matching the
 // local timestamp the scraper stamps its runs with.
 const DAY_MS = 86400000;
+/** @param {number} nowTs */
+function localDayMs(nowTs) {
+  const now = new Date(nowTs);
+  return Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
 /**
  * @param {number} publishedTs
  * @param {number} nowTs
  */
 function ageInDays(publishedTs, nowTs) {
-  const now = new Date(nowTs);
-  const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+  const today = localDayMs(nowTs);
   const publishedDay = Math.floor(publishedTs / DAY_MS) * DAY_MS;
   return Math.round((today - publishedDay) / DAY_MS);
 }
@@ -89,5 +94,5 @@ function withinAgeWindow(album, maxDays, nowTs) {
 
 if (typeof module !== "undefined") {
   module.exports = { AGE_ANCHORS, estimatePublishedMs, publishedMs,
-    ageInDays, withinAgeWindow };
+    DAY_MS, localDayMs, ageInDays, withinAgeWindow };
 }
