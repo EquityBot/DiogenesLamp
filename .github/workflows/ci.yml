@@ -12,6 +12,10 @@ concurrency:
 permissions:
   contents: read
 
+# CI follows Python 3.14 maintenance releases; local development pins the patch.
+env:
+  UV_PYTHON: "3.14"
+
 jobs:
   test:
     timeout-minutes: 30
@@ -19,9 +23,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Oldest and newest supported, so the README's "Python 3.11+" claim
-        # is actually tested rather than assumed.
-        python-version: ["3.11", "3.14"]
+        # Test the declared Python 3.14 minimum.
+        python-version: ["3.14"]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
