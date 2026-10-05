@@ -10,7 +10,7 @@ original Yupoo album for the detail photos.
 
 ## Install
 
-Requires Python 3.11+. A normal installation includes the viewer assets:
+Requires Python 3.14+. A normal installation includes the viewer assets:
 
     git clone https://github.com/ryanduguid/DiogenesLamp
     cd DiogenesLamp

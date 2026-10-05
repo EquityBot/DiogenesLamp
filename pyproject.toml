@@ -8,7 +8,7 @@ version = "0.1.0"
 description = "Browse any Yupoo catalog locally as one fast, searchable page"
 readme = "README.md"
 license = "MIT"
-requires-python = ">=3.11"
+requires-python = ">=3.14"
 dependencies = [
     "requests==2.34.2",
     "beautifulsoup4==4.15.0",
@@ -29,6 +29,7 @@ markers = ["manual: parser canaries against saved samples, excluded from CI"]
 addopts = "-m 'not manual'"
 
 [tool.ruff]
+target-version = "py314"
 line-length = 100
 src = ["src", "tests"]
 
@@ -43,7 +44,7 @@ select = ["E4", "E7", "E9", "F", "I"]
 "tests/*.py" = ["F401"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.14"
 packages = ["lamp"]
 ignore_missing_imports = true
 pretty = true
