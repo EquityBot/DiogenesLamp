@@ -188,7 +188,7 @@ function sheetItemKeys(text, maxRows = 100000) {
       for (const match of cell.matchAll(SHEET_URL)) {
         urls++;
         const raw = /^https?:\/\//i.test(match[0]) ? match[0] : "https://" + match[0];
-        const key = keyForUrl(raw.replace(/[.,;:!?)\]}>]+$/, ""));
+        const key = keyForUrl(raw.replace(/(?<![.,;:!?)\]}>])[.,;:!?)\]}>]+$/, ""));
         if (key) keys.add(key);
       }
     }

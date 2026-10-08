@@ -73,7 +73,7 @@ const mentions = (kind, pattern, text) => pattern.test(text) || kind.cjk.some(to
  * @param {string | null | undefined} title
  */
 function kindOf(title) {
-  const text = (title || "").normalize("NFKC").toLowerCase().replace(/(?:https?:\/\/)?[a-z0-9.-]+\.[a-z]{2,}\/\S*/g, " ");
+  const text = (title || "").normalize("NFKC").toLowerCase().replace(/(?:https?:\/\/|(?<![a-z0-9.-]))[a-z0-9.-]+\.[a-z]{2,}\/\S*/g, " ");
   if (!text.trim()) return UNSORTED;
   if (mentions(PARTS, PARTS_PATTERN, text)) return PARTS.id;
   for (let i = 0; i < KINDS.length; i++) {

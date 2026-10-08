@@ -1224,4 +1224,4 @@ if (typeof ResizeObserver !== "undefined") {
 // Paint the loading state before the first fetch resolves, so the grid is
 // never a blank rectangle with no explanation.
 setStatus();
-loadAll();
+void loadAll();
