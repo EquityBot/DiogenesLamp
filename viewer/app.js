@@ -299,11 +299,16 @@ async function shardWorker() {
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const shard = /** @type {import("./controller-types.js").CatalogueShard} */ (await response.json());
       if (!validCatalogueShard(shard, seller.id)) throw new Error("Invalid catalogue shard");
+      let annotated = 0;
       for (const album of shard.albums) {
         album.dup_key = dupKey(album);
         album.kind = kindOf(album.title);
         prepareAlbumSearch(album);
         album.published_ms = publishedMs(album);
+        // ponytail: yield every 1000 albums; use a time budget if slow devices still stall.
+        if (++annotated % 1000 === 0) {
+          await new Promise(resolve => setTimeout(() => resolve(null), 0));
+        }
       }
       markNew(shard.albums, state.generatedAt);
       // Bans are a corpus property: fold this batch into the running
