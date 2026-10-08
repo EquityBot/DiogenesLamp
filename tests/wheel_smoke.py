@@ -7,6 +7,9 @@ import urllib.request
 from pathlib import Path
 
 from lamp import cli
+
+# Import the scraper to exercise the wheel's runtime dependencies.
+from lamp.scrape import scrape_all
 from lamp.serve import make_server
 
 

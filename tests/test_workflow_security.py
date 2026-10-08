@@ -1,5 +1,6 @@
 """Fail-closed contracts for current security-bearing policy files."""
 
+import tomllib
 from hashlib import sha256
 from pathlib import Path
 
@@ -81,17 +82,47 @@ EXPECTED_CI = "\n".join(
         "        with:",
         '          node-version: "22"',
         "          package-manager-cache: false",
-        "      - run: npm ci",
+        "      - run: npm ci --ignore-scripts",
         "      - run: npm run typecheck",
         _uses("astral-sh/setup-uv", "      - uses: "),
         "        with:",
-        '          version: "0.12.0"',
+        '          version: "0.12.23"',
         "          enable-cache: true",
-        "      - run: uv run --locked --extra dev ruff check .",
-        "      - run: uv run --locked --extra dev mypy src/lamp",
-        "      - run: uv run --locked --extra dev pytest",
-        "      - run: uv build",
-        "      - run: uv run --isolated --no-project --with dist/*.whl python -I tests/wheel_smoke.py",
+        "      - run: uv run --locked --extra dev --no-build ruff check .",
+        "      - run: uv run --locked --extra dev --no-build mypy src/lamp",
+        "      - run: uv run --locked --extra dev --no-build pytest",
+        "      - run: uv build --no-build",
+        "      - name: Test the installed wheel with locked runtime dependencies",
+        "        run: |",
+        "          uv export --locked --no-dev --no-emit-project --no-header --no-annotate -o dist/runtime-constraints.txt",
+        "          python - <<'PY'",
+        "          import tomllib",
+        "          from email.parser import BytesParser",
+        "          from hashlib import file_digest",
+        "          from pathlib import Path",
+        "          from zipfile import ZipFile",
+        '          wheel, = Path("dist").glob("*.whl")',
+        '          with ZipFile(wheel) as archive:',
+        '              metadata_path, = (name for name in archive.namelist() if name.endswith(".dist-info/METADATA"))',
+        '              metadata = BytesParser().parsebytes(archive.read(metadata_path))',
+        '          project = tomllib.loads(Path("pyproject.toml").read_text())["project"]',
+        '          expected_extras = sorted(project.get("optional-dependencies", {}))',
+        '          if sorted(metadata.get_all("Provides-Extra", [])) != expected_extras:',
+        '              raise SystemExit("Wheel declared extras differ from pyproject.toml")',
+        '          dependencies = project["dependencies"] + [',
+        "              f'{dependency}; extra == \"{extra}\"'",
+        '              for extra, requirements in project.get("optional-dependencies", {}).items()',
+        '              for dependency in requirements',
+        '          ]',
+        '          if sorted(metadata.get_all("Requires-Dist", [])) != sorted(dependencies):',
+        '              raise SystemExit("Wheel runtime dependencies differ from pyproject.toml")',
+        '          with wheel.open("rb") as stream:',
+        '              digest = file_digest(stream, "sha256").hexdigest()',
+        '          Path("dist/wheel-requirement.txt").write_text(f"{wheel} --hash=sha256:{digest}\\n")',
+        "          PY",
+        "          uv venv .wheel-smoke",
+        "          uv pip install --python .wheel-smoke/bin/python --no-build --require-hashes --strict -c dist/runtime-constraints.txt -r dist/wheel-requirement.txt",
+        "          .wheel-smoke/bin/python -I tests/wheel_smoke.py",
         "",
     ]
 )
@@ -218,3 +249,19 @@ def test_dependabot_document_is_exact():
 def test_security_document_is_exact():
     actual = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
     _assert_exact(actual, EXPECTED_SECURITY, "SECURITY.md")
+
+
+def test_build_backend_constraint_is_exact_and_hashed():
+    approved_hash = "sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670"
+    config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
+    assert config["build-system"] == {
+        "requires": ["setuptools>=77.0.3"],
+        "build-backend": "setuptools.build_meta",
+    }
+    assert config["tool"]["uv"]["build-constraint-dependencies"] == [
+        {"requirement": "setuptools==84.0.0", "hashes": [approved_hash]},
+    ]
+    assert lock["manifest"]["build-constraints"] == [
+        {"name": "setuptools", "specifier": "==84.0.0", "hashes": [approved_hash]},
+    ]
