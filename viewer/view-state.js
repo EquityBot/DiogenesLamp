@@ -100,7 +100,7 @@ function selectCatalogue(view, catalogue, now = Date.now()) {
     const priceMatches = /** @param {number | null | undefined} price */ price =>
       min <= max && (price ? price >= min && price <= max : filters.includeUnknown);
     const reviewed = /** @param {T} album */ album => Number(catalogue.reviews?.get(album.seller) || 0);
-    const maxDays = parseInt(filters.age, 10) || 0;
+    const maxDays = Number.parseInt(filters.age, 10) || 0;
     // The inclusive calendar cutoff is shared by every album in this pass.
     const oldestMs = maxDays ? VIEW_HELPERS.localDayMs(now) - maxDays * VIEW_HELPERS.DAY_MS : 0;
     // An album deleted on Yupoo leads to a dead page, so it drops out of

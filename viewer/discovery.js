@@ -235,14 +235,14 @@ function similarCovers(albums, source, dismissed = new Set(), limit = 8) {
     typeof h === "string" && /^[0-9a-f]{16}$/.test(h) && !/^(0{16}|f{16})$/.test(h);
   if (!valid(source.cover_hash)) return [];
   const hash = source.cover_hash || "";
-  const hi = parseInt(hash.slice(0, 8), 16), lo = parseInt(hash.slice(8), 16);
+  const hi = Number.parseInt(hash.slice(0, 8), 16), lo = Number.parseInt(hash.slice(8), 16);
   /** @type {{album: T, distance: number}[]} */
   const matches = [];
   const cap = Math.min(20, Math.max(1, limit));
   for (const album of albums.slice(0, 100000)) {
     if (album.id === source.id || dismissed.has(album.id) || !valid(album.cover_hash)) continue;
     const other = album.cover_hash || "";
-    const distance = bitCount(hi ^ parseInt(other.slice(0, 8), 16)) + bitCount(lo ^ parseInt(other.slice(8), 16));
+    const distance = bitCount(hi ^ Number.parseInt(other.slice(0, 8), 16)) + bitCount(lo ^ Number.parseInt(other.slice(8), 16));
     if (distance > 8) continue;
     matches.push({album, distance});
     matches.sort((a, b) => a.distance - b.distance || a.album.id.localeCompare(b.album.id));
