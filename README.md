@@ -1,5 +1,8 @@
 # DiogenesLamp
 
+[![ci](https://github.com/ryanduguid/DiogenesLamp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ryanduguid/DiogenesLamp/actions/workflows/ci.yml)
+[![licence: MIT](https://img.shields.io/badge/licence-MIT-5C2D91.svg?labelColor=04001F)](LICENSE)
+
 Browse any Yupoo catalogue locally as one fast, searchable, infinite-scroll page.
 
 Yupoo seller catalogues paginate every 20-ish albums and load slowly. DiogenesLamp
