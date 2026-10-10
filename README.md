@@ -11,6 +11,16 @@ a local index once, then serves a single page where the whole catalogue - across
 your sellers - scrolls, searches, and filters locally. Clicking an item opens the
 original Yupoo album for the detail photos.
 
+On this page:
+
+- [Install](#install)
+- [Use](#use)
+- [Data](#data)
+- [Diagnostics and recovery](#diagnostics-and-recovery)
+- [Cached covers and visual suggestions](#cached-covers-and-visual-suggestions)
+- [Politeness and scope](#politeness-and-scope)
+- [Development](#development)
+
 ## Install
 
 Requires Python 3.14+. A normal installation includes the viewer assets:
