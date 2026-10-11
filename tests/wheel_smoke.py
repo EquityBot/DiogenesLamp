@@ -14,8 +14,11 @@ from lamp.serve import make_server
 
 
 def main():
+    if not callable(scrape_all):
+        raise AssertionError("installed wheel has no callable scraper entry point")
     assets = Path(cli.__file__).resolve().parent / "viewer"
-    assert assets.is_dir(), "installed wheel has no viewer assets"
+    if not assets.is_dir():
+        raise AssertionError("installed wheel has no viewer assets")
     with tempfile.TemporaryDirectory() as directory:
         previous = Path.cwd()
         os.chdir(directory)
@@ -26,7 +29,8 @@ def main():
             for asset in ("index.html", "app.js", "saved-work.js", "style.css",
                           "user-store.js", "discovery.js"):
                 with urllib.request.urlopen(f"http://127.0.0.1:{server.server_port}/{asset}") as response:
-                    assert response.status == 200 and len(response.read()) > 100, asset
+                    if response.status != 200 or len(response.read()) <= 100:
+                        raise AssertionError(asset)
         finally:
             server.shutdown()
             server.server_close()

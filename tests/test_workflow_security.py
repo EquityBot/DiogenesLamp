@@ -54,9 +54,9 @@ EXPECTED_CI = "\n".join(
         "permissions:",
         "  contents: read",
         "",
-        "# CI follows Python 3.14 maintenance releases; local development pins the patch.",
+        "# CI follows Python 3.15 maintenance releases; local development pins the patch.",
         "env:",
-        '  UV_PYTHON: "3.14"',
+        '  UV_PYTHON: "3.15"',
         "",
         "jobs:",
         "  test:",
@@ -65,8 +65,10 @@ EXPECTED_CI = "\n".join(
         "    strategy:",
         "      fail-fast: false",
         "      matrix:",
-        "        # Test the declared Python 3.14 minimum.",
-        '        python-version: ["3.14"]',
+        "        # Test the declared Python 3.14 minimum and the current 3.15 release.",
+        '        python-version: ["3.14", "3.15"]',
+        "    env:",
+        "      UV_PYTHON: ${{ matrix.python-version }}",
         "    steps:",
         _uses("actions/checkout", "      - uses: "),
         "        with:",
@@ -74,6 +76,7 @@ EXPECTED_CI = "\n".join(
         _uses("actions/setup-python", "      - uses: "),
         "        with:",
         "          python-version: ${{ matrix.python-version }}",
+        "          allow-prereleases: true",
         "      # The viewer's logic modules have node tests. pytest runs them",
         "      # through a wrapper that skips when node is missing, so installing it",
         "      # explicitly is what keeps that suite from silently disappearing on a",
@@ -210,11 +213,12 @@ kept as a link-out directory and never fetched.
 """
 
 
-def _assert_exact(actual: str, expected: str, label: str) -> None:
-    assert actual == expected, (
-        f"{label} no longer matches its reviewed fail-closed contract; "
-        "review the security effect and update this test explicitly"
-    )
+def _assert_exact(actual: object, expected: object, label: str) -> None:
+    if actual != expected:
+        raise AssertionError(
+            f"{label} no longer matches its reviewed fail-closed contract; "
+            "review the security effect and update this test explicitly"
+        )
 
 
 def _workflow_documents() -> dict[str, str]:
@@ -223,7 +227,7 @@ def _workflow_documents() -> dict[str, str]:
 
 
 def test_active_workflow_inventory_is_exact():
-    assert sorted(_workflow_documents()) == EXPECTED_WORKFLOW_NAMES
+    _assert_exact(sorted(_workflow_documents()), EXPECTED_WORKFLOW_NAMES, "workflow inventory")
 
 
 @pytest.mark.parametrize("filename", sorted(EXPECTED_WORKFLOWS))
@@ -255,13 +259,18 @@ def test_build_backend_constraint_is_exact_and_hashed():
     approved_hash = "sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670"
     config = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     lock = tomllib.loads((ROOT / "uv.lock").read_text(encoding="utf-8"))
-    assert config["build-system"] == {
-        "requires": ["setuptools>=77.0.3"],
-        "build-backend": "setuptools.build_meta",
-    }
-    assert config["tool"]["uv"]["build-constraint-dependencies"] == [
-        {"requirement": "setuptools==84.0.0", "hashes": [approved_hash]},
-    ]
-    assert lock["manifest"]["build-constraints"] == [
-        {"name": "setuptools", "specifier": "==84.0.0", "hashes": [approved_hash]},
-    ]
+    _assert_exact(
+        config["build-system"],
+        {"requires": ["setuptools>=77.0.3"], "build-backend": "setuptools.build_meta"},
+        "build system",
+    )
+    _assert_exact(
+        config["tool"]["uv"]["build-constraint-dependencies"],
+        [{"requirement": "setuptools==84.0.0", "hashes": [approved_hash]}],
+        "declared build constraints",
+    )
+    _assert_exact(
+        lock["manifest"]["build-constraints"],
+        [{"name": "setuptools", "specifier": "==84.0.0", "hashes": [approved_hash]}],
+        "locked build constraints",
+    )
