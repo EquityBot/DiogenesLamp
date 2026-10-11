@@ -162,7 +162,7 @@ function markNew(albums, generatedAt) {
   for (const album of albums) {
     // Parsed, not compared as text: the stamps carry a local UTC offset,
     // which moves across a daylight saving change.
-    const ms = album.last_seen ? Date.parse(album.last_seen) : NaN;
+    const ms = album.last_seen ? Date.parse(album.last_seen) : Number.NaN;
     if (ms > latestMs) {
       latestMs = ms;
       latestRun = /** @type {string} */ (album.last_seen);

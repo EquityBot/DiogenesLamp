@@ -54,7 +54,7 @@ function publishedMs(album) {
     const ts = Date.parse(album.date_published);
     if (!Number.isNaN(ts)) return ts;
   }
-  return estimatePublishedMs(parseInt(album.id, 10) || 0);
+  return estimatePublishedMs(Number.parseInt(album.id, 10) || 0);
 }
 
 // Whole calendar days between the publish date and today, mirroring

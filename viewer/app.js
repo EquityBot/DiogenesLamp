@@ -711,7 +711,7 @@ function toggleFavorite(albumId, button) {
 function readGeometry() {
   const css = getComputedStyle(document.documentElement);
   /** @param {string} name @param {number} fallback */
-  const px = (name, fallback) => parseInt(css.getPropertyValue(name), 10) || fallback;
+  const px = (name, fallback) => Number.parseInt(css.getPropertyValue(name), 10) || fallback;
   const gap = px("--gap", 12);
   return { w: px("--card-w", 220) + gap, h: px("--card-h", 300) + gap, gap };
 }
@@ -1224,4 +1224,4 @@ if (typeof ResizeObserver !== "undefined") {
 // Paint the loading state before the first fetch resolves, so the grid is
 // never a blank rectangle with no explanation.
 setStatus();
-loadAll();
+void loadAll();
