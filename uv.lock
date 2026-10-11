@@ -1,10 +1,13 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.14"
 resolution-markers = [
     "python_full_version >= '3.15'",
     "python_full_version < '3.15'",
 ]
+
+[manifest]
+build-constraints = [{ name = "setuptools", specifier = "==84.0.0", hashes = ["sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670"] }]
 
 [[package]]
 name = "ast-serialize"

@@ -24,6 +24,11 @@ lamp = "lamp.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.uv]
+build-constraint-dependencies = [
+    { requirement = "setuptools==84.0.0", hashes = ["sha256:51a52592b3b99e102b609654876bd65f19f999935166d1352678931132b0c670"] },
+]
+
 [tool.pytest.ini_options]
 markers = ["manual: parser canaries against saved samples, excluded from CI"]
 addopts = "-m 'not manual'"
