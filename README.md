@@ -1,7 +1,7 @@
 # DiogenesLamp
 
 [![ci](https://github.com/ryanduguid/DiogenesLamp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ryanduguid/DiogenesLamp/actions/workflows/ci.yml)
-[![licence: MIT](https://img.shields.io/badge/licence-MIT-5C2D91.svg?labelColor=04001F)](LICENSE)
+[![licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-5C2D91.svg?labelColor=04001F)](LICENSE)
 
 Browse any Yupoo catalogue locally as one fast, searchable, infinite-scroll page.
 
@@ -361,4 +361,4 @@ When a seller fails, the page is saved to `data/debug/<seller>-page1.html`
 and the error distinguishes a page whose albums could not be read (a parser
 problem) from one with no albums at all (an empty or closed seller).
 
-MIT licensed.
+Apache-2.0 licensed. If you redistribute this work or build on it, keep the attribution in [NOTICE](NOTICE).
