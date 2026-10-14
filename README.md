@@ -357,8 +357,11 @@ Install the resulting wheel in a clean environment and serve it from a directory
 outside the clone. Check that the page, scripts and styles return successfully.
 
 Yupoo serves 2 different list-page templates and the parser handles both.
-When a seller fails, the page is saved to `data/debug/<seller>-page1.html`
-and the error distinguishes a page whose albums could not be read (a parser
-problem) from one with no albums at all (an empty or closed seller).
+Every listing page is checked for at least 3 distinct album links the parser
+did not read. Such a page fails the seller as a possible layout change before
+it can end the listing and mark cached albums gone, and is saved to
+`data/debug/<seller>-pageN.html` (dry runs save nothing). An empty first page
+without such links reports an empty or closed seller. The threshold can miss
+fewer unread links; synthetic tests do not establish real-site coverage.
 
 Apache-2.0 licensed. If you redistribute this work or build on it, keep the attribution in [NOTICE](NOTICE).

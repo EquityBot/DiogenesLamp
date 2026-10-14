@@ -38,13 +38,12 @@ _THUMB_BLOCKED_STREAK_LIMIT = 3
 
 
 _ALBUM_LINK_RE = re.compile(r"/albums/\d+")
-# Distinct album links on a card-less page before we call it a parser
-# problem rather than an empty seller.
+# Distinct unparsed album links before reporting ambiguous listing coverage.
 _LAYOUT_CHANGE_MIN_LINKS = 3
 
 
 class LayoutChangeError(Exception):
-    """Page carries albums the parser could not read - selectors need work."""
+    """Listing coverage is ambiguous because album-like links were not parsed."""
 
 
 class EmptySellerError(Exception):
@@ -112,14 +111,23 @@ def _fetch_all_stubs(client, source: Source, data_dir: Path, save_debug: bool = 
         url = f"{source.url}/albums?page={page}"
         html = client.get(url, referer=source.url).text
         batch = parse_album_list(html)
+        unreadable = set(_ALBUM_LINK_RE.findall(html)) - {f"/albums/{stub.id}" for stub in batch}
+        ambiguous = len(unreadable) >= _LAYOUT_CHANGE_MIN_LINKS
+        saved_note = ""
+        if save_debug and (ambiguous or (not batch and page == 1)):
+            debug = data_dir / "debug" / f"{source.id}-page{page}.html"
+            debug.parent.mkdir(parents=True, exist_ok=True)
+            debug.write_text(html, encoding="utf-8")
+            saved_note = f"; saved {debug}"
+        if ambiguous:
+            # A partial or unreadable later page would otherwise end the
+            # listing and mark cached albums missing from it as gone.
+            raise LayoutChangeError(
+                f"page {page} of {source.id} has {len(unreadable)} album links "
+                f"that could not be parsed{saved_note} - possible Yupoo layout change?"
+            )
         if not batch:
             if page == 1:
-                debug = data_dir / "debug" / f"{source.id}-page1.html"
-                saved_note = ""
-                if save_debug:
-                    debug.parent.mkdir(parents=True, exist_ok=True)
-                    debug.write_text(html, encoding="utf-8")
-                    saved_note = f"; saved {debug}"
                 # Distinguish the 2 causes, because they need opposite
                 # responses: a page with album links we failed to read is a
                 # parser problem worth investigating, while a page with none
@@ -130,11 +138,6 @@ def _fetch_all_stubs(client, source: Source, data_dir: Path, save_debug: bool = 
                 # carry a single /albums/ href in a nav or promo block, and
                 # calling that a layout change sends the reader hunting for
                 # a parser bug that is not there.
-                if len(set(_ALBUM_LINK_RE.findall(html))) >= _LAYOUT_CHANGE_MIN_LINKS:
-                    raise LayoutChangeError(
-                        f"page 1 of {source.id} has album links but parsed to "
-                        f"zero albums{saved_note} - Yupoo layout change?"
-                    )
                 raise EmptySellerError(
                     f"page 1 of {source.id} contains no albums{saved_note} "
                     f"- empty or closed seller?"
