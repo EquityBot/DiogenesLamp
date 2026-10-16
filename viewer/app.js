@@ -12,6 +12,7 @@ const userStore = createUserStore(window, savedDataError);
 const state = {
   index: null,
   albums: [],          // all loaded albums, in shard order
+  albumAliases: {},
   filtered: [],
   favorites: userStore.favorites(),
   collections: userStore.section("collection"),
@@ -241,9 +242,7 @@ async function loadAll() {
     const response = await fetch("data/index.json");
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     index = await response.json();
-    if (![undefined, 1].includes(index.schema_version) || !Array.isArray(index.sellers) ||
-        !Array.isArray(index.shops) || index.sellers.some(s => !/^[a-z0-9_-]+$/.test(s.id) ||
-          s.shard !== `catalog/${s.id}.json`)) throw new Error("Invalid catalogue index");
+    if (!validCatalogueIndex(index)) throw new Error("Invalid catalogue index");
   } catch (err) {
     // Without the manifest nothing below can run; name the cause on screen
     // instead of leaving the "Loading the catalog..." message up forever.
@@ -257,6 +256,8 @@ async function loadAll() {
     return;
   }
   state.index = index;
+  state.albumAliases = {};
+  refreshSavedState(false);
   state.generatedAt = index.generated_at;
   for (const seller of index.sellers) {
     const opt = document.createElement("option");
@@ -298,12 +299,19 @@ async function shardWorker() {
       const response = await fetch(`data/${seller.shard}`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const shard = /** @type {import("./controller-types.js").CatalogueShard} */ (await response.json());
-      if (!validCatalogueShard(shard, seller.id)) throw new Error("Invalid catalogue shard");
+      const admitted = admittedCatalogueShard(shard, seller);
+      if (!admitted) throw new Error("Invalid or incomplete selected catalogue shard");
+      shard.albums = admitted;
+      let annotated = 0;
       for (const album of shard.albums) {
         album.dup_key = dupKey(album);
         album.kind = kindOf(album.title);
         prepareAlbumSearch(album);
         album.published_ms = publishedMs(album);
+        // ponytail: yield every 1000 albums; use a time budget if slow devices still stall.
+        if (++annotated % 1000 === 0) {
+          await new Promise(resolve => setTimeout(() => resolve(null), 0));
+        }
       }
       markNew(shard.albums, state.generatedAt);
       // Bans are a corpus property: fold this batch into the running
@@ -329,11 +337,12 @@ async function shardWorker() {
 // from the index's seller order keeps the browse order deterministic
 // across reloads instead of varying with network timing.
 function rebuildAlbums() {
-  state.albums = [];
-  for (const seller of /** @type {import("./controller-types.js").CatalogueIndex} */ (state.index).sellers) {
-    const albums = state.shardAlbums.get(seller.id);
-    if (albums) state.albums.push(...albums);
-  }
+  const loaded = /** @type {import("./controller-types.js").CatalogueIndex} */ (state.index)
+    .sellers.flatMap(seller => state.shardAlbums.get(seller.id) || []);
+  const selected = newestListings(loaded);
+  state.albums = selected.albums;
+  state.albumAliases = inheritableAliases(state.index || {}, state.albums, selected.aliases,
+    state.loadedSellers === state.index?.sellers.length && !state.failedShards?.length);
 }
 
 // Descriptions arrive as albums are refetched, so for a long while the
@@ -374,6 +383,7 @@ function refreshUI() {
   // its pixel position after the rebuild instead.
   const anchor = topVisibleAlbum();
   rebuildAlbums();
+  refreshSavedState(false);
   setDescriptionCoverage();
   refreshCategoryOptions();
   applyFilters();

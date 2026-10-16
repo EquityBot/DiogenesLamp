@@ -248,7 +248,53 @@ function collapseDups(list, banned = bannedTitleKeys(list)) {
   return { out, counts };
 }
 
+/**
+ * Select over the complete loaded catalogue before applying display filters.
+ * @template {DuplicateAlbum & {id: string, published_ms?: number, date_published?: string,
+ * gone_since?: string}} T
+ * @param {T[]} list
+ */
+function newestListings(list) {
+  const banned = bannedTitleKeys(list);
+  /** @type {Map<string, T>} */
+  const winners = new Map();
+  /** @param {T} album */
+  const posted = album => {
+    const known = typeof album.date_published === "string" ? album.date_published.slice(0, 10) : "";
+    const ms = known && /^\d{4}-\d{2}-\d{2}$/.test(known) ? Date.parse(known + "T00:00:00Z") : NaN;
+    if (Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === known && !known.startsWith("0000")) {
+      return Math.floor(ms / 86400000);
+    }
+    const estimate = typeof module !== "undefined" ? require("./age.js").estimatePublishedMs : estimatePublishedMs;
+    return Math.floor(Math.min(estimate(Number(album.id)), Date.UTC(9999, 11, 31)) / 86400000);
+  };
+  /** @param {T} album */
+  const id = album => /^\d+$/.test(album.id) ? BigInt(album.id) : 0n;
+  for (const album of list) {
+    const key = album.dup_key;
+    if (!key || banned.has(key)) continue;
+    const current = winners.get(key);
+    if (!current) {
+      winners.set(key, album);
+      continue;
+    }
+    const albumPosted = posted(album), currentPosted = posted(current);
+    if (albumPosted !== currentPosted ? albumPosted > currentPosted : id(album) > id(current)) {
+      winners.set(key, album);
+    }
+  }
+  /** @type {Record<string, string>} */
+  const aliases = {};
+  const albums = list.filter(album => {
+    const winner = album.dup_key && winners.get(album.dup_key);
+    if (!winner || winner === album) return true;
+    if (album.id !== winner.id) aliases[album.id] = winner.id;
+    return false;
+  });
+  return {albums, aliases};
+}
+
 if (typeof module !== "undefined") {
   module.exports = { normTitle, titleWeight, SHORTLINK_HOSTS, marketplaceItem, marketplaceUrl,
-    itemKeys, dupKey, better, bannedTitleKeys, registerTitleKeys, collapseDups };
+    itemKeys, dupKey, better, bannedTitleKeys, registerTitleKeys, collapseDups, newestListings };
 }

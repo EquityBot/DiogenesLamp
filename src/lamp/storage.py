@@ -9,6 +9,7 @@ import time
 from contextlib import suppress
 from pathlib import Path
 
+from lamp.dedup import newest_listings
 from lamp.schema import data_path, validate_metadata
 
 
@@ -58,7 +59,7 @@ def _shard_path(data_dir: Path, seller: str) -> Path:
 def load_shard(data_dir: Path, seller: str) -> dict[str, dict]:
     """Load a seller's shard, keyed by album id. Missing shard - empty dict.
 
-    A corrupt shard raises ValueError naming the file: the scraper must not
+    A corrupt or unreadable shard raises ValueError naming the file: the scraper must not
     half-merge against unreadable data, and the CLI turns it into a seller
     error rather than crashing every other seller's run with it.
     """
@@ -70,7 +71,7 @@ def load_shard(data_dir: Path, seller: str) -> dict[str, dict]:
                                     f"catalog/{seller}.json")
         albums = payload["albums"]
         return {album["id"]: album for album in albums}
-    except (ValueError, KeyError, TypeError) as exc:
+    except (OSError, ValueError, KeyError, TypeError) as exc:
         raise ValueError(f"corrupt shard {path}: {exc}") from exc
 
 
@@ -128,12 +129,60 @@ def merge_album(old: dict | None, new: dict, run_ts: str) -> dict:
     return merged
 
 
-def write_index(data_dir: Path, sellers: list[dict], shops: list[dict], run_ts: str) -> None:
-    """Write the top-level index manifest the viewer reads to find every shard."""
+def write_index(data_dir: Path, sellers: list[dict], shops: list[dict], run_ts: str, *,
+                strict: bool = False) -> None:
+    """Index only the newest duplicate listing; retain captures for refresh and recovery."""
+    captures: list[dict] = []
+    readable = set()
+    for seller in sellers:
+        try:
+            if not _shard_path(data_dir, seller["id"]).is_file():
+                raise ValueError(f"missing shard for {seller['id']}")
+            captures.extend(load_shard(data_dir, seller["id"]).values())
+            readable.add(seller["id"])
+        except ValueError:
+            if strict:
+                raise
+            # Keep the unreadable seller visible as a failed shard, as before.
+            continue
+    ids = [album["id"] for album in captures]
+    if len(set(ids)) != len(ids):
+        raise ValueError("duplicate album ID across shards")
+    selected, aliases = newest_listings(captures)
+    by_seller: dict[str, list[dict]] = {seller: [] for seller in readable}
+    for album in selected:
+        by_seller[album["seller"]].append(album)
+    indexed = []
+    for seller in sellers:
+        if seller["id"] not in readable:
+            indexed.append(seller)
+            continue
+        albums = by_seller[seller["id"]]
+        indexed.append({**seller, "album_ids": [album["id"] for album in albums],
+                        "album_count": sum(not album.get("gone_since") for album in albums)})
+    selected_ids = {album["id"] for album in selected}
+    aliases = {old: new for old, new in aliases.items() if old not in selected_ids}
     atomic_write_json(
         data_dir / "index.json",
-        {"schema_version": 1, "generated_at": run_ts, "sellers": sellers, "shops": shops},
+        {"schema_version": 1, **({"selection_version": 1} if len(readable) == len(sellers) else {}),
+         "generated_at": run_ts, "sellers": indexed,
+         "shops": shops, "album_aliases": aliases},
     )
+
+
+def reindex(data_dir: Path) -> dict[str, int]:
+    """Rebuild the manifest from local captures, without fetching or rewriting shards."""
+    from lamp.locking import catalogue_lock
+
+    with catalogue_lock(data_dir):
+        path = data_path(data_dir, "index.json")
+        index = validate_metadata(json.loads(path.read_text(encoding="utf-8")), "index.json")
+        if not isinstance(index.get("generated_at"), str):
+            raise ValueError("index generated_at must be text")
+        write_index(data_dir, index["sellers"], index.get("shops", []), index["generated_at"], strict=True)
+        rebuilt = json.loads(path.read_text(encoding="utf-8"))
+        return {"indexed": sum(s["album_count"] for s in rebuilt["sellers"]),
+                "duplicates": len(rebuilt["album_aliases"])}
 
 
 def read_run(data_dir: Path, seller: str) -> dict:

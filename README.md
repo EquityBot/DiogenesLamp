@@ -195,21 +195,29 @@ works outside the source tree.
    follow itself, so it works the same at album 12 and album 40,000.
 
    The theme button cycles system, light and dark. Every control is labelled,
-   Escape closes the preview, shops panel or a duplicate group, and a skip link jumps
+   Escape closes the preview or shops panel, and a skip link jumps
    past the head band to the grid.
 
-   Two filters exist for large catalogues:
+   The index keeps the newest duplicate listing before any filters apply.
+   A shared marketplace item identifies duplicates across sellers; a specific
+   title can identify a repeated posting within one seller. Short generic titles
+   and titles used more than twice within a seller remain separate. Posting date
+   wins, using the album ID estimate when no valid date is recorded; the higher
+   album ID breaks date ties. **Age** hides listings older than 30/90/180/365 days.
 
-   - **hide duplicates** collapses repeat postings to one card with a `×N`
-     badge. Click the badge and the grid becomes a strip: the copies stand
-     side by side at a larger size, each carrying the seller and the date it
-     was posted, which are the fields that differ. Escape leaves it, and you
-     land back where you were browsing. Two albums count as the same posting
-     when they share a taobao/tmall/weidian item id, or when one seller posted
-     the same title twice. Titles never group across sellers - mirrored
-     storefronts share album names, so that would merge distinct products.
-   - **age** hides listings older than 30/90/180/365 days, whose stock is
-     usually long gone.
+   Favourites, notes, tags and collections on an older duplicate copy to the
+   newest listing when its field has no saved entry. Existing values, including
+   an empty note or a removed favourite, win. If several older listings have a
+   field, the highest album ID supplies it. Originals remain in saved-work backups.
+   Copies wait for an admitted destination and stable duplicate membership.
+   Older indexes need every seller shard to load successfully before new copies
+   are saved; run `lamp reindex` to rebuild their selection contract.
+
+   If a listing changes while its preview is open, a clean form follows its
+   confirmed replacement. An edited form keeps its draft and pauses saving and
+   navigation. Transfer stages edited fields missing from the latest listing;
+   existing saved values remain visible for review. A retained unsaved draft
+   lasts only while that page stays open and is excluded from saved-work backups.
 
 ## Data
 
@@ -220,6 +228,18 @@ use **Back up saved work** to preserve them.
 
 Metadata uses schema version 1. Existing unversioned shards remain readable.
 Unsupported versions, malformed records and unsafe paths fail visibly.
+
+New indexes list each seller's selected `album_ids` and map older IDs to the
+selected IDs in `album_aliases`. Raw shards retain captures for refresh, history
+and recovery. To rebuild an existing catalogue locally, run `lamp reindex` (or
+`lamp --data path/to/data reindex`); it fetches nothing and preserves the scrape
+timestamp. The viewer also selects the newest listings while loading an older
+index. A failed selected shard does not make its older duplicates reappear.
+Rebuilt indexes carry `selection_version: 1`. Canonical selection excludes
+records whose links fail HTTPS, hostname or credential admission, preserving
+the original captures. `doctor` reports their count as `unadmitted`.
+Reindex can recover valid selected records beside excluded historical records;
+missing, corrupt or ambiguous shards prevent replacement of the index.
 
 Each album fetched since descriptions were kept carries `description`, the
 album text cut at 500 characters (`description_truncated` marks a cut), after

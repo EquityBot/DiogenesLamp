@@ -175,6 +175,15 @@ def make_client():
         aid="102", title="Item B https://item.taobao.com/item.htm?id=7"
     )
     return FakeClient({
+        # Distinct album IDs keep the multi-seller fixture unambiguous;
+        # its marketplace items still match across sellers.
+        **{f"{seller}.x.yupoo.com/albums?page=1": list_html.replace("101", first).replace("102", second)
+           for seller, first, second in [("sellery", "201", "202"), ("skipme", "301", "302")]},
+        **{f"/albums/{aid}": ALBUM_PAGE.format(title=title, desc=desc)
+           for aid, title, desc in [("201", "Item A", "weidian.com/item.html?itemID=5"),
+                                   ("202", "Item B", "plain text"),
+                                   ("301", "Item A", "weidian.com/item.html?itemID=5"),
+                                   ("302", "Item B", "plain text")]},
         "albums?page=1": list_html,
         "albums?page=2": EMPTY_PAGE,
         "/albums/101": ALBUM_PAGE.format(title="Item A", desc="weidian.com/item.html?itemID=5"),
@@ -577,10 +586,12 @@ def test_scrape_all_scrapes_several_sellers_and_indexes_them_all(tmp_path: Path)
     assert sorted(s.seller for s in summaries) == ["sellerx", "sellery"]
     assert all(s.scraped == 2 for s in summaries)
     assert set(load_shard(tmp_path, "sellerx")) == {"101", "102"}
-    assert set(load_shard(tmp_path, "sellery")) == {"101", "102"}
+    assert set(load_shard(tmp_path, "sellery")) == {"201", "202"}
     index = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
     assert [s["id"] for s in index["sellers"]] == ["sellerx", "sellery"]
-    assert all(s["album_count"] == 2 for s in index["sellers"])
+    # Both sellers expose the same two marketplace items. Only one listing per item is indexed.
+    assert sum(s["album_count"] for s in index["sellers"]) == 2
+    assert sum(len(s["album_ids"]) for s in index["sellers"]) == 2
 
 
 def test_index_omits_skipped_sellers_that_have_no_data(tmp_path: Path):

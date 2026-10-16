@@ -1,6 +1,23 @@
 "use strict";
 const test = require("node:test");
 const assert = require("node:assert/strict");
+
+test("catalogue index accepts legacy data and validates selections before saved work", () => {
+  const {validCatalogueIndex} = require("../../viewer/discovery.js");
+  const seller = {id: "one", shard: "catalog/one.json"};
+  const index = {sellers: [seller], shops: []};
+  assert.equal(validCatalogueIndex(index), true);
+  const selected = {...index, sellers: [{...seller, album_ids: ["200"]}], album_aliases: {100: "200"}};
+  assert.equal(validCatalogueIndex(selected), true);
+  for (const album_ids of [["200", "200"], [200], ["bad"], "200"]) {
+    assert.equal(validCatalogueIndex({...selected, sellers: [{...seller, album_ids}]}), false);
+  }
+  for (const album_aliases of [{100: "300"}, {200: "200"}, {bad: "200"}, [], null]) {
+    assert.equal(validCatalogueIndex({...selected, album_aliases}), false);
+  }
+  assert.equal(validCatalogueIndex({...index, sellers: [seller, seller]}), false);
+  assert.equal(validCatalogueIndex(null), false);
+});
 const {prepareAlbumSearch, compileCatalogueSearch, catalogueCsv, similarCovers, validCatalogueShard} = require("../../viewer/discovery.js");
 const {filtersToURL, filtersFromURL} = require("../../viewer/filters.js");
 const {createViewState, selectCatalogue} = require("../../viewer/view-state.js");

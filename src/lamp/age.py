@@ -56,7 +56,7 @@ def estimate_published(album_id: int) -> date:
     offset = (album_id - id0) * span_days // (id1 - id0)
     try:
         return date0.fromordinal(date0.toordinal() + offset)
-    except ValueError:
+    except (ValueError, OverflowError):
         # Junk ids (trillion scale) overflow date's range entirely: an id
         # whose implied date lands past year 9999 is just "newer than the
         # table can express", so the newest representable date is the right

@@ -124,7 +124,7 @@ provenance
     <label class="toggle"><input type="checkbox" id="favs-only">
       <svg class="mark mark-check" aria-hidden="true" focusable="false"><use href="#mark-tick"/></svg>
       <span>Favourites</span></label>
-    <label class="toggle"><input type="checkbox" id="hide-dups">
+    <label class="toggle" hidden><input type="checkbox" id="hide-dups">
       <svg class="mark mark-check" aria-hidden="true" focusable="false"><use href="#mark-tick"/></svg>
       <span>Hide duplicates</span></label>
     <button id="filters-clear" type="button" hidden>Clear filters</button>
@@ -203,8 +203,13 @@ provenance
         <label>Collection <input id="preview-collection" maxlength="80" autocomplete="off" placeholder="For example, Compare"></label>
         <label>Tags, separated by commas <input id="preview-tags" maxlength="1019" autocomplete="off"></label>
         <label>Notes <textarea id="preview-notes" maxlength="4000" rows="4"></textarea></label>
-        <button type="submit">Save notes, tags and collection</button>
+          <button id="preview-save" type="submit">Save notes, tags and collection</button>
         <p id="preview-save-status" role="status"></p>
+          <div id="preview-recovery" hidden>
+            <button id="preview-retain" type="button">Retain draft here</button>
+            <button id="preview-transfer" type="button">Transfer missing fields to latest</button>
+            <button id="preview-discard" type="button">Discard draft and show latest</button>
+          </div>
       </form>
     </div>
   </div>
