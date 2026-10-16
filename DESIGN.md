@@ -63,9 +63,10 @@ Every other colour on the screen is a photograph. A platform that wants its
 own brand colour, a status that wants amber, a category that wants a hue: all
 of them are refused, and the state finds a shape instead.
 
-**The Cover Sovereignty Rule.** Nothing is painted over a cover that is not
-load-bearing. Today that is exactly 3 marks: the arrival tag, the
-duplicate count, and the corner mount. Adding a fourth requires removing one.
+**The Cover Sovereignty Rule.** Only functional marks belong over a cover.
+Current cards use the arrival tag, price figure and corner mount. Adding a
+fourth requires removing one. The retained duplicate-count mark does not
+appear after newest-listing selection.
 
 ## Typography
 
@@ -113,10 +114,16 @@ stylesheet change moves the real layout. Anything that changes the pitch must
 leave it readable from `:root`, and the geometry is re-read on resize and
 whenever the strip page opens.
 
-Three geometries: the lattice at 220 by 288 with a 214 cover and a 10px
-gutter; the narrow lattice at 158 by 202 with a 152 cover and an 8px gutter
-below 720px; and the strip page at 300 by 384 with a 300 cover and a 14px
-gutter, 300 by 300 with an 8px gutter on narrow.
+Browsing uses the lattice at 220 by 288 with a 214 cover and a 10px gutter,
+or the narrow lattice at 158 by 202 with a 152 cover and an 8px gutter below
+720px. The retained strip geometry is 300 by 384 with a 300 cover and a 14px
+gutter, or 300 by 300 with a 220 cover and an 8px gutter on narrow.
+
+The index and viewer select the newest duplicate listing before display
+filters, following the rules in [PRODUCT.md](PRODUCT.md) and
+[README.md](README.md). This also applies when loading older catalogues.
+The **Hide duplicates** checkbox and strip code remain in the viewer, but
+they cannot restore older copies or offer a duplicate-count button for them.
 
 The lattice itself is 2 `repeating-linear-gradient` layers on the spacer,
 at the card pitch, so the ruling costs one paint rather than a border on each
@@ -196,15 +203,15 @@ kept and filled solid in the second ink when it is.
   its opacity, which would take the box with it.
 - **Arrival.** A 2px inset rule in the second ink across the top of the window
   plus a `NEW` tag, 2 carriers so the state survives without colour.
-- **Price.** A catalogue figure printed at the foot of the window, opposite the
-  copy count, on the leaf rather than floating on the cover. It is a figure,
+- **Price.** A catalogue figure printed at the foot of the window, on the leaf
+  rather than floating on the cover. It is a figure,
   not a badge: mono, tabular, no colour of its own.
 - **Export.** A drawn mark and a plain label. Every button in the head band is
   a ruled rectangle; the second ink is reserved for the 2 that undo
   something, and export is not one of them.
-- **Strip page.** A duplicate group leaves the lattice for a wider pitch where
-  the copies stand side by side, each carrying the seller in full ink and the
-  posted date, which are the only fields that differ.
+- **Strip page.** The retained duplicate-group view uses a wider pitch with
+  seller names in the main ink and posted dates. It has no normal card entry
+  point after newest-listing selection.
 
 ## Do's and don'ts
 

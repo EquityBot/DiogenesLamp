@@ -16,13 +16,17 @@ export type ViewerAlbum = Omit<CatalogueAlbum, 'links'> & {
   history?: {at: string; field?: string; before?: unknown; after?: unknown}[];
 };
 export type Seller = {id: string; name: string; album_count: number; shard: string;
+  album_ids?: string[];
   run?: {last_success?: string; failed_ids?: string[]}};
 export type Shop = {name: string; url: string; platform: string};
-export type CatalogueIndex = {schema_version?: 1; generated_at: string; sellers: Seller[]; shops: Shop[]};
+export type CatalogueIndex = {schema_version?: 1; generated_at: string; sellers: Seller[]; shops: Shop[];
+  selection_version?: 1;
+  album_aliases?: Record<string, string>};
 export type CatalogueShard = {schema_version?: 1; albums: ViewerAlbum[]};
 export type ViewerState = {
   index: CatalogueIndex | null;
   albums: ViewerAlbum[];
+  albumAliases: Record<string, string>;
   filtered: ViewerAlbum[];
   favorites: Set<string>;
   collections: Map<string, string>;
@@ -70,6 +74,8 @@ export interface ViewerElements {
   'preview-no-cover': HTMLElement; 'preview-history': HTMLUListElement;
   'preview-collection': HTMLInputElement; 'preview-tags': HTMLInputElement; 'preview-notes': HTMLTextAreaElement;
   'preview-save-status': HTMLElement; 'preview-similar': HTMLDetailsElement;
+  'preview-save': HTMLButtonElement; 'preview-recovery': HTMLDivElement;
+  'preview-retain': HTMLButtonElement; 'preview-transfer': HTMLButtonElement; 'preview-discard': HTMLButtonElement;
   'similar-results': HTMLUListElement; 'preview-close': HTMLButtonElement; 'preview-form': HTMLFormElement;
   'pref-agent': HTMLSelectElement; 'pref-lookups': HTMLInputElement;
   'pref-currency': HTMLInputElement; 'pref-rate': HTMLInputElement; topbar: HTMLElement;

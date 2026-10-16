@@ -73,6 +73,7 @@ def _build_parser() -> argparse.ArgumentParser:
     p_serve.add_argument("--no-browser", action="store_true")
     sub.add_parser("doctor", help="check catalogue metadata and cached cover coverage")
     sub.add_parser("snapshot", help="save a bounded metadata snapshot (excludes covers)")
+    sub.add_parser("reindex", help="index the newest duplicate listings from local captures")
     recovery = sub.add_parser("restore", help="restore metadata from a local snapshot")
     recovery.add_argument("archive", type=Path)
     covers = sub.add_parser("prepare-covers", help="resize and fingerprint cached covers locally")
@@ -214,14 +215,18 @@ def _cmd_scrape(args: argparse.Namespace) -> int:
 
 def main(argv: list[str] | None = None) -> int:
     args = _build_parser().parse_args(argv)
-    if args.command in {"doctor", "snapshot", "restore", "prepare-covers"}:
+    if args.command in {"doctor", "snapshot", "restore", "prepare-covers", "reindex"}:
         from lamp.maintenance import diagnose, prepare_covers, restore, snapshot
         try:
             if args.command == "doctor":
                 report = diagnose(args.data)
                 print(json.dumps(report, ensure_ascii=False, indent=2))
                 return int(bool(report["issues"]))
-            if args.command == "snapshot":
+            if args.command == "reindex":
+                from lamp.storage import reindex
+
+                print(json.dumps(reindex(args.data), ensure_ascii=False))
+            elif args.command == "snapshot":
                 print(snapshot(args.data))
             elif args.command == "restore":
                 previous = restore(args.data, args.archive)

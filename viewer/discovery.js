@@ -251,6 +251,66 @@ function similarCovers(albums, source, dismissed = new Set(), limit = 8) {
   return matches;
 }
 
+/** @param {unknown} raw */
+function validCatalogueIndex(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return false;
+  const index = /** @type {Record<string, any>} */ (raw);
+  if (![undefined, 1].includes(index.schema_version) || !Array.isArray(index.sellers) ||
+      !Array.isArray(index.shops) || ![undefined, 1].includes(index.selection_version)) return false;
+  const sellers = new Set(), indexed = new Set();
+  for (const seller of index.sellers) {
+    if (!seller || typeof seller.id !== "string" || !/^[a-z0-9_-]+$/.test(seller.id) ||
+        sellers.has(seller.id) || seller.shard !== `catalog/${seller.id}.json`) return false;
+    sellers.add(seller.id);
+    if (seller.album_ids !== undefined) {
+      if (!Array.isArray(seller.album_ids) || seller.album_ids.some(
+        /** @param {unknown} id */ id => typeof id !== "string" || !/^[0-9]{1,24}$/.test(id)) ||
+          new Set(seller.album_ids).size !== seller.album_ids.length) return false;
+      for (const id of seller.album_ids) {
+        if (indexed.has(id)) return false;
+        indexed.add(id);
+      }
+    }
+    else if (index.selection_version === 1) return false;
+  }
+  if (index.album_aliases !== undefined) {
+    if (!index.album_aliases || typeof index.album_aliases !== "object" || Array.isArray(index.album_aliases)) return false;
+    for (const [old, newest] of Object.entries(index.album_aliases)) {
+      if (!/^[0-9]{1,24}$/.test(old) || indexed.has(old) ||
+          typeof newest !== "string" || !indexed.has(newest)) return false;
+    }
+  }
+  return true;
+}
+
+/** @param {unknown} raw @param {{id: string, album_ids?: string[]}} seller
+ * @returns {import('./controller-types.js').ViewerAlbum[] | null} */
+function admittedCatalogueShard(raw, seller) {
+  if (!raw || typeof raw !== "object") return null;
+  const shard = /** @type {Record<string, any>} */ (raw);
+  if (![undefined, 1].includes(shard.schema_version) || !Array.isArray(shard.albums)) return null;
+  if (seller.album_ids === undefined) return validCatalogueShard(raw, seller.id) ? shard.albums : null;
+  const ids = new Set();
+  for (const album of shard.albums) {
+    if (!album || typeof album.id !== "string" || !/^[0-9]{1,24}$/.test(album.id) ||
+        ids.has(album.id) || album.seller !== seller.id) return null;
+    ids.add(album.id);
+  }
+  const selected = new Set(seller.album_ids);
+  if (selected.size !== seller.album_ids.length || [...selected].some(id => !ids.has(id))) return null;
+  const albums = shard.albums.filter(/** @param {any} album */ album => selected.has(album.id));
+  return validCatalogueShard({...shard, albums}, seller.id) ? albums : null;
+}
+
+/** @param {{selection_version?: 1, album_aliases?: Record<string, string>}} index
+ * @param {{id: string}[]} albums @param {Record<string, string>} derived @param {boolean} complete */
+function inheritableAliases(index, albums, derived, complete) {
+  const aliases = index.selection_version === 1 ? index.album_aliases || {} : complete ? derived : {};
+  const admitted = new Set(albums.map(album => album.id));
+  return Object.fromEntries(Object.entries(aliases).filter(([old, target]) =>
+    old !== target && !admitted.has(old) && admitted.has(target)));
+}
+
 /** @param {unknown} raw @param {string} seller */
 function validCatalogueShard(raw, seller) {
   if (!raw || typeof raw !== "object") return false;
@@ -286,5 +346,5 @@ function validCatalogueShard(raw, seller) {
 if (typeof module !== "undefined") {
   module.exports = { prepareAlbumSearch, keyForUrl, compileCatalogueSearch, csvCell, albumAgentLinks,
     catalogueCsv, parseDelimited, sheetItemKeys, matchSheet,
-    similarCovers, validCatalogueShard };
+    similarCovers, validCatalogueShard, validCatalogueIndex, admittedCatalogueShard, inheritableAliases };
 }

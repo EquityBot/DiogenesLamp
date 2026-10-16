@@ -1,10 +1,15 @@
 import json
 import os
+import shutil
 import threading
 import urllib.error
 import urllib.request
 from pathlib import Path
+from types import SimpleNamespace
 
+import pytest
+
+import wheel_smoke
 from lamp.serve import make_server
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -342,3 +347,44 @@ def test_the_refusal_sentinel_is_a_name_nothing_ever_writes():
     for module in (scrape, storage):
         source = Path(module.__file__).read_text(encoding="utf-8")
         assert _Handler.REFUSED not in source, f"{module.__name__} writes the sentinel"
+
+
+@pytest.fixture
+def packaged_viewer(tmp_path: Path, monkeypatch):
+    viewer = tmp_path / "lamp" / "viewer"
+    shutil.copytree(ROOT / "viewer", viewer)
+    monkeypatch.setattr(wheel_smoke, "cli", SimpleNamespace(__file__=viewer.parent / "cli.py"))
+    return viewer
+
+
+def test_wheel_smoke_accepts_the_complete_viewer(packaged_viewer):
+    wheel_smoke.main()
+
+
+@pytest.mark.parametrize("missing", ["filters.js", "anchor.js", "manifest.json", "style.css"])
+def test_wheel_smoke_refuses_a_missing_entry_asset(packaged_viewer, missing):
+    (packaged_viewer / missing).unlink()
+    previous = Path.cwd()
+    with pytest.raises(urllib.error.HTTPError) as error:
+        wheel_smoke.main()
+    assert error.value.code == 404
+    assert error.value.url.endswith("/" + missing)
+    assert Path.cwd() == previous
+
+
+def test_wheel_smoke_refuses_a_new_missing_script(packaged_viewer):
+    page = packaged_viewer / "index.html"
+    page.write_text(page.read_text(encoding="utf-8").replace(
+        "</body>", '<script src="extra-helper.js"></script></body>'), encoding="utf-8")
+    with pytest.raises(urllib.error.HTTPError) as error:
+        wheel_smoke.main()
+    assert error.value.code == 404
+    assert error.value.url.endswith("/extra-helper.js")
+
+
+def test_wheel_smoke_accepts_a_new_small_script(packaged_viewer):
+    (packaged_viewer / "extra-helper.js").write_text('"use strict";\n', encoding="utf-8")
+    page = packaged_viewer / "index.html"
+    page.write_text(page.read_text(encoding="utf-8").replace(
+        "</body>", '<script src="extra-helper.js"></script></body>'), encoding="utf-8")
+    wheel_smoke.main()

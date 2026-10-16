@@ -61,8 +61,10 @@ viewer routinely loads a partially available catalogue.
   shopping-agent links, and stored descriptions where recorded.
   Filters include price bounds and unknown prices, seller, category, posting age,
   new since scrape or review, changed since review, favourites, collections,
-  tags, duplicates and an experimental title-read kind. Duplicate groups open
-  as a peek view.
+  tags and an experimental title-read kind. The index and viewer select the newest
+  duplicate listing before filters, using marketplace items across sellers or
+  specific titles within one seller. Saved fields carry forward only when the
+  newest listing has no entry for that field.
 - Purchase links are stored as marketplace items (taobao, tmall, weidian and
   1688), with agent links unwrapped to the item they carry. The viewer can
   rebuild a link for the operator's agent, and cross-reference a community

@@ -254,10 +254,13 @@ def test_write_index(tmp_path: Path):
                 "album_count": 2, "shard": "catalog/sellerx.json"}]
     shops = [{"id": "weidian-7", "platform": "weidian", "name": "weidian 7",
               "url": "https://weidian.com/?userid=7"}]
+    write_shard(tmp_path, "sellerx", {"111": RECORD, "112": dict(RECORD, id="112")})
     write_index(tmp_path, sellers, shops, "2026-08-17T12:00:00+10:00")
     index = json.loads((tmp_path / "index.json").read_text(encoding="utf-8"))
     assert index["generated_at"] == "2026-08-17T12:00:00+10:00"
-    assert index["sellers"] == sellers
+    assert index["sellers"] == [{**sellers[0], "album_count": 1, "album_ids": ["112"]}]
+    assert index["album_aliases"] == {"111": "112"}
+    assert set(load_shard(tmp_path, "sellerx")) == {"111", "112"}
     assert index["shops"] == shops
 
 

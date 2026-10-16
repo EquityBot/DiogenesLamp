@@ -190,6 +190,13 @@ function matchSearch(query) {
  * @returns {T[]}
  */
 function sortAlbums(albums, sortOrder) {
+  if (sortOrder !== "price-asc" && sortOrder !== "price-desc" && sortOrder !== "photos-desc") {
+    // Prepare numeric keys once; sorting compares each album many times.
+    const keyed = albums.map(album => ({album,
+      published: album.published_ms || 0, id: Number(album.id) || 0}));
+    keyed.sort((a, b) => (b.published - a.published) || (b.id - a.id));
+    return keyed.map(entry => entry.album);
+  }
   const out = albums.slice();
   if (sortOrder === "price-asc") {
     out.sort((a, b) => (a.price || Infinity) - (b.price || Infinity));
@@ -197,12 +204,6 @@ function sortAlbums(albums, sortOrder) {
     out.sort((a, b) => (b.price || 0) - (a.price || 0));
   } else if (sortOrder === "photos-desc") {
     out.sort((a, b) => (b.photo_count || 0) - (a.photo_count || 0));
-  } else {
-    out.sort((a, b) => {
-      const byDate = (b.published_ms || 0) - (a.published_ms || 0);
-      if (byDate) return byDate;
-      return (Number(b.id) || 0) - (Number(a.id) || 0);
-    });
   }
   return out;
 }
