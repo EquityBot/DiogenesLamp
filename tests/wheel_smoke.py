@@ -8,6 +8,9 @@ from html.parser import HTMLParser
 from pathlib import Path
 
 from lamp import cli
+
+# Import the scraper to exercise the wheel's runtime dependencies.
+from lamp.scrape import scrape_all
 from lamp.serve import make_server
 
 
@@ -30,8 +33,11 @@ class ViewerAssets(HTMLParser):
 
 
 def main():
+    if not callable(scrape_all):
+        raise AssertionError("installed wheel has no callable scraper entry point")
     assets = Path(cli.__file__).resolve().parent / "viewer"
-    assert assets.is_dir(), "installed wheel has no viewer assets"
+    if not assets.is_dir():
+        raise AssertionError("installed wheel has no viewer assets")
     page = ViewerAssets()
     page.feed((assets / "index.html").read_text(encoding="utf-8"))
     with tempfile.TemporaryDirectory() as directory:
@@ -43,7 +49,8 @@ def main():
         try:
             for asset in page.paths:
                 with urllib.request.urlopen(f"http://127.0.0.1:{server.server_port}/{asset}") as response:
-                    assert response.status == 200 and response.read(), asset
+                    if response.status != 200 or not response.read():
+                        raise AssertionError(asset)
         finally:
             server.shutdown()
             server.server_close()

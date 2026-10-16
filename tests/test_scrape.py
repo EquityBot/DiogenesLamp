@@ -512,6 +512,31 @@ def test_unreadable_page_with_album_links_reports_a_layout_change(tmp_path: Path
     assert (tmp_path / "debug" / "sellerx-page1.html").exists()
 
 
+UNREADABLE_CARDS = "".join(
+    f'<a class="mystery__main" href="/albums/{aid}">x</a>' for aid in (102, 103, 104)
+)
+
+
+@pytest.mark.parametrize("page2", [
+    UNREADABLE_CARDS,
+    LIST_ITEM.format(aid="105", title="Item E") + UNREADABLE_CARDS,
+], ids=["later_unreadable", "mixed_new"])
+def test_a_later_unreadable_page_does_not_mark_listed_albums_gone(tmp_path: Path, page2):
+    """A later page the parser cannot fully read must not end the listing."""
+    scrape_seller(make_client(), SELLER, tmp_path, "2026-08-17T12:00:00+10:00")
+    client = FakeClient({
+        "albums?page=1": LIST_ITEM.format(aid="101", title="Item A"),
+        "albums?page=2": page2,
+    })
+    summary = scrape_seller(client, SELLER, tmp_path, "2026-08-18T12:00:00+10:00")
+    assert "layout change" in summary.error
+    assert not summary.listing_complete
+    assert (tmp_path / "debug" / "sellerx-page2.html").exists()
+    shard = load_shard(tmp_path, "sellerx")
+    assert set(shard) == {"101", "102"}
+    assert not any("gone_since" in album for album in shard.values())
+
+
 def test_a_lone_album_link_does_not_imply_a_layout_change(tmp_path: Path):
     """A promo or nav link on an otherwise empty page is not a parser bug."""
     html = '<html><body><a href="/albums/12345">featured</a></body></html>'

@@ -153,6 +153,18 @@ test("spreadsheet candidates start at a URL boundary, so lookalike hosts yield n
   assert.deepEqual([...sheet.keys], ["taobao:127"]);
 });
 
+test("spreadsheet URLs trim trailing punctuation and retain a following non-punctuation suffix", () => {
+  const { sheetItemKeys } = require("../../viewer/discovery.js");
+  const url = "https://weidian.com/item.html?itemID=123";
+  const punctuation = ".".repeat(50000);
+  const trimmed = sheetItemKeys(url + punctuation);
+  assert.equal(trimmed.urls, 1);
+  assert.deepEqual([...trimmed.keys], ["weidian:123"]);
+  const retained = sheetItemKeys(url + punctuation + "x");
+  assert.equal(retained.urls, 1);
+  assert.deepEqual([...retained.keys], []);
+});
+
 test("the delimiter is read outside quotes, so quoted commas and newlines survive a semicolon sheet", () => {
   const { parseDelimited, matchSheet } = require("../../viewer/discovery.js");
   const rows = parseDelimited('name;"a,b,c\ncontinued";link\r\nx;y;https://weidian.com/item.html?itemID=1\r\n');

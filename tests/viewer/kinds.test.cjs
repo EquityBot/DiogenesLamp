@@ -30,3 +30,11 @@ test("the table is well formed: unique ids, lowercase tokens, unsorted last", ()
   }
   for (const [title] of CASES) assert.ok(KIND_IDS.includes(kindOf(title)));
 });
+
+test("link removal preserves adjacent title words and handles long domain candidates", () => {
+  for (const title of ["watchhttp://example.com/shoes", "watchhttps://example.com/shoes", "watch example.com/shoes"]) {
+    assert.equal(kindOf(title), "watches", title);
+  }
+  assert.equal(kindOf("a".repeat(50000) + "! watch"), "watches");
+  assert.equal(kindOf("https://" + "a".repeat(50000) + ".com/watch"), UNSORTED);
+});
