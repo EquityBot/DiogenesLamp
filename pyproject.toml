@@ -11,6 +11,7 @@ license = "Apache-2.0"
 requires-python = ">=3.14"
 dependencies = [
     "requests==2.34.2",
+    "idna==3.20",
     "beautifulsoup4==4.15.0",
     "Pillow==12.3.0",
 ]

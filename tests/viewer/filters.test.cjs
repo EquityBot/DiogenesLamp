@@ -233,6 +233,30 @@ test("most-photos sort and newest-first id tie-break", () => {
   assert.deepEqual(sortAlbums(albums, "default").map((a) => a.id), ["30", "20", "10"]);
 });
 
+test("sorting keeps numeric ties stable and preserves frozen album references", () => {
+  const albums = Object.freeze(["010", "10", "broken", "20", "0"].map(id =>
+    Object.freeze({id, published_ms: 5, price: 12, photo_count: 3})));
+  for (const order of ["default", "unknown", "price-asc", "price-desc", "photos-desc"]) {
+    const expected = order === "default" || order === "unknown"
+      ? [albums[3], albums[0], albums[1], albums[2], albums[4]] : [...albums];
+    const sorted = sortAlbums(albums, order);
+    assert.notEqual(sorted, albums);
+    assert.deepEqual(sorted, expected);
+    sorted.forEach((value, index) => assert.equal(value, expected[index]));
+  }
+});
+
+test("newest sort retains date fallbacks and numeric ID order", () => {
+  const albums = Object.freeze([
+    {id: "10"}, {id: "30", published_ms: 0}, {id: "20", published_ms: NaN},
+    {id: "40", published_ms: 5}, {id: "50", published_ms: -1},
+    {id: "60", published_ms: Infinity}, {id: "70", published_ms: Infinity},
+    {id: "80", published_ms: -Infinity},
+  ].map(Object.freeze));
+  assert.deepEqual(sortAlbums(albums, "default").map(value => value.id),
+    ["70", "60", "40", "30", "20", "10", "50", "80"]);
+});
+
 test("formatPrice hides a missing price and prefixes yen", () => {
   assert.equal(formatPrice(0), "");
   assert.equal(formatPrice(undefined), "");

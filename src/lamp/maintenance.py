@@ -10,7 +10,7 @@ from pathlib import Path
 
 from lamp.covers import cover_facts, resize_cover
 from lamp.locking import catalogue_lock
-from lamp.schema import data_path, validate_metadata
+from lamp.schema import canonical_album, data_path, validate_metadata
 from lamp.storage import atomic_write_json
 
 MAX_METADATA_BYTES = 256 * 1024 * 1024
@@ -38,7 +38,7 @@ def metadata_files(root: Path) -> list[Path]:
 
 def diagnose(root: Path) -> dict:
     issues: list[str] = []
-    report: dict = {"schema_version": 1, "albums": 0, "missing_covers": 0, "unpriced": 0,
+    report: dict = {"schema_version": 1, "albums": 0, "unadmitted": 0, "missing_covers": 0, "unpriced": 0,
               "without_detail_date": 0, "without_description": 0, "gone": 0,
               "detail_failures": 0, "issues": issues}
     try:
@@ -51,10 +51,19 @@ def diagnose(root: Path) -> dict:
         relative = seller["shard"]
         try:
             shard = read_metadata(data_path(root, relative), relative)
-            if "album_count" in seller and seller["album_count"] != len(shard["albums"]):
+            selected = set(seller.get("album_ids", [a["id"] for a in shard["albums"]]))
+            present = {a["id"] for a in shard["albums"]}
+            if not selected <= present:
+                issues.append(f"{relative}: indexed album missing from shard")
+            count = sum(a["id"] in selected and not a.get("gone_since") for a in shard["albums"])
+            if "album_count" in seller and seller["album_count"] != count:
                 issues.append(f"{relative}: index count differs from shard")
             for album in shard["albums"]:
                 report["albums"] += 1
+                admitted = canonical_album(album)
+                report["unadmitted"] += int(not admitted)
+                if index.get("selection_version") == 1 and album["id"] in selected and not admitted:
+                    issues.append(f"{relative}: selected album is inadmissible: {album['id']}")
                 if album["id"] in ids:
                     issues.append(f"{relative}: duplicate album ID across shards: {album['id']}")
                 ids.add(album["id"])

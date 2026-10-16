@@ -11,6 +11,9 @@ let previewAt = 0;
 let previewReturnId = "";
 /** @type {Partial<Record<"collection" | "tags" | "notes", string>>} */
 let previewInitial = {};
+/** @type {import('./controller-types.js').ViewerAlbum | null} */
+let previewSnapshot = null;
+let previewUnresolved = false;
 
 /** @param {string} text */
 function actionStatus(text) {
@@ -39,6 +42,7 @@ function selectOptions(select, values, wanted = select.value) {
 }
 
 function refreshSavedState(render = true) {
+  inheritDuplicateWork(userStore, state.albumAliases);
   const entries = userStore.load();
   /** @template {import("./user-store.js").UserKind} K @param {K} kind
    * @returns {Map<string, import("./user-store.js").UserValues[K]>} */
@@ -51,7 +55,7 @@ function refreshSavedState(render = true) {
   selectOptions(els.tag, [...state.tags.values()].flat(), state.view.filters.tag);
   selectOptions(workEl("saved-search"), entries.filter(e => e.kind === "search" && e.value).map(e => e.id));
   if (render) applyFilters();
-  if (preview.open) updatePreviewFavourite();
+  if (preview.open) { reconcilePreview(); updatePreviewFavourite(); }
 }
 
 /** @param {unknown} filters */
@@ -76,7 +80,8 @@ function useFilters(filters) {
 }
 window.addEventListener("popstate", () => useFilters(filtersFromURL(location.search) || defaultFilters()));
 window.addEventListener("storage", event => {
-  if (event.key === null || event.key.startsWith(USER_PREFIX)) refreshSavedState();
+  if (event.key === null || event.key.startsWith(USER_PREFIX) ||
+      event.key.startsWith(INHERITED_PREFIX)) refreshSavedState();
   if (event.key === null || event.key === PREFS_STORAGE_KEY) {
     state.prefs = readPrefs(window);
     showPrefs();
@@ -176,10 +181,46 @@ workEl("mark-reviewed").addEventListener("click", () => {
   }
 });
 
-function previewAlbum() { return state.albums.find(a => a.id === previewIds[previewAt]); }
+function previewAlbum() { return previewSnapshot; }
+/** @param {string} id */
+function resolvePreview(id) {
+  return state.albums.find(a => a.id === id) || state.albums.find(a => a.id === state.albumAliases[id]);
+}
+/** @param {boolean} unresolved */
+function previewAvailability(unresolved) {
+  previewUnresolved = unresolved;
+  workEl("preview-save").disabled = unresolved;
+  workEl("preview-favourite").disabled = unresolved;
+  workEl("preview-prev").disabled = unresolved || previewAt === 0;
+  workEl("preview-next").disabled = unresolved || previewAt + 1 === previewIds.length;
+  workEl("preview-recovery").hidden = !unresolved;
+  const latest = previewSnapshot && resolvePreview(previewSnapshot.id);
+  workEl("preview-transfer").disabled = !latest || latest.id === previewSnapshot?.id;
+  workEl("preview-discard").disabled = !latest;
+  if (unresolved) {
+    workEl("preview-similar").open = false;
+    workEl("similar-results").replaceChildren();
+    workEl("preview-save-status").textContent = latest
+      ? `Album ${previewSnapshot?.id} was replaced by ${latest.id}. Your draft is retained. Transfer stages edited fields only where the latest listing has no saved value; review before saving.`
+      : "This listing is unavailable and has no confirmed loaded replacement. Your draft is retained; saving, favourites and navigation are paused.";
+  }
+}
+function reconcilePreview() {
+  if (!previewSnapshot) return;
+  const latest = resolvePreview(previewSnapshot.id);
+  if (latest?.id === previewSnapshot.id) { previewAvailability(false); return; }
+  if (!latest || previewDirty()) { previewAvailability(true); return; }
+  previewIds = previewIds.map(id => id === previewSnapshot?.id ? latest.id : id);
+  previewReturnId = latest.id;
+  showPreview(latest);
+}
+function previewReady() {
+  reconcilePreview();
+  return Boolean(previewSnapshot && !previewUnresolved && state.albums.some(a => a.id === previewSnapshot?.id));
+}
 function updatePreviewFavourite() {
   const fav = workEl("preview-favourite");
-  const chosen = state.favorites.has(previewIds[previewAt]);
+  const chosen = state.favorites.has(previewSnapshot?.id || "");
   fav.setAttribute("aria-pressed", String(chosen));
   fav.textContent = favLabel(chosen);
 }
@@ -189,7 +230,7 @@ function localDate(value) { return value ? String(value).replace("T", " ") : "No
 // The read-only part of the preview that preferences change: price, stored
 // text and links. Kept apart from showPreview so a changed agent or rate
 // never repopulates the notes form and discards an edit in progress.
-/** @param {import("./controller-types.js").ViewerAlbum | undefined} album */
+/** @param {import("./controller-types.js").ViewerAlbum | null} album */
 function showPreviewLinks(album) {
   if (!album) return;
   const evidence = album.price_evidence;
@@ -231,9 +272,10 @@ function showPreviewLinks(album) {
   }
 }
 
-function showPreview() {
-  const album = previewAlbum();
-  if (!album) return;
+/** @param {import('./controller-types.js').ViewerAlbum | undefined} album */
+function showPreview(album = resolvePreview(previewIds[previewAt])) {
+  if (!album) return false;
+  previewSnapshot = album;
   workEl("preview-title").textContent = album.title;
   workEl("preview-position").textContent = `${previewAt + 1} of ${previewIds.length}`;
   workEl("preview-prev").disabled = previewAt === 0;
@@ -272,14 +314,17 @@ function showPreview() {
   workEl("preview-similar").open = false;
   workEl("similar-results").replaceChildren();
   updatePreviewFavourite();
+  previewAvailability(false);
+  return true;
 }
 
 /** @param {string} id */
 function openPreview(id) {
   previewIds = state.filtered.map(a => a.id);
   previewAt = previewIds.indexOf(id);
+  if (previewAt < 0) return;
   previewReturnId = id;
-  showPreview();
+  if (!showPreview()) return;
   document.body.classList.add("preview-open");
   preview.showModal();
 }
@@ -291,10 +336,15 @@ function leavePreviewAllowed() {
 }
 /** @param {number} delta */
 function stepPreview(delta) {
+  if (!previewReady()) return;
   const next = previewAt + delta;
   if (next < 0 || next >= previewIds.length || !leavePreviewAllowed()) return;
+  const album = resolvePreview(previewIds[next]);
+  if (!album) { workEl("preview-save-status").textContent = "That listing is unavailable. The displayed album remains selected."; return; }
   previewAt = next;
-  showPreview();
+  previewIds[next] = album.id;
+  previewReturnId = album.id;
+  showPreview(album);
 }
 workEl("preview-prev").addEventListener("click", () => stepPreview(-1));
 workEl("preview-next").addEventListener("click", () => stepPreview(1));
@@ -313,10 +363,37 @@ preview.addEventListener("keydown", event => {
     event.preventDefault(); stepPreview(event.key === "ArrowLeft" ? -1 : 1);
   }
 });
-workEl("preview-favourite").addEventListener("click", event => toggleFavorite(previewIds[previewAt], /** @type {Element} */ (event.currentTarget)));
+workEl("preview-favourite").addEventListener("click", event => {
+  if (previewReady() && previewSnapshot) toggleFavorite(previewSnapshot.id, /** @type {Element} */ (event.currentTarget));
+});
+workEl("preview-retain").addEventListener("click", () => {
+  workEl("preview-save-status").textContent = "Draft retained in this open preview. Keep this page open until you transfer or discard it; the saved-work backup includes persisted fields only.";
+});
+/** @param {boolean} transfer */
+function resolvePreviewDraft(transfer) {
+  if (!previewSnapshot) return;
+  const latest = resolvePreview(previewSnapshot.id);
+  if (!latest || (transfer && latest.id === previewSnapshot.id)) return;
+  if (!transfer && !leavePreviewAllowed()) return;
+  const draft = /** @type {Partial<Record<'collection' | 'tags' | 'notes', string>>} */ ({});
+  for (const [field, kind] of /** @type {const} */ ([["collection", "collection"], ["tags", "tags"], ["notes", "note"]])) {
+    const value = workEl(/** @type {`preview-${keyof typeof previewInitial}`} */ ("preview-" + field)).value;
+    if (transfer && value !== previewInitial[field] && !userStore.has(kind, latest.id)) draft[field] = value;
+  }
+  previewIds = previewIds.map(id => id === previewSnapshot?.id ? latest.id : id);
+  previewReturnId = latest.id;
+  showPreview(latest);
+  for (const [field, value] of /** @type {[keyof typeof previewInitial, string][]} */ (Object.entries(draft)))
+    workEl(/** @type {`preview-${keyof typeof previewInitial}`} */ ("preview-" + field)).value = value;
+  workEl("preview-save-status").textContent = transfer ? "Draft staged on the latest listing. Existing saved fields were kept. Review the fields before saving." : "Draft discarded; the confirmed latest listing is displayed.";
+  workEl("preview-notes").focus();
+}
+workEl("preview-transfer").addEventListener("click", () => resolvePreviewDraft(true));
+workEl("preview-discard").addEventListener("click", () => resolvePreviewDraft(false));
 workEl("preview-form").addEventListener("submit", event => {
   event.preventDefault();
-  const id = previewIds[previewAt];
+  if (!previewReady() || !previewSnapshot) return;
+  const id = previewSnapshot.id;
   const tags = workEl("preview-tags").value.split(",").map(s => s.trim()).filter(Boolean);
   if (tags.length > 20 || tags.some(tag => tag.length > 50)) {
     workEl("preview-save-status").textContent = "Use at most 20 tags, each no longer than 50 characters.";
@@ -344,7 +421,8 @@ if (!filtersFromURL(location.search)) {
 
 workEl("preview-similar").addEventListener("toggle", () => {
   if (!workEl("preview-similar").open) return;
-  const album = /** @type {import("./controller-types.js").ViewerAlbum} */ (previewAlbum());
+  if (!previewReady() || !previewSnapshot) { workEl("preview-similar").open = false; return; }
+  const album = previewSnapshot;
   const dismissed = new Set(userStore.load().filter(e => e.kind === "dismiss" && e.value === true &&
     e.id.startsWith(album.id + ":")).map(e => e.id.slice(album.id.length + 1)));
   const matches = similarCovers(state.albums, album, dismissed);
@@ -358,10 +436,14 @@ workEl("preview-similar").addEventListener("toggle", () => {
     view.type = "button";
     view.textContent = `${match.album.title} (${match.distance}/64 differences)`;
     view.addEventListener("click", () => {
+      if (!previewReady()) return;
       if (!leavePreviewAllowed()) return;
-      if (!previewIds.includes(match.album.id)) previewIds.push(match.album.id);
-      previewAt = previewIds.indexOf(match.album.id);
-      showPreview();
+      const target = resolvePreview(match.album.id);
+      if (!target) { workEl("preview-save-status").textContent = "That suggestion is unavailable."; return; }
+      if (!previewIds.includes(target.id)) previewIds.push(target.id);
+      previewAt = previewIds.indexOf(target.id);
+      previewReturnId = target.id;
+      showPreview(target);
       workEl("preview-close").focus();
     });
     const dismiss = document.createElement("button");
@@ -369,6 +451,7 @@ workEl("preview-similar").addEventListener("toggle", () => {
     dismiss.textContent = "Dismiss";
     dismiss.setAttribute("aria-label", "Dismiss similar cover: " + match.album.title);
     dismiss.addEventListener("click", () => {
+      if (!previewReady() || previewSnapshot?.id !== album.id) return;
       if (userStore.set("dismiss", album.id + ":" + match.album.id, true)) {
         li.remove(); /** @type {HTMLElement} */ (workEl("preview-similar").querySelector("summary")).focus();
       }

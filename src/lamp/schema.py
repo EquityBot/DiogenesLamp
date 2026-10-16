@@ -2,11 +2,73 @@
 
 from __future__ import annotations
 
+import ipaddress
 import math
 import os
 import re
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
+
+import idna
+
+
+def _numeric_host(host: str) -> str:
+    """Apply the URL Standard's numeric-host admission, including short IPv4 forms."""
+    parts = host.removesuffix(".").split(".")
+    if not re.fullmatch(r"[0-9]+|0x[0-9a-f]*", parts[-1]):
+        return host
+    if len(parts) > 4:
+        raise ValueError("invalid IPv4 hostname")
+    numbers = []
+    for part in parts:
+        if not part:
+            raise ValueError("invalid IPv4 hostname")
+        radix, digits = (16, part[2:]) if part.startswith("0x") else (
+            (8, part[1:]) if len(part) > 1 and part.startswith("0") else (10, part))
+        pattern = {16: r"[0-9a-f]*", 8: r"[0-7]*", 10: r"[0-9]+"}[radix]
+        if not re.fullmatch(pattern, digits):
+            raise ValueError("invalid IPv4 hostname")
+        numbers.append(int(digits, radix) if digits else 0)
+    if any(n > 255 for n in numbers[:-1]) or numbers[-1] >= 256 ** (5 - len(numbers)):
+        raise ValueError("invalid IPv4 hostname")
+    address = numbers[-1] + sum(n * 256 ** (3 - i) for i, n in enumerate(numbers[:-1]))
+    return str(ipaddress.IPv4Address(address))
+
+
+def public_https_host(raw: str) -> str:
+    """Admit canonical links without fetching or altering historical captures."""
+    parsed = urlsplit(raw.replace("\\", "/"))
+    if parsed.scheme != "https" or not parsed.hostname or parsed.username is not None or parsed.password is not None:
+        raise ValueError("canonical links require public HTTPS without credentials")
+    _ = parsed.port
+    host = unquote(parsed.hostname, errors="strict").lower()
+    if parsed.netloc.startswith("["):
+        if "%" in host:
+            raise ValueError("IPv6 zone identifiers are not canonical URL hosts")
+        return str(ipaddress.IPv6Address(host))
+    if any(ord(ch) <= 32 or ord(ch) == 127 or ch in "#/:<>?@[\\]^|%" for ch in host):
+        raise ValueError("invalid canonical hostname")
+    # Validate before mapping: NFKC alone would turn disallowed dot lookalikes
+    # into valid separators and let them compete through the title fallback.
+    try:
+        if not host.isascii() or any(label.startswith("xn--") for label in host.split(".")):
+            host = idna.encode(host, uts46=True).decode("ascii")
+        if not host or host.startswith(("*", ".")):
+            raise ValueError("invalid canonical hostname")
+        return _numeric_host(host)
+    except (UnicodeError, idna.IDNAError) as exc:
+        raise ValueError("invalid canonical hostname") from exc
+
+
+def canonical_album(album: dict) -> bool:
+    """Keep legacy reading permissive; only admitted records compete for selection."""
+    try:
+        validate_metadata({"seller": album["seller"], "albums": [album]}, f"catalog/{album['seller']}.json")
+        for raw in [album["album_url"], *(link["url"] for link in album["links"])]:
+            public_https_host(raw)
+        return True
+    except (KeyError, TypeError, ValueError):
+        return False
 
 
 def data_path(root: Path, relative: str, kind: str = "metadata") -> Path:
@@ -36,10 +98,13 @@ def validate_metadata(value: object, relative: str) -> dict:
             or value.get("schema_version", 1) != 1):
         raise ValueError("unsupported metadata shape or schema version")
     if relative == "index.json":
+        if "selection_version" in value and (type(value["selection_version"]) is not int or value["selection_version"] != 1):
+            raise ValueError("unsupported selection version")
         sellers = value.get("sellers")
         if not isinstance(sellers, list):
             raise ValueError("index sellers must be an array")
         seen = set()
+        indexed_ids: set[str] = set()
         for seller in sellers:
             if (not isinstance(seller, dict) or not isinstance(seller.get("id"), str)
                     or not re.fullmatch(r"[a-z0-9_-]+", seller["id"])):
@@ -47,6 +112,22 @@ def validate_metadata(value: object, relative: str) -> dict:
             if seller["id"] in seen or seller.get("shard") != f"catalog/{seller['id']}.json":
                 raise ValueError("duplicate seller or mismatched shard path")
             seen.add(seller["id"])
+            if "album_ids" in seller:
+                ids = seller["album_ids"]
+                if (not isinstance(ids, list) or any(not isinstance(i, str) or
+                        not re.fullmatch(r"[0-9]{1,24}", i) for i in ids) or len(set(ids)) != len(ids)):
+                    raise ValueError("invalid indexed album IDs")
+                if indexed_ids.intersection(ids):
+                    raise ValueError("duplicate indexed album ID across sellers")
+                indexed_ids.update(ids)
+            elif value.get("selection_version") == 1:
+                raise ValueError("selected index requires album IDs for every seller")
+        aliases = value.get("album_aliases", {})
+        if not isinstance(aliases, dict) or any(
+                not isinstance(old, str) or not re.fullmatch(r"[0-9]{1,24}", old) or
+                not isinstance(new, str) or new not in indexed_ids or old in indexed_ids
+                for old, new in aliases.items()):
+            raise ValueError("invalid album aliases")
         return value
     if relative.startswith("runs/"):
         ids = value.get("failed_ids", [])
