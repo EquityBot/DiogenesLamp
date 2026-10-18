@@ -751,7 +751,7 @@ let lastRange = { start: -1, end: -1, cols: -1, count: -1, version: -1, cursor: 
 // through renderGrid(force = true), which rebuilds from scratch.
 // Keyed by seller and id together: an id repeated in one view would
 // otherwise claim the same node twice and strand a card in the DOM.
-// The separator is written as an escape, the way links.py writes its own
+// The separator is written as an escape, the way links.rs writes its own
 // control characters: a literal NUL in a source file is invisible to the
 // next reader and makes the file binary to grep and ripgrep, which then
 // report "binary file matches" and print no lines at all.

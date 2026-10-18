@@ -1,0 +1,45 @@
+[package]
+name = "diogenes-lamp"
+version = "0.1.0"
+description = "Browse any Yupoo catalog locally as one fast, searchable page"
+license = "Apache-2.0"
+edition = "2024"
+rust-version = "1.99"
+publish = false
+
+[lib]
+name = "lamp"
+path = "src/lib.rs"
+
+[[bin]]
+name = "lamp"
+path = "src/main.rs"
+
+[features]
+# Differential and integration harnesses only: answers HTTPS requests from a
+# local fixture directory instead of the network. Never enabled in releases.
+fixture-transport = []
+
+[dependencies]
+chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
+ctrlc = "3.5"
+fancy-regex = "0.19.2"
+flate2 = "1.1"
+getrandom = "0.3.4"
+idna = "1.1.0"
+image = { version = "0.25.10", default-features = false, features = ["jpeg", "png", "webp"] }
+indexmap = "2.14.2"
+regex = "1.13.1"
+sha2 = "0.11.1"
+terminal_size = "0.4.4"
+toml = { version = "0.9.12", default-features = false, features = ["parse", "preserve_order", "serde"] }
+unicode-normalization = "0.1.26"
+ureq = { version = "3.4.2", default-features = false, features = ["rustls"] }
+zip = { version = "9.0.5", default-features = false, features = ["deflate"] }
+
+[dev-dependencies]
+tempfile = "3.27.0"
+
+[profile.release]
+codegen-units = 1
+lto = true

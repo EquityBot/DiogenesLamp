@@ -50,3 +50,6 @@ Thumbs.db
 # viewer is looked at, and only the README shot in docs/ is worth keeping.
 .impeccable/review/
 .impeccable/questions/
+
+# Rust build output
+target/

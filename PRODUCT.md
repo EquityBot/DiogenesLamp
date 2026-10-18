@@ -45,7 +45,7 @@ viewer routinely loads a partially available catalogue.
 
 - Viewer is dependency-free vanilla JS with no build step and no bundler.
   Editing `viewer/*.js` and reloading is the whole development loop.
-- Served by a Python standard-library HTTP server from the clone or installed package. No
+- Served by the `lamp` binary's built-in local HTTP server, with the viewer built in. No
   CDN, no external fonts, no network at view time. Everything ships in-repo.
 - The grid is virtualised: only rows near the viewport exist in the DOM, card
   geometry is read back out of CSS custom properties, and scroll position is
@@ -73,8 +73,8 @@ viewer routinely loads a partially available catalogue.
   Covers keep their external destination. CSV exports describe their filter scope
   and catalogue completeness. Visual similarity is an opt-in local experiment,
   separate from duplicate identities.
-- Python 3.14 or newer. Viewer logic modules are tested with `node --test`,
-  everything else with `pytest`.
+- A single Rust binary. Viewer logic modules are tested with `node --test`,
+  everything else with `cargo test`.
 - Covers and metadata only. Detail photos are never downloaded; every card
   links back to Yupoo.
 
@@ -87,7 +87,7 @@ unhurried, with no marketing register.
 
 ## Evidence on hand
 
-- `tests/make_demo_data.py` writes 5 sellers by 2000 albums with generated
+- `examples/make_demo_data.rs` writes 5 sellers by 2000 albums with generated
   gradient covers on two albums in every three, spread across each seller, so
   1,333 covers per seller and 6,665 in all. Every viewer state can be seen
   without scraping anything.
