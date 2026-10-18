@@ -1,7 +1,7 @@
 "use strict";
 
 // Shopping agents: the hosts whose product links the scraper unwraps
-// (src/lamp/links.py keeps the same list; a parity test holds them equal)
+// (src/links.rs keeps the same list; a parity test holds them equal)
 // and the URL templates that rebuild a link for an agent still trading.
 // Every template is built from the bare marketplace item, never copied
 // from a pasted link, so no referral code survives. Formats were read from
@@ -117,7 +117,7 @@ const USFANS_CHANNELS = { "1": "1688", "2": "taobao", "3": "weidian" };
 /** @type {Record<string, Marketplace>} */
 const NAMED_CHANNELS = { "0": "1688", "1": "taobao", weidian: "weidian" };
 // Agents that name the marketplace in the path, /product/<channel>/<id>, and
-// how each numbers or names its channels. links.py keeps the same maps.
+// how each numbers or names its channels. links.rs keeps the same maps.
 /** @type {Record<string, Record<string, Marketplace>>} */
 const PATH_CHANNELS = { hoobuy: HOOBUY_CHANNELS, vigorbuy: HOOBUY_CHANNELS, usfans: USFANS_CHANNELS,
   litbuy: NAMED_CHANNELS, hipobuy: NAMED_CHANNELS, gtbuy: NAMED_CHANNELS };
@@ -126,7 +126,7 @@ const RIZZITGO_SOURCES = { "1": "taobao", "2": "1688", "3": "weidian" };
 // Each agent names its item one way only: wrapped agents carry the whole
 // marketplace URL in a parameter, query agents name the id and marketplace
 // in the two parameters listed here, path agents are in PATH_CHANNELS and
-// cssbuy spells the marketplace in its file name. links.py keeps the same.
+// cssbuy spells the marketplace in its file name. links.rs keeps the same.
 const WRAPPED_AGENTS = new Set(["kakobuy", "superbuy", "sugargoo", "loongbuy", "pikobuy", "itaobuy", "bbdbuy",
   "allchinabuy", "pandabuy"]);
 /** @type {Record<string, [string, string]>} */
@@ -142,7 +142,7 @@ const CSSBUY_PREFIXES = { "": "taobao", "micro-": "weidian", "1688-": "1688" };
 /**
  * The marketplace item an agent product link points at, as its canonical
  * marketplace URL, or null when the link is not an agent link or carries
- * nothing usable. Mirrors links.py so a pasted agent link finds the same
+ * nothing usable. Mirrors links.rs so a pasted agent link finds the same
  * album the scraper keyed.
  * @param {string} raw
  * @param {number} [depth]

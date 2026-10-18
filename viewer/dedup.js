@@ -22,11 +22,11 @@ function normTitle(title) {
     .replace(/[^\p{L}\p{N}]+/gu, "");
 }
 
-// Shortlinks identify an item by path token rather than an id. links.py
+// Shortlinks identify an item by path token rather than an id. links.rs
 // keeps the same list; a parity test holds them equal.
 const SHORTLINK_HOSTS = ["m.tb.cn", "k.youshop10.com"];
 
-// The item page each marketplace serves for a bare item id, as links.py
+// The item page each marketplace serves for a bare item id, as links.rs
 // builds it when it unwraps an agent link.
 /** @type {Record<import("./agents.js").Marketplace, string>} */
 const ITEM_URLS = {
