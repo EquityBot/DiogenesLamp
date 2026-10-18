@@ -23,15 +23,16 @@ On this page:
 
 ## Install
 
-Requires Python 3.14+. A normal installation includes the viewer assets:
+Requires a Rust toolchain (the version is pinned in `rust-toolchain.toml`).
+`lamp` is a single binary with the viewer assets built in:
 
     git clone https://github.com/ryanduguid/DiogenesLamp
     cd DiogenesLamp
-    pip install .
+    cargo install --locked --path .
 
-Use `pip install -e '.[dev]'` for development so viewer edits appear on reload.
-No tagged release is required to install from the clone. A built wheel also
-works outside the source tree.
+No tagged release is required to install from the clone, and the installed
+binary works outside the source tree. During development, `cargo run --` runs
+the current source; viewer edits take effect at the next build.
 
 ## Use
 
@@ -285,8 +286,8 @@ before they can pass snapshot validation. Unlisted files are left in place.
 
 ### Cached covers and visual suggestions
 
-New downloaded covers are oriented and reduced to a maximum edge of 640 pixels
-using Pillow. Their format and transparency are preserved. Existing small
+New downloaded covers are oriented and reduced to a maximum edge of 640 pixels.
+Their format and transparency are preserved. Existing small
 covers keep their bytes. Content hashes keep cache URLs stable across unchanged
 detail refreshes.
 
@@ -322,17 +323,21 @@ accuracy rate on real products.
 
 ## Development
 
-    pip install -e '.[dev]'   # quotes matter in zsh
-    ruff check .
-    pytest              # fixture-based, no network
-    pytest -m manual    # canaries against saved live samples
+    cargo fmt --check
+    cargo clippy --all-targets -- -D warnings
+    cargo test                    # fixture-based, no network
+    cargo test -- --ignored       # canary against a saved live sample
 
-The `manual` tests check the parsers against a real page saved by hand to
+The ignored test checks the parsers against a real page saved by hand to
 `data/debug/sample-list.html` - fetch a seller's `albums?page=1` there and the
 canary says whether the selectors still match live Yupoo markup (the test's
-docstring has the command). Nothing writes that file for you: a scrape only
+comment has the command). Nothing writes that file for you: a scrape only
 dumps pages it *failed* to parse, which is the opposite of a canary. So on a
-fresh clone they fail by design rather than pass vacuously.
+fresh clone it fails by design rather than passes vacuously.
+
+The tests need node: they run the viewer suite and check the scraper's
+duplicate, URL and age rules against the viewer's own code, and they fail
+rather than skip when node is missing.
 
 The viewer is dependency-free vanilla JS with no build step - edit
 `viewer/*.js` and reload. Its visual system is recorded in `DESIGN.md`
@@ -340,7 +345,7 @@ The viewer is dependency-free vanilla JS with no build step - edit
 in `PRODUCT.md`; read `DESIGN.md` before changing anything in `viewer/`,
 because the card geometry there is a contract `app.js` reads back out of the
 stylesheet at runtime. Its logic modules have their own tests, run by
-`pytest` through a wrapper (skipped when node is missing) and directly with:
+`cargo test` and directly with:
 
     node --test tests/viewer/*.test.cjs
 
@@ -356,7 +361,7 @@ browser verification still checks focus, layout and keyboard behaviour.
 
 To work on the viewer without scraping anything, generate synthetic data:
 
-    python tests/make_demo_data.py demo-data
+    cargo run --example make_demo_data -- demo-data
     lamp --data demo-data serve
 
 That writes 5 sellers x 2000 albums, with generated gradient covers for 2
@@ -365,16 +370,17 @@ on purpose, so the viewer's titled colour-block fallback is on screen too.
 Fixtures include known and unknown prices, changed prices and gone listings.
 For a larger metadata fixture with fewer generated images:
 
-    python tests/make_demo_data.py demo-data-100k 10 10000 100
+    cargo run --example make_demo_data -- demo-data-100k 10 10000 100
 
 The final argument limits generated covers per seller. Use synthetic data to
 check previews, cross-tab saves, backup/import, Back navigation and keyboard
 focus at narrow and desktop widths. To verify packaging:
 
-    uv build
+    cargo build --locked --release
 
-Install the resulting wheel in a clean environment and serve it from a directory
-outside the clone. Check that the page, scripts and styles return successfully.
+Run the resulting binary from a directory outside the clone and check that the
+page, scripts and styles return successfully; `cargo test` checks that every
+asset `index.html` loads is built into the binary.
 
 Yupoo serves 2 different list-page templates and the parser handles both.
 Every listing page is checked for at least 3 distinct album links the parser

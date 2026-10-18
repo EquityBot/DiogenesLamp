@@ -12,75 +12,29 @@ concurrency:
 permissions:
   contents: read
 
-# CI follows Python 3.15 maintenance releases; local development pins the patch.
-env:
-  UV_PYTHON: "3.15"
-
 jobs:
   test:
     timeout-minutes: 30
-    runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        # Test the declared Python 3.14 minimum and the current 3.15 release.
-        python-version: ["3.14", "3.15"]
-    env:
-      UV_PYTHON: ${{ matrix.python-version }}
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: ${{ matrix.python-version }}
-          allow-prereleases: true
-      # The viewer's logic modules have node tests. pytest runs them
-      # through a wrapper that skips when node is missing, so installing it
-      # explicitly is what keeps that suite from silently disappearing on a
-      # runner image change. The separate type check does not execute tests.
+      # The Rust tests run the viewer's node suite and the browser parity
+      # checks, and fail rather than skip without node, so it is installed
+      # explicitly. The separate type check does not execute tests.
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: "22"
           package-manager-cache: false
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
-      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
-        with:
-          version: "0.12.23"
-          enable-cache: true
-      - run: uv run --locked --extra dev --no-build ruff check .
-      - run: uv run --locked --extra dev --no-build mypy src/lamp
-      - run: uv run --locked --extra dev --no-build pytest
-      - run: uv build --no-build
-      - name: Test the installed wheel with locked runtime dependencies
-        run: |
-          uv export --locked --no-dev --no-emit-project --no-header --no-annotate -o dist/runtime-constraints.txt
-          python - <<'PY'
-          import tomllib
-          from email.parser import BytesParser
-          from hashlib import file_digest
-          from pathlib import Path
-          from zipfile import ZipFile
-          wheel, = Path("dist").glob("*.whl")
-          with ZipFile(wheel) as archive:
-              metadata_path, = (name for name in archive.namelist() if name.endswith(".dist-info/METADATA"))
-              metadata = BytesParser().parsebytes(archive.read(metadata_path))
-          project = tomllib.loads(Path("pyproject.toml").read_text())["project"]
-          expected_extras = sorted(project.get("optional-dependencies", {}))
-          if sorted(metadata.get_all("Provides-Extra", [])) != expected_extras:
-              raise SystemExit("Wheel declared extras differ from pyproject.toml")
-          dependencies = project["dependencies"] + [
-              f'{dependency}; extra == "{extra}"'
-              for extra, requirements in project.get("optional-dependencies", {}).items()
-              for dependency in requirements
-          ]
-          if sorted(metadata.get_all("Requires-Dist", [])) != sorted(dependencies):
-              raise SystemExit("Wheel runtime dependencies differ from pyproject.toml")
-          with wheel.open("rb") as stream:
-              digest = file_digest(stream, "sha256").hexdigest()
-          Path("dist/wheel-requirement.txt").write_text(f"{wheel} --hash=sha256:{digest}\n")
-          PY
-          uv venv .wheel-smoke
-          uv pip install --python .wheel-smoke/bin/python --no-build --require-hashes --strict -c dist/runtime-constraints.txt -r dist/wheel-requirement.txt
-          .wheel-smoke/bin/python -I tests/wheel_smoke.py
+      # rust-toolchain.toml pins the compiler and its clippy and rustfmt components.
+      - run: cargo fmt --check
+      - run: cargo clippy --locked --all-targets -- -D warnings
+      - run: cargo test --locked
+      - run: cargo build --locked --release
