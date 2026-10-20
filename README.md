@@ -1,7 +1,7 @@
 # DiogenesLamp
 
 [![ci](https://github.com/ReadIsaiah53/DiogenesLamp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ReadIsaiah53/DiogenesLamp/actions/workflows/ci.yml)
-[![licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-66023C?labelColor=000000&style=flat-square)](LICENSE)
+[![licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-66023C?labelColor=000000&style=flat&color=66023C)](LICENSE)
 
 Browse any Yupoo catalogue locally as one fast, searchable, infinite-scroll page.
 
