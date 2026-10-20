@@ -765,7 +765,8 @@ fn open_browser(url: &str) {
 /// `lamp serve`: print the URL, optionally open a browser, serve until Ctrl+C.
 pub fn serve(server: &Server, open: bool, stop: Arc<AtomicBool>) {
     let url = format!("http://127.0.0.1:{}/", server.port());
-    crate::out::out(&format!("serving on {url} (Ctrl+C to stop)"));
+    crate::out::out(&format!("serving on {url} (Ctrl+C to stop)"))
+        .unwrap_or_else(|e| crate::out::uncaught(&e));
     if open {
         open_browser(&url);
     }
