@@ -20,10 +20,18 @@ pub(crate) fn errno_text(errno: i32) -> &'static str {
         1 => "Operation not permitted",
         2 => "No such file or directory",
         5 => "Input/output error",
+        // The `cfg!(windows)` arms are the Windows C runtime's texts
+        // (UCRT misc/syserr.cpp) where they differ from or are missing here.
+        7 if cfg!(windows) => "Arg list too long",
+        8 if cfg!(windows) => "Exec format error",
         9 => "Bad file descriptor",
+        10 if cfg!(windows) => "No child processes",
+        11 if cfg!(windows) => "Resource temporarily unavailable",
+        12 if cfg!(windows) => "Not enough space",
         13 => "Permission denied",
         16 => "Device or resource busy",
         17 => "File exists",
+        18 if cfg!(windows) => "Improper link",
         20 => "Not a directory",
         21 => "Is a directory",
         22 => "Invalid argument",
@@ -35,24 +43,48 @@ pub(crate) fn errno_text(errno: i32) -> &'static str {
         36 => "File name too long",
         39 => "Directory not empty",
         40 => "Too many levels of symbolic links",
-        // The Windows C runtime's ENOTEMPTY.
         41 if cfg!(windows) => "Directory not empty",
+        42 if cfg!(windows) => "Illegal byte sequence",
         _ => "Unknown error",
     }
 }
 
 #[cfg(windows)]
-pub(crate) fn windows_errno(code: i32) -> i32 {
-    // The C runtime's _dosmaperr table, for the codes open() and write() can meet.
+fn windows_errno(code: i32) -> i32 {
+    // The C runtime's _dosmaperr table, for the codes open() can meet.
     match code {
         2 | 3 | 15 | 18 | 53 | 161 => 2,
         5 | 19 | 32 | 33 | 65 | 82 | 108 | 132 | 267 => 13,
         4 => 24,
         6 => 9,
         80 | 183 => 17,
-        109 => 32,
         112 => 28,
         145 => 41,
+        _ => 22,
+    }
+}
+
+/// The errno the C runtime's _dosmaperr sets for a Windows error code: its
+/// table in UCRT misc/errno.cpp, then 19 to 36 as EACCES, 188 to 202 as
+/// ENOEXEC, and EINVAL for the rest.
+#[cfg(windows)]
+pub(crate) fn crt_errno(code: i32) -> i32 {
+    match code {
+        2 | 3 | 15 | 18 | 53 | 67 | 161 | 206 => 2,
+        4 => 24,
+        5 | 16 | 19..=36 | 65 | 82 | 83 | 108 | 132 | 158 | 167 => 13,
+        6 | 114 | 130 => 9,
+        7..=9 | 1816 => 12,
+        10 => 7,
+        11 | 188..=202 => 8,
+        17 => 18,
+        80 | 183 => 17,
+        89 | 164 | 215 => 11,
+        109 => 32,
+        112 => 28,
+        128 | 129 => 10,
+        145 => 41,
+        1113 => 42,
         _ => 22,
     }
 }

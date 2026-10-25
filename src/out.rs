@@ -41,20 +41,22 @@ fn python_stdout(unbuffered: bool) -> Box<dyn Write + Send> {
     if stdout.is_terminal() {
         return Box::new(io::LineWriter::new(stdout));
     }
-    if unbuffered {
-        #[cfg(unix)]
-        let handle = std::os::fd::AsFd::as_fd(&stdout)
-            .try_clone_to_owned()
-            .map(std::fs::File::from);
-        #[cfg(windows)]
-        let handle = std::os::windows::io::AsHandle::as_handle(&stdout)
-            .try_clone_to_owned()
-            .map(std::fs::File::from);
-        if let Ok(file) = handle {
-            return Box::new(file);
-        }
+    // A file on a duplicate of the descriptor, because std's stdout reports a
+    // write to a bad descriptor (EBADF on Unix) as success. Without one there
+    // is no stdout to duplicate, and Python's sys.stdout was None.
+    #[cfg(unix)]
+    let handle = std::os::fd::AsFd::as_fd(&stdout)
+        .try_clone_to_owned()
+        .map(std::fs::File::from);
+    #[cfg(windows)]
+    let handle = std::os::windows::io::AsHandle::as_handle(&stdout)
+        .try_clone_to_owned()
+        .map(std::fs::File::from);
+    match handle {
+        Ok(file) if unbuffered => Box::new(file),
+        Ok(file) => Box::new(io::BufWriter::with_capacity(128 * 1024, file)),
+        Err(_) => Box::new(io::BufWriter::with_capacity(128 * 1024, stdout)),
     }
-    Box::new(io::BufWriter::with_capacity(128 * 1024, stdout))
 }
 
 fn stdout() -> MutexGuard<'static, Box<dyn Write + Send>> {
@@ -76,7 +78,7 @@ fn crt_write_errno(code: i32) -> i32 {
     if code == 5 {
         9
     } else {
-        crate::pyerr::windows_errno(code)
+        crate::pyerr::crt_errno(code)
     }
 }
 
@@ -190,6 +192,12 @@ mod tests {
             (6, "OSError", "[Errno 9] Bad file descriptor"),
             (109, "BrokenPipeError", "[Errno 32] Broken pipe"),
             (112, "OSError", "[Errno 28] No space left on device"),
+            (29, "PermissionError", "[Errno 13] Permission denied"),
+            (31, "PermissionError", "[Errno 13] Permission denied"),
+            (114, "OSError", "[Errno 9] Bad file descriptor"),
+            (130, "OSError", "[Errno 9] Bad file descriptor"),
+            (267, "OSError", "[Errno 22] Invalid argument"),
+            (8, "OSError", "[Errno 12] Not enough space"),
         ] {
             let error = io::Error::from_raw_os_error(code);
             assert_eq!(stream_error(&error), (kind, message.to_string()), "{code}");
