@@ -15,7 +15,7 @@ pub enum Call {
     Os,
 }
 
-fn errno_text(errno: i32) -> &'static str {
+pub(crate) fn errno_text(errno: i32) -> &'static str {
     match errno {
         1 => "Operation not permitted",
         2 => "No such file or directory",
@@ -31,22 +31,26 @@ fn errno_text(errno: i32) -> &'static str {
         27 => "File too large",
         28 => "No space left on device",
         30 => "Read-only file system",
+        32 => "Broken pipe",
         36 => "File name too long",
         39 => "Directory not empty",
         40 => "Too many levels of symbolic links",
+        // The Windows C runtime's ENOTEMPTY.
+        41 if cfg!(windows) => "Directory not empty",
         _ => "Unknown error",
     }
 }
 
 #[cfg(windows)]
-fn windows_errno(code: i32) -> i32 {
-    // The C runtime's _dosmaperr table, for the codes open() can meet.
+pub(crate) fn windows_errno(code: i32) -> i32 {
+    // The C runtime's _dosmaperr table, for the codes open() and write() can meet.
     match code {
         2 | 3 | 15 | 18 | 53 | 161 => 2,
         5 | 19 | 32 | 33 | 65 | 82 | 108 | 132 | 267 => 13,
         4 => 24,
         6 => 9,
         80 | 183 => 17,
+        109 => 32,
         112 => 28,
         145 => 41,
         _ => 22,

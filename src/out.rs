@@ -68,19 +68,45 @@ fn write_stderr(text: &str) -> io::Result<()> {
         .inspect_err(|_| STDERR_FAILED.store(true, Ordering::SeqCst))
 }
 
+/// The errno the C runtime's `write()` hands Python for a Windows error: a
+/// handle without write access is EBADF, and the rest go through _dosmaperr,
+/// so a closed pipe (ERROR_NO_DATA) is EINVAL.
+#[cfg(windows)]
+fn crt_write_errno(code: i32) -> i32 {
+    if code == 5 {
+        9
+    } else {
+        crate::pyerr::windows_errno(code)
+    }
+}
+
+/// The OSError subclass Python raises for an errno.
+fn errno_class(errno: i32) -> &'static str {
+    match errno {
+        1 | 13 => "PermissionError",
+        2 => "FileNotFoundError",
+        17 => "FileExistsError",
+        32 => "BrokenPipeError",
+        _ => "OSError",
+    }
+}
+
 /// `(type(exc).__name__, str(exc))` for a failed write to a standard stream:
 /// `OSError: [Errno 22] Invalid argument` for a closed pipe on Windows,
 /// `BrokenPipeError: [Errno 32] Broken pipe` elsewhere.
 fn stream_error(error: &io::Error) -> (&'static str, String) {
+    #[cfg(windows)]
+    if let Some(code) = error.raw_os_error() {
+        let errno = crt_write_errno(code);
+        let text = crate::pyerr::errno_text(errno);
+        return (errno_class(errno), format!("[Errno {errno}] {text}"));
+    }
     let mut text = error.to_string();
     if let Some(at) = text.rfind(" (os error ") {
         text.truncate(at);
     }
     match error.raw_os_error() {
-        Some(112) if cfg!(windows) => ("OSError", "[Errno 28] No space left on device".into()),
-        Some(_) if cfg!(windows) => ("OSError", "[Errno 22] Invalid argument".into()),
-        Some(32) => ("BrokenPipeError", format!("[Errno 32] {text}")),
-        Some(code) => ("OSError", format!("[Errno {code}] {text}")),
+        Some(code) => (errno_class(code), format!("[Errno {code}] {text}")),
         None => ("OSError", text),
     }
 }
@@ -148,4 +174,25 @@ pub fn shutdown(code: i32) -> i32 {
         code = 120;
     }
     code
+}
+
+#[cfg(all(test, windows))]
+mod tests {
+    use super::stream_error;
+    use std::io;
+
+    /// Windows write errors as CPython 3.15 reports them through the C runtime.
+    #[test]
+    fn windows_write_errors_read_as_python_reports_them() {
+        for (code, kind, message) in [
+            (232, "OSError", "[Errno 22] Invalid argument"),
+            (5, "OSError", "[Errno 9] Bad file descriptor"),
+            (6, "OSError", "[Errno 9] Bad file descriptor"),
+            (109, "BrokenPipeError", "[Errno 32] Broken pipe"),
+            (112, "OSError", "[Errno 28] No space left on device"),
+        ] {
+            let error = io::Error::from_raw_os_error(code);
+            assert_eq!(stream_error(&error), (kind, message.to_string()), "{code}");
+        }
+    }
 }

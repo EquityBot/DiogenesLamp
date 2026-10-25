@@ -112,6 +112,32 @@ fn a_scrape_report_line_fails_at_once() {
     assert!(!dir.path().join("data").join("index.json").exists());
 }
 
+/// A stdout opened without write access fails as a bad file descriptor on
+/// every platform: on Windows the C runtime under Python's `write()` reports
+/// ERROR_ACCESS_DENIED as EBADF, unlike the closed pipe's EINVAL.
+#[test]
+fn a_read_only_stdout_is_a_bad_file_descriptor() {
+    let dir = workspace();
+    let path = dir.path().join("read-only.txt");
+    std::fs::write(&path, "").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_lamp"))
+        .arg("--help")
+        .current_dir(dir.path())
+        .env("COLUMNS", "80")
+        .env_remove("PYTHONUNBUFFERED")
+        .stdout(std::fs::File::open(&path).unwrap())
+        .stderr(Stdio::piped())
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(120));
+    assert_eq!(
+        String::from_utf8(output.stderr)
+            .unwrap()
+            .replace("\r\n", "\n"),
+        "Exception ignored while flushing sys.stdout:\nOSError: [Errno 9] Bad file descriptor\n"
+    );
+}
+
 #[test]
 fn an_unwritable_diagnostic_loses_the_original_code() {
     let dir = workspace();
