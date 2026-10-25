@@ -150,6 +150,7 @@ pub fn public_https_host(raw: &str) -> Result<String> {
         // shortcut: the idna crate's UTS 46 processing stands in for Python's
         // idna package (IDNA 2008 with UTS 46 mapping); their Unicode tables
         // and contextual rules can differ at the edges.
+        // Revisit if a host is found to map differently from Python.
         host = Uts46::new()
             .to_ascii(
                 host.as_bytes(),
