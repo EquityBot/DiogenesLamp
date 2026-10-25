@@ -43,15 +43,21 @@ fn python_stdout(unbuffered: bool) -> Box<dyn Write + Send> {
     }
     // A file on a duplicate of the descriptor, because std's stdout reports a
     // write to a bad descriptor (EBADF on Unix) as success. Without one there
-    // is no stdout to duplicate, and Python's sys.stdout was None.
+    // is no stdout to duplicate, and Python's sys.stdout was None: std's
+    // stdout then discards writes as Python's print did.
     #[cfg(unix)]
     let handle = std::os::fd::AsFd::as_fd(&stdout)
         .try_clone_to_owned()
         .map(std::fs::File::from);
+    // A missing Windows handle is null, which duplicates without error.
     #[cfg(windows)]
-    let handle = std::os::windows::io::AsHandle::as_handle(&stdout)
-        .try_clone_to_owned()
-        .map(std::fs::File::from);
+    let handle = if std::os::windows::io::AsRawHandle::as_raw_handle(&stdout).is_null() {
+        Err(io::ErrorKind::NotFound.into())
+    } else {
+        std::os::windows::io::AsHandle::as_handle(&stdout)
+            .try_clone_to_owned()
+            .map(std::fs::File::from)
+    };
     match handle {
         Ok(file) if unbuffered => Box::new(file),
         Ok(file) => Box::new(io::BufWriter::with_capacity(128 * 1024, file)),
