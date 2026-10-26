@@ -381,7 +381,7 @@ fn toml_to_value(value: &toml::Value) -> Value {
         toml::Value::Float(f) => Value::Float(*f),
         toml::Value::Boolean(b) => Value::Bool(*b),
         // shortcut: tomllib gives a datetime object, which Python can only
-        // print as text; keep the TOML text.
+        // print as text; keep the TOML text. Keep a datetime type if a consumer needs one.
         toml::Value::Datetime(d) => Value::Str(d.to_string()),
         toml::Value::Array(items) => Value::Array(items.iter().map(toml_to_value).collect()),
         toml::Value::Table(table) => Value::Object(
