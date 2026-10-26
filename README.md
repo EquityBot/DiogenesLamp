@@ -1,7 +1,19 @@
-# DiogenesLamp
+<p align="center">
+  <picture>
+    <source media="(max-width: 600px) and (prefers-color-scheme: light)" srcset=".github/assets/banner-phone-light.svg">
+    <source media="(max-width: 600px)" srcset=".github/assets/banner-phone.svg">
+    <source media="(prefers-color-scheme: light)" srcset=".github/assets/banner-light.svg">
+    <img src=".github/assets/banner.svg" width="100%" alt="DiogenesLamp. Every Yupoo catalogue on one searchable page. Pixel art of a lit clay oil lamp beside the DiogenesLamp wordmark in slab-serif block letters.">
+  </picture>
+</p>
 
-[![ci](https://github.com/ReadIsaiah53/DiogenesLamp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/ReadIsaiah53/DiogenesLamp/actions/workflows/ci.yml)
+<div align="center">
+
+[![ci](https://img.shields.io/github/actions/workflow/status/ReadIsaiah53/DiogenesLamp/ci.yml?branch=main&label=ci&labelColor=000000&style=flat)](https://github.com/ReadIsaiah53/DiogenesLamp/actions/workflows/ci.yml)
+[![rust: 1.99+](https://img.shields.io/badge/rust-1.99%2B-66023C?labelColor=000000&style=flat&color=66023C)](https://www.rust-lang.org/)
 [![licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-66023C?labelColor=000000&style=flat&color=66023C)](LICENSE)
+
+</div>
 
 Browse any Yupoo catalogue locally as one fast, searchable, infinite-scroll page.
 
@@ -391,3 +403,7 @@ without such links reports an empty or closed seller. The threshold can miss
 fewer unread links; synthetic tests do not establish real-site coverage.
 
 Apache-2.0 licensed. If you redistribute this work or build on it, keep the attribution in [NOTICE](NOTICE).
+
+---
+
+<p align="center"><sub>Still looking for an honest seller.<br>Made in Newcastle, Australia by <a href="https://duguid.com.au/">Ryan Duguid</a>.</sub></p>
