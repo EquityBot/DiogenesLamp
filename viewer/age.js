@@ -61,8 +61,9 @@ function publishedMs(album) {
 // src/age.rs's whole-day difference. Both sides must count the
 // same way: measuring in milliseconds instead would make an album estimated
 // exactly N days old pass --max-age-days N at scrape time and then vanish
-// from the N-day filter. `today` is the viewer's local date, matching the
-// local timestamp the scraper stamps its runs with.
+// from the N-day filter. `today` is the viewer's local date (present day,
+// present time), matching the local timestamp the scraper stamps its runs
+// with.
 const DAY_MS = 86400000;
 /** @param {number} nowTs */
 function localDayMs(nowTs) {

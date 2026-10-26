@@ -7,7 +7,7 @@
 // rather than guessed. Latin tokens match on word boundaries, CJK tokens
 // anywhere. ponytail: precision is unmeasured on real catalogues; the
 // filter is labelled experimental and an album's own category filter is
-// untouched.
+// untouched. Measure precision on a real catalogue before dropping the label.
 
 /** @typedef {{id: string, label: string, latin: string[], cjk: string[]}} Kind */
 

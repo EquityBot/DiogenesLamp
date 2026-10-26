@@ -182,6 +182,8 @@ fn idna_encode(host: &str) -> Option<String> {
     // shortcut: UTS 46 processing stands in for IDNA 2003 nameprep here; the
     // two differ for a few characters (such as ß), which only matters for a
     // non-ASCII host in a fetched URL.
+    // Port nameprep if a fetched non-ASCII host resolves differently from
+    // Python.
     idna::domain_to_ascii(host).ok()
 }
 
@@ -851,6 +853,7 @@ fn open_pinned_to(
         "gzip" | "x-gzip" => Box::new(flate2::read::MultiGzDecoder::new(raw)),
         // shortcut: urllib3 also accepts a raw deflate stream here; zlib is
         // what servers send in practice.
+        // Accept raw deflate if a server is found sending it.
         "deflate" => Box::new(flate2::read::ZlibDecoder::new(raw)),
         _ => raw,
     };
