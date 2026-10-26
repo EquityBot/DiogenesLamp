@@ -251,6 +251,7 @@ impl<'a> Parser<'a> {
     ) -> Result<(Value, usize), Fail> {
         // shortcut: Python raises RecursionError near its C stack limit; a
         // fixed nesting bound keeps the native stack safe instead.
+        // Switch to an iterative parser if a real document reaches it.
         if self.depth >= MAX_DEPTH {
             return Err(Fail::Error(DecodeError(
                 "maximum recursion depth exceeded while decoding a JSON document".into(),
@@ -395,6 +396,7 @@ impl<'a> Parser<'a> {
                 None => {
                     // shortcut: Python keeps a lone surrogate in the str; a
                     // Rust String cannot hold one, so such a document is refused.
+                    // Use a surrogate-preserving string type if a real input carries one.
                     return Err(Fail::Error(DecodeError(format!(
                         "lone surrogate \\u{c:04x} is not supported: line {} column {} (char {})",
                         line_col(self.s, backslash).0,

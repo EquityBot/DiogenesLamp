@@ -417,6 +417,7 @@ pub fn resize_cover(path: &Path) -> Result<bool> {
         }
         // shortcut: the image crate encodes WebP losslessly only; Pillow
         // writes lossy quality 85. Covers stay WebP, at a larger size.
+        // Use a lossy encoder if cover storage size becomes a problem.
         _ => image.write_with_encoder(image::codecs::webp::WebPEncoder::new_lossless(&mut encoded)),
     };
     write_result.map_err(|e| Error::Os(e.to_string()))?;
