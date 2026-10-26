@@ -185,6 +185,9 @@ fn serve_warns_when_there_is_no_index_and_needs_no_source_tree() {
             &port,
         ])
         .current_dir(dir.path())
+        // Piped stdout is buffered until exit, as Python's was, and the
+        // server is killed: write the "serving on" line straight away.
+        .env("PYTHONUNBUFFERED", "1")
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()

@@ -286,7 +286,8 @@ fn cmd_import(args: &Args) -> i32 {
         report.shops_new,
         report.shops_known,
         pyerr::path_str(&sources_path)
-    ));
+    ))
+    .unwrap_or_else(|e| out::uncaught(&e));
     if !report.collisions.is_empty() {
         out::err(&format!(
             "{} id collision(s), second URL not stored:",
@@ -397,7 +398,8 @@ fn cmd_scrape(args: &Args) -> i32 {
     let mut reported = 0usize;
     let mut on_done = |s: &SellerSummary| {
         reported += 1;
-        out::out(&report_line(s, reported, total, dry_run));
+        out::out_flush(&report_line(s, reported, total, dry_run))
+            .unwrap_or_else(|e| out::uncaught(&e));
     };
     let outcome = scrape::scrape_all(
         &sources,
@@ -453,7 +455,8 @@ fn cmd_scrape(args: &Args) -> i32 {
     out::out(&format!(
         "{} sellers, {errored} with errors{tail}{dry_tag}",
         outcome.summaries.len()
-    ));
+    ))
+    .unwrap_or_else(|e| out::uncaught(&e));
     i32::from(errored > 0)
 }
 
@@ -462,7 +465,8 @@ fn maintenance(command: &str, args: &Args) -> Result<i32, Error> {
     match command {
         "doctor" => {
             let report = crate::maintenance::diagnose(&data);
-            out::out(&pyjson::dumps(&report.clone().into(), Style::Indent(2)));
+            out::out(&pyjson::dumps(&report.clone().into(), Style::Indent(2)))
+                .map_err(out::os_error)?;
             let issues = report
                 .get("issues")
                 .and_then(|v| v.as_array())
@@ -472,11 +476,11 @@ fn maintenance(command: &str, args: &Args) -> Result<i32, Error> {
         "reindex" => {
             let (indexed, duplicates) = crate::storage::reindex(&data)?;
             let map = crate::obj! { "indexed" => pyjson::Value::Int(indexed), "duplicates" => duplicates };
-            out::out(&pyjson::dumps(&map.into(), Style::Default));
+            out::out(&pyjson::dumps(&map.into(), Style::Default)).map_err(out::os_error)?;
         }
         "snapshot" => {
             let path = crate::maintenance::snapshot(&data)?;
-            out::out(&pyerr::path_str(&path));
+            out::out(&pyerr::path_str(&path)).map_err(out::os_error)?;
         }
         "restore" => {
             let previous = crate::maintenance::restore(&data, &args.path("archive"))?;
@@ -484,11 +488,13 @@ fn maintenance(command: &str, args: &Args) -> Result<i32, Error> {
                 previous.map_or_else(|| "empty target".to_string(), |p| pyerr::path_str(&p));
             out::out(&format!(
                 "Metadata restored. Previous files saved at: {shown}"
-            ));
+            ))
+            .map_err(out::os_error)?;
         }
         _ => {
             let report = crate::maintenance::prepare_covers(&data, args.int("limit"))?;
-            out::out(&pyjson::dumps(&report.clone().into(), Style::Indent(2)));
+            out::out(&pyjson::dumps(&report.clone().into(), Style::Indent(2)))
+                .map_err(out::os_error)?;
             let errors = report
                 .get("errors")
                 .and_then(|v| v.as_array())
