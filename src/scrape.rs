@@ -801,7 +801,7 @@ pub fn scrape_all(
 }
 
 fn eprint_unexpected(seller: &str, text: &str) {
-    crate::out::err(&format!("{seller}: unexpected error\n{text}"));
+    crate::out::err_from_worker(&format!("{seller}: unexpected error\n{text}"));
 }
 
 /// The index covers every yupoo source except skipped ones with no shard.
