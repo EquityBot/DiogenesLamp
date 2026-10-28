@@ -9,7 +9,7 @@
 
 <div align="center">
 
-[![ci](https://img.shields.io/github/actions/workflow/status/ReadIsaiah53/DiogenesLamp/ci.yml?branch=main&label=ci&labelColor=000000&style=flat)](https://github.com/ReadIsaiah53/DiogenesLamp/actions/workflows/ci.yml)
+[![ci](https://img.shields.io/github/actions/workflow/status/EquityBot/DiogenesLamp/ci.yml?branch=main&label=ci&labelColor=000000&style=flat)](https://github.com/EquityBot/DiogenesLamp/actions/workflows/ci.yml)
 [![rust: 1.99+](https://img.shields.io/badge/rust-1.99%2B-66023C?labelColor=000000&style=flat&color=66023C)](https://www.rust-lang.org/)
 [![licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-66023C?labelColor=000000&style=flat&color=66023C)](LICENSE)
 
