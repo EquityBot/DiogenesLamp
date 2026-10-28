@@ -537,6 +537,201 @@ fn full_pass_records_titles_links_and_covers() {
     assert!(dir.path().join("thumbs/sellerx/101.jpg").exists());
 }
 
+/// A listing whose pages carry the given (first, last) album ID ranges, with a
+/// detail page for each.
+fn paged(pages: &[(u32, u32)]) -> FakeClient {
+    let client = FakeClient::default();
+    for (number, &(first, last)) in pages.iter().enumerate() {
+        let items = (first..=last)
+            .map(|id| list_item(&id.to_string(), &format!("Item {id}")))
+            .collect();
+        client.set(&format!("albums?page={}", number + 1), items);
+        for id in first..=last {
+            client.set(
+                &format!("/albums/{id}"),
+                album_page(&format!("Item {id}"), ""),
+            );
+        }
+    }
+    client
+}
+
+fn run_once(client: &FakeClient, dir: &Path, run_ts: &str, options: Options) -> SellerSummary {
+    all(&[seller()], dir, run_ts, client, options, 4, None).remove(0)
+}
+
+#[test]
+fn short_listing_marks_nothing_gone_until_a_second_run_confirms_it() {
+    let dir = common::tmp();
+    let mut client = paged(&[(101, 106), (107, 112)]);
+    client = client.fetch_errors(&["/albums/112?"]);
+    let first = "2026-09-01T00:00:00+00:00";
+    all(&[seller()], dir.path(), first, &client, opts(), 4, None);
+    assert_eq!(
+        read_run(dir.path(), "sellerx").unwrap()["failed_ids"].py_str(),
+        r#"["112"]"#
+    );
+
+    // Page 2 now answers with no albums, as a soft block would.
+    let short = paged(&[(101, 106)]);
+    let second = "2026-09-02T00:00:00+00:00";
+    let summary = &all(&[seller()], dir.path(), second, &short, opts(), 4, None)[0];
+    assert!(!summary.listing_complete);
+    assert!(
+        summary.error.contains("not marked gone"),
+        "{}",
+        summary.error
+    );
+    assert!(
+        shard(dir.path())
+            .values()
+            .all(|a| !a.contains_key("gone_since"))
+    );
+    let run = read_run(dir.path(), "sellerx").unwrap();
+    assert_eq!(run["failed_ids"].py_str(), r#"["112"]"#);
+    assert_eq!(run["last_listing"].py_str(), first);
+    assert_eq!(get(&shard(dir.path()), "101", "last_seen").py_str(), second);
+
+    let third = "2026-09-03T00:00:00+00:00";
+    let summary = &all(&[seller()], dir.path(), third, &short, opts(), 4, None)[0];
+    assert!(summary.listing_complete);
+    assert_eq!(summary.error, "");
+    let s = shard(dir.path());
+    for id in 107..=111 {
+        assert_eq!(get(&s, &id.to_string(), "gone_since").py_str(), third);
+    }
+    assert!(!s["101"].contains_key("gone_since"));
+    let run = read_run(dir.path(), "sellerx").unwrap();
+    assert_eq!(run["failed_ids"].py_str(), "[]");
+    assert_eq!(run["last_listing"].py_str(), third);
+}
+
+#[test]
+fn failed_albums_without_records_count_towards_a_short_listing() {
+    let dir = common::tmp();
+    let client = paged(&[(101, 106), (107, 112)]).fetch_errors(&[
+        "/albums/11",
+        "/albums/107",
+        "/albums/108",
+        "/albums/109",
+    ]);
+    let first = "2026-09-01T00:00:00+00:00";
+    run_once(&client, dir.path(), first, opts());
+    let failed = r#"["107", "108", "109", "110", "111", "112"]"#;
+    assert_eq!(
+        read_run(dir.path(), "sellerx").unwrap()["failed_ids"].py_str(),
+        failed
+    );
+    assert_eq!(shard(dir.path()).len(), 6);
+
+    let summary = run_once(
+        &paged(&[(101, 106)]),
+        dir.path(),
+        "2026-09-02T00:00:00+00:00",
+        opts(),
+    );
+    assert!(!summary.listing_complete);
+    let run = read_run(dir.path(), "sellerx").unwrap();
+    assert_eq!(run["failed_ids"].py_str(), failed);
+    assert_eq!(run["last_listing"].py_str(), first);
+}
+
+/// IDs from `first` to `last` as strings.
+fn ids(first: u32, last: u32) -> Vec<String> {
+    (first..=last).map(|id| id.to_string()).collect()
+}
+
+fn gone(dir: &Path) -> Vec<String> {
+    let mut ids: Vec<String> = shard(dir)
+        .iter()
+        .filter(|(_, a)| a.contains_key("gone_since"))
+        .map(|(id, _)| id.clone())
+        .collect();
+    ids.sort();
+    ids
+}
+
+#[test]
+fn only_albums_missing_from_both_short_listings_are_marked_gone() {
+    let dir = common::tmp();
+    let all_three = paged(&[(101, 106), (107, 112), (113, 118)]);
+    run_once(&all_three, dir.path(), T1, opts());
+    let summary = run_once(&paged(&[(101, 106), (107, 112)]), dir.path(), T2, opts());
+    assert_eq!(summary.short_missing, ids(113, 118));
+
+    // A shorter listing confirms only what the last one also missed.
+    let third = "2026-08-19T12:00:00+10:00";
+    let summary = run_once(&paged(&[(101, 106)]), dir.path(), third, opts());
+    assert!(!summary.listing_complete);
+    assert_eq!(summary.short_missing, ids(107, 112));
+    assert_eq!(gone(dir.path()), ids(113, 118));
+
+    // A listing as long but shifted confirms none of the albums it misses.
+    let dir = common::tmp();
+    run_once(&all_three, dir.path(), T1, opts());
+    run_once(&paged(&[(101, 106), (107, 112)]), dir.path(), T2, opts());
+    let shifted = paged(&[(107, 112), (113, 118)]);
+    let summary = run_once(&shifted, dir.path(), third, opts());
+    assert_eq!(summary.short_missing, ids(101, 106));
+    assert!(gone(dir.path()).is_empty());
+}
+
+#[test]
+fn a_stale_failure_for_a_gone_album_keeps_its_gone_record() {
+    let dir = common::tmp();
+    run_once(&paged(&[(101, 106), (107, 107)]), dir.path(), T1, opts());
+    run_once(&paged(&[(101, 106)]), dir.path(), T2, opts());
+    let record = |dir: &Path| Value::Object(shard(dir)["107"].clone()).py_str();
+    let before = record(dir.path());
+    assert!(before.contains(T2));
+    // A run summary left behind by an interrupted write still lists 107.
+    write(
+        &dir.path().join("runs/sellerx.json"),
+        r#"{"failed_ids":["107"]}"#,
+    );
+    run_once(
+        &paged(&[(101, 106)]),
+        dir.path(),
+        "2026-08-19T12:00:00+10:00",
+        opts(),
+    );
+    assert_eq!(record(dir.path()), before);
+    assert_eq!(
+        read_run(dir.path(), "sellerx").unwrap()["failed_ids"].py_str(),
+        "[]"
+    );
+}
+
+#[test]
+fn a_blocked_run_does_not_confirm_a_short_listing() {
+    let dir = common::tmp();
+    run_once(&paged(&[(101, 106), (107, 112)]), dir.path(), T1, opts());
+    run_once(&paged(&[(101, 106)]), dir.path(), T2, opts());
+    let blocked = paged(&[(101, 106)]).blocked(&["/albums/10"]);
+    let summary = run_once(
+        &blocked,
+        dir.path(),
+        "2026-08-19T12:00:00+10:00",
+        Options {
+            full: true,
+            ..opts()
+        },
+    );
+    assert!(
+        summary.error.starts_with("blocked: aborted"),
+        "{}",
+        summary.error
+    );
+    assert!(summary.error.contains("not marked gone"));
+    assert!(!summary.listing_complete);
+    assert_eq!(summary.short_missing, ids(107, 112));
+    assert!(
+        shard(dir.path())
+            .values()
+            .all(|a| !a.contains_key("gone_since"))
+    );
+}
+
 #[test]
 fn incremental_skips_unchanged_and_retains_delisted() {
     let dir = common::tmp();

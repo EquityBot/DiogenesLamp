@@ -35,6 +35,14 @@ unchanged.
   (an unreadable or invalid `sources.toml`, an unsafe source id on import, a
   port already in use, an unreadable dump file), `lamp` prints `error: ...`
   and exits 1.
+- **Short listings.** A listing that ends with 5 or more known albums
+  missing (previously listed, or failed and never recorded; an empty or
+  repeated page part-way through, as a soft block could cause) marks none of
+  them gone and keeps their pending failures. The seller reports an error and
+  records the missing IDs as `short_missing` in its run summary. A later run
+  marks an album gone only if it is missing again from the next listing and
+  that run is not aborted by blocking. The
+  Python version marked them gone at once.
 - **Unexpected seller failures.** A seller that fails unexpectedly reports
   `unexpected error: <message>` and writes the message to stderr instead of a
   Python traceback and exception repr.
