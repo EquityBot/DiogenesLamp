@@ -406,4 +406,4 @@ Apache-2.0 licensed. If you redistribute this work or build on it, keep the attr
 
 ---
 
-<p align="center"><sub>Still looking for an honest seller.<br>Made in Newcastle, Australia by <a href="https://duguid.com.au/">Ryan Duguid</a>.</sub></p>
+<p align="center"><sub>Still looking for an honest seller.<br>Made by <a href="https://github.com/EquityBot">EquityBot</a>. <i>Ad gloriam eius, non meam.</i></sub></p>
