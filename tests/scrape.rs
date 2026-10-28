@@ -677,6 +677,32 @@ fn only_albums_missing_from_both_short_listings_are_marked_gone() {
 }
 
 #[test]
+fn a_stale_failure_for_a_gone_album_keeps_its_gone_record() {
+    let dir = common::tmp();
+    run_once(&paged(&[(101, 106), (107, 107)]), dir.path(), T1, opts());
+    run_once(&paged(&[(101, 106)]), dir.path(), T2, opts());
+    let record = |dir: &Path| Value::Object(shard(dir)["107"].clone()).py_str();
+    let before = record(dir.path());
+    assert!(before.contains(T2));
+    // A run summary left behind by an interrupted write still lists 107.
+    write(
+        &dir.path().join("runs/sellerx.json"),
+        r#"{"failed_ids":["107"]}"#,
+    );
+    run_once(
+        &paged(&[(101, 106)]),
+        dir.path(),
+        "2026-08-19T12:00:00+10:00",
+        opts(),
+    );
+    assert_eq!(record(dir.path()), before);
+    assert_eq!(
+        read_run(dir.path(), "sellerx").unwrap()["failed_ids"].py_str(),
+        "[]"
+    );
+}
+
+#[test]
 fn a_blocked_run_does_not_confirm_a_short_listing() {
     let dir = common::tmp();
     run_once(&paged(&[(101, 106), (107, 112)]), dir.path(), T1, opts());

@@ -630,7 +630,7 @@ fn stamp_listing(
                     run_ts,
                 );
             }
-        } else if absent.contains(album_id) {
+        } else if absent.contains(album_id) && !album.get("gone_since").is_some_and(Value::truthy) {
             record_change(
                 album,
                 "availability",
