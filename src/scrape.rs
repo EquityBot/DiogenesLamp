@@ -28,6 +28,12 @@ const BLOCKED_STREAK_LIMIT: u32 = 3;
 const THUMB_BLOCKED_STREAK_LIMIT: u32 = 3;
 /// Distinct unparsed album links before reporting ambiguous listing coverage.
 const LAYOUT_CHANGE_MIN_LINKS: usize = 3;
+/// A listing that drops this many listed albums at once marks none gone until
+/// the next run also drops at least this many. shortcut: a fixed count, not a
+/// page-aware check; it misses a truncated listing that drops fewer albums
+/// (those come back when listed again). Upgrade if Yupoo exposes a page or
+/// album total to compare against.
+const SHORT_LISTING_MIN_LOST: usize = 5;
 const FLUSH_EVERY: usize = 100;
 
 /// What a scraper needs from an HTTP client; tests substitute fakes.
@@ -72,6 +78,7 @@ pub struct SellerSummary {
     pub deferred: i64,
     pub listing_complete: bool,
     pub resolved_ids: Vec<String>,
+    pub short_listing: i64,
 }
 
 impl SellerSummary {
@@ -101,6 +108,7 @@ impl SellerSummary {
             "deferred" => self.deferred,
             "listing_complete" => self.listing_complete,
             "resolved_ids" => strings(&self.resolved_ids),
+            "short_listing" => self.short_listing,
         }
     }
 }
@@ -284,9 +292,11 @@ pub fn scrape_seller(
             Some(Value::Array(ids)) => ids.iter().map(Value::py_str).collect(),
             _ => BTreeSet::new(),
         };
-        Ok((shard, failures))
+        let short_before = run.get("short_listing").is_some_and(Value::truthy);
+        Ok((shard, failures, short_before))
     });
-    let (mut shard, pending_failures): (Shard, BTreeSet<String>) = match loaded {
+    let (mut shard, pending_failures, short_before): (Shard, BTreeSet<String>, bool) = match loaded
+    {
         Ok(found) => found,
         Err(Error::Value(message)) => {
             summary.error = message;
@@ -316,14 +326,27 @@ pub fn scrape_seller(
             return Ok(summary);
         }
     };
-    summary.listing_complete = true;
     let listed: HashSet<String> = stubs.iter().map(|s| s.id.clone()).collect();
-    summary.resolved_ids.extend(
-        pending_failures
-            .iter()
-            .filter(|id| !listed.contains(*id))
-            .cloned(),
-    );
+    let lost = shard
+        .iter()
+        .filter(|(id, album)| {
+            !listed.contains(*id) && !album.get("gone_since").is_some_and(Value::truthy)
+        })
+        .count();
+    if lost >= SHORT_LISTING_MIN_LOST && !short_before {
+        summary.short_listing = stubs.len() as i64;
+        summary.error = format!(
+            "listing ended {lost} albums short of the last one; they are not marked gone until another run confirms it - possible block or layout change?"
+        );
+    } else {
+        summary.listing_complete = true;
+        summary.resolved_ids.extend(
+            pending_failures
+                .iter()
+                .filter(|id| !listed.contains(*id))
+                .cloned(),
+        );
+    }
     let mut stubs = stubs;
     if options.refresh_days != 0 {
         stubs.sort_by_key(
@@ -553,14 +576,15 @@ pub fn scrape_seller(
         summary.error = format!("all {} album fetches failed", summary.failed);
     }
     if !options.dry_run {
-        stamp_listing(&mut shard, &listed, run_ts);
+        stamp_listing(&mut shard, &listed, run_ts, summary.listing_complete);
         write_shard(data_dir, &source.id, &shard)?;
     }
     Ok(summary)
 }
 
-/// Record which albums the seller's complete listing still carries.
-fn stamp_listing(shard: &mut Shard, listed: &HashSet<String>, run_ts: &str) {
+/// Record which albums the seller's listing still carries; only a complete
+/// listing marks the others gone.
+fn stamp_listing(shard: &mut Shard, listed: &HashSet<String>, run_ts: &str, complete: bool) {
     for (album_id, album) in shard.iter_mut() {
         if listed.contains(album_id) {
             album.insert("last_seen".into(), run_ts.into());
@@ -574,7 +598,7 @@ fn stamp_listing(shard: &mut Shard, listed: &HashSet<String>, run_ts: &str) {
                     run_ts,
                 );
             }
-        } else if !album.get("gone_since").is_some_and(Value::truthy) {
+        } else if complete && !album.get("gone_since").is_some_and(Value::truthy) {
             record_change(
                 album,
                 "availability",

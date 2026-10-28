@@ -345,6 +345,11 @@ pub fn validate_metadata(value_in: &Value, relative: &str) -> Result<()> {
         if !ids_ok {
             return value("invalid failed album IDs");
         }
+        if let Some(v) = map.get("short_listing")
+            && !matches!(v, Value::Int(n) if *n >= 0)
+        {
+            return value("invalid short_listing count");
+        }
         for field in ["last_attempt", "last_success", "last_listing"] {
             if let Some(v) = map.get(field)
                 && !matches!(v, Value::Str(_))

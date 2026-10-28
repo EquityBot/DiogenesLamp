@@ -538,6 +538,65 @@ fn full_pass_records_titles_links_and_covers() {
 }
 
 #[test]
+fn short_listing_marks_nothing_gone_until_a_second_run_confirms_it() {
+    let dir = common::tmp();
+    let page = |ids: std::ops::RangeInclusive<u32>| -> String {
+        ids.map(|id| list_item(&id.to_string(), &format!("Item {id}")))
+            .collect()
+    };
+    let mut client = FakeClient::new(&[
+        ("albums?page=1", page(101..=106)),
+        ("albums?page=2", page(107..=112)),
+    ]);
+    for id in 101..=112 {
+        client.set(
+            &format!("/albums/{id}"),
+            album_page(&format!("Item {id}"), ""),
+        );
+    }
+    client = client.fetch_errors(&["/albums/112?"]);
+    let first = "2026-09-01T00:00:00+00:00";
+    all(&[seller()], dir.path(), first, &client, opts(), 4, None);
+    assert_eq!(
+        read_run(dir.path(), "sellerx").unwrap()["failed_ids"].py_str(),
+        r#"["112"]"#
+    );
+
+    // Page 2 now answers with no albums, as a soft block would.
+    let short = FakeClient::new(&[("albums?page=1", page(101..=106))]);
+    let second = "2026-09-02T00:00:00+00:00";
+    let summary = &all(&[seller()], dir.path(), second, &short, opts(), 4, None)[0];
+    assert!(!summary.listing_complete);
+    assert!(
+        summary.error.contains("not marked gone"),
+        "{}",
+        summary.error
+    );
+    assert!(
+        shard(dir.path())
+            .values()
+            .all(|a| !a.contains_key("gone_since"))
+    );
+    let run = read_run(dir.path(), "sellerx").unwrap();
+    assert_eq!(run["failed_ids"].py_str(), r#"["112"]"#);
+    assert_eq!(run["last_listing"].py_str(), first);
+    assert_eq!(get(&shard(dir.path()), "101", "last_seen").py_str(), second);
+
+    let third = "2026-09-03T00:00:00+00:00";
+    let summary = &all(&[seller()], dir.path(), third, &short, opts(), 4, None)[0];
+    assert!(summary.listing_complete);
+    assert_eq!(summary.error, "");
+    let s = shard(dir.path());
+    for id in 107..=111 {
+        assert_eq!(get(&s, &id.to_string(), "gone_since").py_str(), third);
+    }
+    assert!(!s["101"].contains_key("gone_since"));
+    let run = read_run(dir.path(), "sellerx").unwrap();
+    assert_eq!(run["failed_ids"].py_str(), "[]");
+    assert_eq!(run["last_listing"].py_str(), third);
+}
+
+#[test]
 fn incremental_skips_unchanged_and_retains_delisted() {
     let dir = common::tmp();
     run(&make_client(), dir.path(), T1, opts());
