@@ -13,7 +13,7 @@ use crate::pyerr;
 use crate::pystr;
 use crate::pyurl;
 
-pub const USER_AGENT: &str = "DiogenesLamp/0.1 (+https://github.com/ryanduguid/DiogenesLamp)";
+pub const USER_AGENT: &str = "DiogenesLamp/0.1 (+https://github.com/EquityBot/DiogenesLamp)";
 pub const RETRIES: u32 = 3;
 pub const MAX_REDIRECTS: u32 = 5;
 pub const MAX_IMAGE_BYTES: u64 = 8 * 1024 * 1024;
