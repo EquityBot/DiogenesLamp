@@ -401,10 +401,11 @@ it can end the listing and mark cached albums gone, and is saved to
 `data/debug/<seller>-pageN.html` (dry runs save nothing). An empty first page
 without such links reports an empty or closed seller. The threshold can miss
 fewer unread links; synthetic tests do not establish real-site coverage.
-A listing that ends with 5 or more previously listed albums missing, such as
-an empty later page from a soft block, marks none of them gone or resolved and
-reports an error; if the next run again finds 5 or more missing, it marks
-every missing album gone. A
+A listing that ends with 5 or more known albums missing, such as an empty
+later page from a soft block, marks none of them gone or resolved and reports
+an error. The next run confirms it only if it lists at least as many albums
+and is not aborted by blocking; 2 identical truncations in a row still mark
+the missing albums gone. A
 truncated listing that misses fewer albums still marks them gone until they
 are listed again.
 

@@ -28,11 +28,12 @@ const BLOCKED_STREAK_LIMIT: u32 = 3;
 const THUMB_BLOCKED_STREAK_LIMIT: u32 = 3;
 /// Distinct unparsed album links before reporting ambiguous listing coverage.
 const LAYOUT_CHANGE_MIN_LINKS: usize = 3;
-/// A listing that drops this many listed albums at once marks none gone until
-/// the next run also drops at least this many. shortcut: a fixed count, not a
-/// page-aware check; it misses a truncated listing that drops fewer albums
-/// (those come back when listed again). Upgrade if Yupoo exposes a page or
-/// album total to compare against.
+/// A listing missing this many known albums (listed before, or failed and
+/// unrecorded) marks none gone. The next such listing confirms it if it lists
+/// at least as many albums and no block aborts its run. shortcut: a fixed
+/// count, not a page-aware check; it misses a truncated listing that drops
+/// fewer albums (those come back when listed again). Upgrade if Yupoo exposes
+/// a page or album total to compare against.
 const SHORT_LISTING_MIN_LOST: usize = 5;
 const FLUSH_EVERY: usize = 100;
 
@@ -292,10 +293,13 @@ pub fn scrape_seller(
             Some(Value::Array(ids)) => ids.iter().map(Value::py_str).collect(),
             _ => BTreeSet::new(),
         };
-        let short_before = run.get("short_listing").is_some_and(Value::truthy);
+        let short_before = match run.get("short_listing") {
+            Some(Value::Int(n)) => *n,
+            _ => 0,
+        };
         Ok((shard, failures, short_before))
     });
-    let (mut shard, pending_failures, short_before): (Shard, BTreeSet<String>, bool) = match loaded
+    let (mut shard, pending_failures, short_before): (Shard, BTreeSet<String>, i128) = match loaded
     {
         Ok(found) => found,
         Err(Error::Value(message)) => {
@@ -327,26 +331,18 @@ pub fn scrape_seller(
         }
     };
     let listed: HashSet<String> = stubs.iter().map(|s| s.id.clone()).collect();
+    // Known albums the listing no longer carries, including failed ones that
+    // never got a record.
     let lost = shard
         .iter()
-        .filter(|(id, album)| {
-            !listed.contains(*id) && !album.get("gone_since").is_some_and(Value::truthy)
-        })
-        .count();
-    if lost >= SHORT_LISTING_MIN_LOST && !short_before {
-        summary.short_listing = stubs.len() as i64;
-        summary.error = format!(
-            "listing ended {lost} albums short of the last one; they are not marked gone until another run confirms it - possible block or layout change?"
-        );
-    } else {
-        summary.listing_complete = true;
-        summary.resolved_ids.extend(
-            pending_failures
-                .iter()
-                .filter(|id| !listed.contains(*id))
-                .cloned(),
-        );
-    }
+        .filter(|(_, album)| !album.get("gone_since").is_some_and(Value::truthy))
+        .map(|(id, _)| id)
+        .chain(&pending_failures)
+        .filter(|id| !listed.contains(*id))
+        .collect::<HashSet<_>>()
+        .len();
+    // A short listing is confirmed by the next run listing at least as many.
+    let confirms = short_before > 0 && stubs.len() as i128 >= short_before;
     let mut stubs = stubs;
     if options.refresh_days != 0 {
         stubs.sort_by_key(
@@ -570,6 +566,26 @@ pub fn scrape_seller(
             write_shard(data_dir, &source.id, &shard)?;
             scraped_since_flush = 0;
         }
+    }
+    let blocked = blocked_streak >= BLOCKED_STREAK_LIMIT;
+    if lost >= SHORT_LISTING_MIN_LOST && (!confirms || blocked) {
+        summary.short_listing = stubs.len() as i64;
+        let note = format!(
+            "listing ended {lost} albums short of the last one; they are not marked gone until another run confirms it - possible block or layout change?"
+        );
+        summary.error = if summary.error.is_empty() {
+            note
+        } else {
+            format!("{}; {note}", summary.error)
+        };
+    } else {
+        summary.listing_complete = true;
+        summary.resolved_ids.extend(
+            pending_failures
+                .iter()
+                .filter(|id| !listed.contains(*id))
+                .cloned(),
+        );
     }
     let attempted = stubs.len() as i64 - summary.skipped;
     if attempted > 0 && summary.scraped == 0 && summary.failed > 0 && summary.error.is_empty() {
