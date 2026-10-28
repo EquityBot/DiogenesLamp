@@ -46,6 +46,15 @@ fn corrupt_run_status_is_reported_and_preserved() {
             .contains("unreadable run summary")
     );
     assert_eq!(read(&path), r#"{"failed_ids":"101"}"#);
+    for short in ["5", r#""101""#, "[101]", r#"["x"]"#] {
+        write(&path, format!(r#"{{"short_missing":{short}}}"#));
+        assert!(
+            read_run(dir.path(), "sellerx")
+                .unwrap_err()
+                .to_string()
+                .contains("invalid short_missing album IDs")
+        );
+    }
 }
 
 #[test]
