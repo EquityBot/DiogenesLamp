@@ -636,30 +636,44 @@ fn failed_albums_without_records_count_towards_a_short_listing() {
     assert_eq!(run["last_listing"].py_str(), first);
 }
 
+/// IDs from `first` to `last` as strings.
+fn ids(first: u32, last: u32) -> Vec<String> {
+    (first..=last).map(|id| id.to_string()).collect()
+}
+
+fn gone(dir: &Path) -> Vec<String> {
+    let mut ids: Vec<String> = shard(dir)
+        .iter()
+        .filter(|(_, a)| a.contains_key("gone_since"))
+        .map(|(id, _)| id.clone())
+        .collect();
+    ids.sort();
+    ids
+}
+
 #[test]
-fn a_shorter_second_listing_does_not_confirm_the_first() {
+fn only_albums_missing_from_both_short_listings_are_marked_gone() {
     let dir = common::tmp();
-    run_once(
-        &paged(&[(101, 106), (107, 112), (113, 118)]),
-        dir.path(),
-        T1,
-        opts(),
-    );
+    let all_three = paged(&[(101, 106), (107, 112), (113, 118)]);
+    run_once(&all_three, dir.path(), T1, opts());
     let summary = run_once(&paged(&[(101, 106), (107, 112)]), dir.path(), T2, opts());
-    assert_eq!(summary.short_listing, 12);
-    let summary = run_once(
-        &paged(&[(101, 106)]),
-        dir.path(),
-        "2026-08-19T12:00:00+10:00",
-        opts(),
-    );
+    assert_eq!(summary.short_missing, ids(113, 118));
+
+    // A shorter listing confirms only what the last one also missed.
+    let third = "2026-08-19T12:00:00+10:00";
+    let summary = run_once(&paged(&[(101, 106)]), dir.path(), third, opts());
     assert!(!summary.listing_complete);
-    assert_eq!(summary.short_listing, 6);
-    assert!(
-        shard(dir.path())
-            .values()
-            .all(|a| !a.contains_key("gone_since"))
-    );
+    assert_eq!(summary.short_missing, ids(107, 112));
+    assert_eq!(gone(dir.path()), ids(113, 118));
+
+    // A listing as long but shifted confirms none of the albums it misses.
+    let dir = common::tmp();
+    run_once(&all_three, dir.path(), T1, opts());
+    run_once(&paged(&[(101, 106), (107, 112)]), dir.path(), T2, opts());
+    let shifted = paged(&[(107, 112), (113, 118)]);
+    let summary = run_once(&shifted, dir.path(), third, opts());
+    assert_eq!(summary.short_missing, ids(101, 106));
+    assert!(gone(dir.path()).is_empty());
 }
 
 #[test]
@@ -684,7 +698,7 @@ fn a_blocked_run_does_not_confirm_a_short_listing() {
     );
     assert!(summary.error.contains("not marked gone"));
     assert!(!summary.listing_complete);
-    assert_eq!(summary.short_listing, 6);
+    assert_eq!(summary.short_missing, ids(107, 112));
     assert!(
         shard(dir.path())
             .values()

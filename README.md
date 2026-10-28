@@ -403,9 +403,9 @@ without such links reports an empty or closed seller. The threshold can miss
 fewer unread links; synthetic tests do not establish real-site coverage.
 A listing that ends with 5 or more known albums missing, such as an empty
 later page from a soft block, marks none of them gone or resolved and reports
-an error. The next run confirms it only if it lists at least as many albums
-and is not aborted by blocking; 2 identical truncations in a row still mark
-the missing albums gone. A
+an error. The next run marks an album gone only if it is missing again and
+that run is not aborted by blocking; the same truncation twice in a row still
+marks the albums it misses gone. A
 truncated listing that misses fewer albums still marks them gone until they
 are listed again.
 

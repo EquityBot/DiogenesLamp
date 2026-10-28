@@ -39,9 +39,9 @@ unchanged.
   missing (previously listed, or failed and never recorded; an empty or
   repeated page part-way through, as a soft block could cause) marks none of
   them gone and keeps their pending failures. The seller reports an error and
-  records `short_listing`, the number listed, in its run summary. The next run
-  confirms the shortfall, marking the missing albums gone, only if it lists at
-  least that many albums and is not aborted by blocking. The
+  records the missing IDs as `short_missing` in its run summary. A later run
+  marks an album gone only if it is missing again from the next listing and
+  that run is not aborted by blocking. The
   Python version marked them gone at once.
 - **Unexpected seller failures.** A seller that fails unexpectedly reports
   `unexpected error: <message>` and writes the message to stderr instead of a

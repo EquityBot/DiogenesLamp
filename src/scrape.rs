@@ -29,11 +29,11 @@ const THUMB_BLOCKED_STREAK_LIMIT: u32 = 3;
 /// Distinct unparsed album links before reporting ambiguous listing coverage.
 const LAYOUT_CHANGE_MIN_LINKS: usize = 3;
 /// A listing missing this many known albums (listed before, or failed and
-/// unrecorded) marks none gone. The next such listing confirms it if it lists
-/// at least as many albums and no block aborts its run. shortcut: a fixed
-/// count, not a page-aware check; it misses a truncated listing that drops
-/// fewer albums (those come back when listed again). Upgrade if Yupoo exposes
-/// a page or album total to compare against.
+/// unrecorded) marks only those also missing from the previous such listing
+/// gone, and none if a block aborts its run. shortcut: a fixed count, not a
+/// page-aware check; it misses a truncated listing that drops fewer albums
+/// (those come back when listed again). Upgrade if Yupoo exposes a page or
+/// album total to compare against.
 const SHORT_LISTING_MIN_LOST: usize = 5;
 const FLUSH_EVERY: usize = 100;
 
@@ -79,7 +79,7 @@ pub struct SellerSummary {
     pub deferred: i64,
     pub listing_complete: bool,
     pub resolved_ids: Vec<String>,
-    pub short_listing: i64,
+    pub short_missing: Vec<String>,
 }
 
 impl SellerSummary {
@@ -109,7 +109,7 @@ impl SellerSummary {
             "deferred" => self.deferred,
             "listing_complete" => self.listing_complete,
             "resolved_ids" => strings(&self.resolved_ids),
-            "short_listing" => self.short_listing,
+            "short_missing" => strings(&self.short_missing),
         }
     }
 }
@@ -293,14 +293,13 @@ pub fn scrape_seller(
             Some(Value::Array(ids)) => ids.iter().map(Value::py_str).collect(),
             _ => BTreeSet::new(),
         };
-        let short_before = match run.get("short_listing") {
-            Some(Value::Int(n)) => *n,
-            _ => 0,
+        let missing_before: HashSet<String> = match run.get("short_missing") {
+            Some(Value::Array(ids)) => ids.iter().map(Value::py_str).collect(),
+            _ => HashSet::new(),
         };
-        Ok((shard, failures, short_before))
+        Ok((shard, failures, missing_before))
     });
-    let (mut shard, pending_failures, short_before): (Shard, BTreeSet<String>, i128) = match loaded
-    {
+    let (mut shard, pending_failures, missing_before) = match loaded {
         Ok(found) => found,
         Err(Error::Value(message)) => {
             summary.error = message;
@@ -333,16 +332,14 @@ pub fn scrape_seller(
     let listed: HashSet<String> = stubs.iter().map(|s| s.id.clone()).collect();
     // Known albums the listing no longer carries, including failed ones that
     // never got a record.
-    let lost = shard
+    let missing: HashSet<String> = shard
         .iter()
         .filter(|(_, album)| !album.get("gone_since").is_some_and(Value::truthy))
         .map(|(id, _)| id)
         .chain(&pending_failures)
         .filter(|id| !listed.contains(*id))
-        .collect::<HashSet<_>>()
-        .len();
-    // A short listing is confirmed by the next run listing at least as many.
-    let confirms = short_before > 0 && stubs.len() as i128 >= short_before;
+        .cloned()
+        .collect();
     let mut stubs = stubs;
     if options.refresh_days != 0 {
         stubs.sort_by_key(
@@ -567,40 +564,59 @@ pub fn scrape_seller(
             scraped_since_flush = 0;
         }
     }
+    // A short listing holds back the albums it misses, except those the
+    // previous short listing also missed; a blocked run confirms none.
     let blocked = blocked_streak >= BLOCKED_STREAK_LIMIT;
-    if lost >= SHORT_LISTING_MIN_LOST && (!confirms || blocked) {
-        summary.short_listing = stubs.len() as i64;
+    let (absent, unconfirmed): (HashSet<String>, HashSet<String>) =
+        if missing.len() < SHORT_LISTING_MIN_LOST {
+            (missing, HashSet::new())
+        } else if blocked {
+            (HashSet::new(), missing)
+        } else {
+            missing
+                .into_iter()
+                .partition(|id| missing_before.contains(id))
+        };
+    summary.resolved_ids.extend(
+        pending_failures
+            .iter()
+            .filter(|id| absent.contains(*id))
+            .cloned(),
+    );
+    if unconfirmed.is_empty() {
+        summary.listing_complete = true;
+    } else {
         let note = format!(
-            "listing ended {lost} albums short of the last one; they are not marked gone until another run confirms it - possible block or layout change?"
+            "{} albums missing from the listing are not marked gone until another run confirms it - possible block or layout change?",
+            unconfirmed.len()
         );
         summary.error = if summary.error.is_empty() {
             note
         } else {
             format!("{}; {note}", summary.error)
         };
-    } else {
-        summary.listing_complete = true;
-        summary.resolved_ids.extend(
-            pending_failures
-                .iter()
-                .filter(|id| !listed.contains(*id))
-                .cloned(),
-        );
+        summary.short_missing = unconfirmed.into_iter().collect();
+        summary.short_missing.sort();
     }
     let attempted = stubs.len() as i64 - summary.skipped;
     if attempted > 0 && summary.scraped == 0 && summary.failed > 0 && summary.error.is_empty() {
         summary.error = format!("all {} album fetches failed", summary.failed);
     }
     if !options.dry_run {
-        stamp_listing(&mut shard, &listed, run_ts, summary.listing_complete);
+        stamp_listing(&mut shard, &listed, &absent, run_ts);
         write_shard(data_dir, &source.id, &shard)?;
     }
     Ok(summary)
 }
 
-/// Record which albums the seller's listing still carries; only a complete
-/// listing marks the others gone.
-fn stamp_listing(shard: &mut Shard, listed: &HashSet<String>, run_ts: &str, complete: bool) {
+/// Record which albums the seller's listing still carries, and mark the
+/// confirmed absent ones gone.
+fn stamp_listing(
+    shard: &mut Shard,
+    listed: &HashSet<String>,
+    absent: &HashSet<String>,
+    run_ts: &str,
+) {
     for (album_id, album) in shard.iter_mut() {
         if listed.contains(album_id) {
             album.insert("last_seen".into(), run_ts.into());
@@ -614,7 +630,7 @@ fn stamp_listing(shard: &mut Shard, listed: &HashSet<String>, run_ts: &str, comp
                     run_ts,
                 );
             }
-        } else if complete && !album.get("gone_since").is_some_and(Value::truthy) {
+        } else if absent.contains(album_id) {
             record_change(
                 album,
                 "availability",

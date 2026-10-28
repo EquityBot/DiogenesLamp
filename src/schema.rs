@@ -345,10 +345,15 @@ pub fn validate_metadata(value_in: &Value, relative: &str) -> Result<()> {
         if !ids_ok {
             return value("invalid failed album IDs");
         }
-        if let Some(v) = map.get("short_listing")
-            && !matches!(v, Value::Int(n) if *n >= 0)
-        {
-            return value("invalid short_listing count");
+        let missing_ok = match map.get("short_missing") {
+            None => true,
+            Some(Value::Array(ids)) => ids
+                .iter()
+                .all(|i| matches!(i, Value::Str(t) if crate::pystr::all_digits(t))),
+            Some(_) => false,
+        };
+        if !missing_ok {
+            return value("invalid short_missing album IDs");
         }
         for field in ["last_attempt", "last_success", "last_listing"] {
             if let Some(v) = map.get(field)
