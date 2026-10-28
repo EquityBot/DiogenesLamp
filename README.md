@@ -38,7 +38,7 @@ On this page:
 Requires a Rust toolchain (the version is pinned in `rust-toolchain.toml`).
 `lamp` is a single binary with the viewer assets built in:
 
-    git clone https://github.com/ryanduguid/DiogenesLamp
+    git clone https://github.com/EquityBot/DiogenesLamp
     cd DiogenesLamp
     cargo install --locked --path .
 
