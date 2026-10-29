@@ -86,13 +86,10 @@ Security fixes are applied to the latest version on the default branch.
 
 ## Reporting a vulnerability
 
-Contact the repository owner directly. Do not open an issue for a suspected
-security vulnerability. Include a clear description, reproduction steps,
-impact, and any suggested mitigation.
-
-GitHub offers repository security advisories and private vulnerability
-reporting for public repositories on GitHub.com only, so that route is not
-available while this repository stays private.
+Report it privately through GitHub's private vulnerability reporting:
+https://github.com/EquityBot/DiogenesLamp/security/advisories/new. Do not open
+an issue for a suspected security vulnerability. Include a clear description,
+reproduction steps, impact, and any suggested mitigation.
 
 Use fabricated catalogue pages, source configuration and reproduction data only. Do
 not submit client or private catalogue data, credentials, access tokens, cookies,
@@ -145,7 +142,15 @@ fn active_workflow_inventory_is_exact() {
         .filter(|n| n.ends_with(".yml") || n.ends_with(".yaml"))
         .collect();
     names.sort();
-    assert_eq!(names, ["ci.yml", "no-ai-attribution.yml"]);
+    assert_eq!(
+        names,
+        [
+            "ci.yml",
+            "codeql.yml",
+            "no-ai-attribution.yml",
+            "scorecard.yml"
+        ]
+    );
 }
 
 #[test]
