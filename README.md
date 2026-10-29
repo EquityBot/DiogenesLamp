@@ -9,9 +9,9 @@
 
 <div align="center">
 
-[![ci](https://img.shields.io/github/actions/workflow/status/EquityBot/DiogenesLamp/ci.yml?branch=main&label=ci&labelColor=000000&style=flat)](https://github.com/EquityBot/DiogenesLamp/actions/workflows/ci.yml)
-[![rust: 1.99+](https://img.shields.io/badge/rust-1.99%2B-66023C?labelColor=000000&style=flat&color=66023C)](https://www.rust-lang.org/)
-[![licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-66023C?labelColor=000000&style=flat&color=66023C)](LICENSE)
+[![tests](https://img.shields.io/github/actions/workflow/status/EquityBot/DiogenesLamp/ci.yml?branch=main&label=tests&labelColor=000000&style=flat)](https://github.com/EquityBot/DiogenesLamp/actions/workflows/ci.yml) [![CodeQL](https://img.shields.io/github/actions/workflow/status/EquityBot/DiogenesLamp/codeql.yml?branch=main&label=CodeQL&labelColor=000000&style=flat)](https://github.com/EquityBot/DiogenesLamp/actions/workflows/codeql.yml) [![SonarCloud](https://img.shields.io/sonar/quality_gate/EquityBot_DiogenesLamp?server=https%3A%2F%2Fsonarcloud.io&label=SonarCloud&labelColor=000000&style=flat)](https://sonarcloud.io/summary/new_code?id=EquityBot_DiogenesLamp)<br>
+[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/EquityBot/DiogenesLamp?label=Scorecard&labelColor=000000&style=flat)](https://scorecard.dev/viewer/?uri=github.com/EquityBot/DiogenesLamp)<br>
+[![rust: 1.99+](https://img.shields.io/badge/rust-1.99%2B-66023C?labelColor=000000&style=flat&color=66023C)](https://www.rust-lang.org/) [![licence: Apache-2.0](https://img.shields.io/badge/licence-Apache--2.0-66023C?labelColor=000000&style=flat&color=66023C)](LICENSE)
 
 </div>
 
