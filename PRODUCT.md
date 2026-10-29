@@ -91,8 +91,8 @@ unhurried, with no marketing register.
   gradient covers on two albums in every three, spread across each seller, so
   1,333 covers per seller and 6,665 in all. Every viewer state can be seen
   without scraping anything.
-- `docs/viewer.webp` is the current README screenshot, generated from that
-  demo data.
+- `docs/viewer.webp` is a viewer screenshot generated from that demo data.
+  The README does not show it.
 - Real catalogue data is the operator's own and stays off the repository.
 - No usage numbers, no testimonials, no user research. Future work must not
   invent any.
