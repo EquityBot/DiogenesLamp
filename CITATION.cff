@@ -1,0 +1,20 @@
+cff-version: 1.2.0
+message: "If you use this work, cite it with this metadata and the release tag or commit you used."
+title: "DiogenesLamp"
+type: software
+authors:
+  - name: "EquityBot"
+abstract: "Offline Yupoo catalogue archiver with a local virtualised viewer."
+repository-code: "https://github.com/EquityBot/DiogenesLamp"
+license-url: "https://github.com/EquityBot/DiogenesLamp/blob/main/LICENSE"
+keywords:
+  - accessibility
+  - catalog
+  - catalogue
+  - cli
+  - offline-first
+  - rust
+  - scraper
+  - vanilla-js
+  - virtual-scrolling
+  - web-scraping

@@ -1,0 +1,25 @@
+# DiogenesLamp
+
+> A Rust command-line tool (`lamp`) that indexes public Yupoo seller catalogues into a
+> local store and serves them as one searchable, infinite-scroll page. It fetches covers
+> and metadata from public pages only; detail photos stay on Yupoo, linked from the viewer.
+
+Version 0.1.0 (the Rust port) is unreleased and has no tagged release. Install from a
+clone with `cargo install --locked --path .`; the toolchain is pinned in `rust-toolchain.toml`.
+
+## Start
+
+- [README](https://github.com/EquityBot/DiogenesLamp#readme): install, use, data layout, diagnostics, politeness limits and development checks.
+- [sources.example.toml](https://github.com/EquityBot/DiogenesLamp/blob/main/sources.example.toml): an example of the seller source file that `lamp import` writes.
+- [CHANGELOG](https://github.com/EquityBot/DiogenesLamp/blob/main/CHANGELOG.md): the Rust port and its documented divergences from the Python version.
+
+## Docs
+
+- [Security policy](https://github.com/EquityBot/DiogenesLamp/blob/main/SECURITY.md): reporting and what the tool does and does not access.
+- [Product record](https://github.com/EquityBot/DiogenesLamp/blob/main/PRODUCT.md): users, purpose, positioning and operating context.
+- [Design system](https://github.com/EquityBot/DiogenesLamp/blob/main/DESIGN.md): viewer tokens, rules and component behaviour.
+- [Agent instructions](https://github.com/EquityBot/DiogenesLamp/blob/main/AGENTS.md): checks and constraints for coding agents.
+
+## Related
+
+- [EquityBot](https://github.com/EquityBot): other EquityBot tools.
