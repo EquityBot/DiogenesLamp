@@ -6,8 +6,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 
 use lamp::http::{
-    self, Client, Clock, FetchError, Headers, Lru, MAX_IMAGE_BYTES, MAX_REDIRECTS, RETRIES,
-    RateLimiter, Response, Target, TransportError, normalise_url, open_each_address,
+    self, Client, Clock, FetchError, Headers, Lru, MAX_IMAGE_BYTES, MAX_REDIRECTS,
+    MAX_RETRY_AFTER_SECS, RETRIES, RateLimiter, Response, Target, TransportError, normalise_url,
+    open_each_address,
 };
 
 #[derive(Default)]
@@ -339,6 +340,143 @@ fn get_retries_5xx_blocks_on_429_and_gives_up() {
         Err(FetchError::Fetch(_))
     ));
     assert_eq!(clock.sleeps(), [1.0, 2.0]);
+}
+
+fn with_retry_after(status: u16, value: &str) -> Result<FakeResponse, TransportError> {
+    Ok(FakeResponse::new(status, b"", &[("Retry-After", value)]))
+}
+
+fn ok() -> Result<FakeResponse, TransportError> {
+    Ok(FakeResponse::new(200, b"ok", &[]))
+}
+
+#[test]
+fn a_429_waits_once_for_retry_after_then_retries() {
+    let (client, calls, clock) = make_client(global, vec![with_retry_after(429, "7"), ok()]);
+    assert_eq!(client.get("https://x.example/", None).unwrap().status, 200);
+    assert_eq!(calls.lock().unwrap().len(), 2);
+    assert_eq!(clock.sleeps(), [7.0]);
+}
+
+#[test]
+fn a_repeated_429_is_blocked_after_one_wait() {
+    let (client, calls, clock) = make_client(
+        global,
+        vec![with_retry_after(429, "5"), with_retry_after(429, "5")],
+    );
+    assert_eq!(
+        client.get("https://x.example/", None).err(),
+        Some(FetchError::Blocked(429))
+    );
+    assert_eq!(calls.lock().unwrap().len(), 2);
+    assert_eq!(clock.sleeps(), [5.0]);
+}
+
+#[test]
+fn a_hostile_retry_after_is_capped() {
+    for value in ["999999999", "99999999999999999999999999999"] {
+        let (client, _, clock) = make_client(global, vec![with_retry_after(429, value), ok()]);
+        assert_eq!(client.get("https://x.example/", None).unwrap().status, 200);
+        assert_eq!(clock.sleeps(), [MAX_RETRY_AFTER_SECS]);
+    }
+    let (client, calls, clock) = make_client(
+        global,
+        (0..RETRIES)
+            .map(|_| with_retry_after(503, "999999999"))
+            .collect(),
+    );
+    assert!(matches!(
+        client.get("https://x.example/", None),
+        Err(FetchError::Fetch(_))
+    ));
+    assert_eq!(calls.lock().unwrap().len(), RETRIES as usize);
+    assert_eq!(clock.sleeps(), [MAX_RETRY_AFTER_SECS, MAX_RETRY_AFTER_SECS]);
+}
+
+#[test]
+fn retry_after_is_final_or_ignored_where_it_does_not_apply() {
+    for (status, value) in [(429, "soon"), (429, "-5"), (403, "7")] {
+        let (client, calls, clock) = make_client(global, vec![with_retry_after(status, value)]);
+        assert_eq!(
+            client.get("https://x.example/", None).err(),
+            Some(FetchError::Blocked(status))
+        );
+        assert_eq!(calls.lock().unwrap().len(), 1);
+        assert!(clock.sleeps().is_empty());
+    }
+    let (client, _, clock) = make_client(global, vec![with_retry_after(500, "7"), ok()]);
+    assert_eq!(client.get("https://x.example/", None).unwrap().status, 200);
+    assert_eq!(clock.sleeps(), [1.0]);
+}
+
+#[test]
+fn a_503_retry_after_replaces_only_a_shorter_backoff() {
+    let (client, _, clock) = make_client(global, vec![with_retry_after(503, "9"), ok()]);
+    assert_eq!(client.get("https://x.example/", None).unwrap().status, 200);
+    assert_eq!(clock.sleeps(), [9.0]);
+    let (client, _, clock) = make_client(global, vec![with_retry_after(503, "0"), ok()]);
+    assert_eq!(client.get("https://x.example/", None).unwrap().status, 200);
+    assert_eq!(clock.sleeps(), [1.0]);
+}
+
+#[test]
+fn downloads_honour_retry_after_too() {
+    let dir = common::tmp();
+    let dest = dir.path().join("cover.png");
+    let png = png_bytes();
+    let (client, calls, clock) = make_client(
+        global,
+        vec![
+            with_retry_after(429, "7"),
+            with_retry_after(503, "9"),
+            Ok(FakeResponse::new(
+                200,
+                &png,
+                &[("Content-Type", "image/png")],
+            )),
+        ],
+    );
+    assert!(client.download("https://x.example/a", &dest, None).unwrap());
+    assert_eq!(calls.lock().unwrap().len(), 3);
+    assert_eq!(clock.sleeps(), [7.0, 9.0]);
+}
+
+#[test]
+fn an_http_date_retry_after_waits_until_that_time() {
+    let date = (chrono::Utc::now() + chrono::TimeDelta::seconds(30))
+        .format("%a, %d %b %Y %H:%M:%S GMT")
+        .to_string();
+    let (client, _, clock) = make_client(global, vec![with_retry_after(429, &date), ok()]);
+    assert_eq!(client.get("https://x.example/", None).unwrap().status, 200);
+    let sleeps = clock.sleeps();
+    assert_eq!(sleeps.len(), 1);
+    assert!((25.0..=30.0).contains(&sleeps[0]), "{sleeps:?}");
+}
+
+#[test]
+fn retry_after_values_parse_in_every_form() {
+    let now = chrono::DateTime::parse_from_rfc3339("2026-10-30T00:00:00Z")
+        .unwrap()
+        .to_utc();
+    for (value, expected) in [
+        ("0", Some(0.0)),
+        (" 120 ", Some(MAX_RETRY_AFTER_SECS)),
+        ("45", Some(45.0)),
+        ("Fri, 30 Oct 2026 00:00:30 GMT", Some(30.0)),
+        ("Friday, 30-Oct-26 00:00:30 GMT", Some(30.0)),
+        ("Fri Oct 30 00:00:30 2026", Some(30.0)),
+        ("Fri Oct  2 00:00:30 2026", Some(0.0)),
+        ("Thu, 29 Oct 2026 23:59:00 GMT", Some(0.0)),
+        ("Fri, 31 Dec 9999 23:59:59 GMT", Some(MAX_RETRY_AFTER_SECS)),
+        ("", None),
+        ("soon", None),
+        ("-5", None),
+        ("1.5", None),
+        ("NaN", None),
+        ("inf", None),
+    ] {
+        assert_eq!(http::retry_after_seconds(value, now), expected, "{value:?}");
+    }
 }
 
 fn png_bytes() -> Vec<u8> {
