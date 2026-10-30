@@ -10,7 +10,7 @@
 <div align="center">
 
 [![tests](https://github.com/EquityBot/DiogenesLamp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/EquityBot/DiogenesLamp/actions/workflows/ci.yml) [![CodeQL](https://github.com/EquityBot/DiogenesLamp/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/EquityBot/DiogenesLamp/actions/workflows/codeql.yml) [![SonarCloud](https://sonarcloud.io/api/project_badges/measure?project=EquityBot_DiogenesLamp&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=EquityBot_DiogenesLamp)<br>
-[![OpenSSF Scorecard](https://img.shields.io/ossf-scorecard/github.com/EquityBot/DiogenesLamp?label=Scorecard&labelColor=000000&style=flat)](https://scorecard.dev/viewer/?uri=github.com/EquityBot/DiogenesLamp)<br>
+[![OpenSSF Scorecard](https://raw.githubusercontent.com/ryanduguid/.github/badges/EquityBot/DiogenesLamp.svg)](https://scorecard.dev/viewer/?uri=github.com/EquityBot/DiogenesLamp)<br>
 [![rust: 1.99+](.github/assets/badges/rust.svg)](https://www.rust-lang.org/) [![licence: Apache-2.0](.github/assets/badges/licence.svg)](LICENSE)
 
 </div>
