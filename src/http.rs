@@ -18,6 +18,8 @@ pub const RETRIES: u32 = 3;
 pub const MAX_REDIRECTS: u32 = 5;
 pub const MAX_IMAGE_BYTES: u64 = 8 * 1024 * 1024;
 pub const MAX_HTML_BYTES: usize = 8 * 1024 * 1024;
+/// The longest one `Retry-After` header can hold up a request.
+pub const MAX_RETRY_AFTER_SECS: f64 = 60.0;
 const TIMEOUT: Duration = Duration::from_secs(30);
 const IMAGE_MIMES: [(&str, &[&str]); 3] = [
     ("JPEG", &["image/jpeg", "image/jpg"]),
@@ -43,7 +45,8 @@ impl std::fmt::Display for FetchError {
 
 enum Failure {
     Final(FetchError),
-    Retryable(String),
+    /// The message, and how long the server asked us to wait, if it said.
+    Retryable(String, Option<f64>),
 }
 
 /// The clock and sleep a limiter and client use; tests substitute them.
@@ -365,6 +368,60 @@ impl Page {
     }
 }
 
+/// The capped wait a `Retry-After` value asks for: delta-seconds, or any of the three
+/// HTTP-date formats relative to `now`. None if it is neither.
+pub fn retry_after_seconds(value: &str, now: chrono::DateTime<chrono::Utc>) -> Option<f64> {
+    let value = value.trim();
+    let seconds = if !value.is_empty() && value.bytes().all(|b| b.is_ascii_digit()) {
+        value.parse::<f64>().ok()?
+    } else {
+        let date = chrono::DateTime::parse_from_rfc2822(value)
+            .map(|date| date.to_utc())
+            .ok()
+            .or_else(|| parse_rfc850(value, now))
+            .or_else(|| {
+                chrono::NaiveDateTime::parse_from_str(value, "%a %b %e %H:%M:%S %Y")
+                    .ok()
+                    .map(|date| date.and_utc())
+            })?;
+        (date - now).num_milliseconds() as f64 / 1000.0
+    };
+    Some(seconds.clamp(0.0, MAX_RETRY_AFTER_SECS))
+}
+
+/// An rfc850-date, whose two-digit year RFC 9110 reads as the latest such year no more than
+/// 50 years after `now`. The weekday is dropped because chrono would check it against its
+/// own fixed century.
+fn parse_rfc850(
+    value: &str,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<chrono::DateTime<chrono::Utc>> {
+    use chrono::Datelike;
+
+    let (_, rest) = value.split_once(", ")?;
+    let date = chrono::NaiveDateTime::parse_from_str(rest, "%d-%b-%y %H:%M:%S GMT").ok()?;
+    let limit = now
+        .naive_utc()
+        .checked_add_months(chrono::Months::new(50 * 12))?;
+    let year = limit.year() - (limit.year() - date.year()).rem_euclid(100);
+    let dated = date.with_year(year)?;
+    let dated = if dated > limit {
+        date.with_year(year - 100)?
+    } else {
+        dated
+    };
+    Some(dated.and_utc())
+}
+
+/// The exponential backoff, or longer if the server asked for longer.
+fn backoff(attempt: u32, requested: Option<f64>) -> f64 {
+    2f64.powi(attempt as i32).max(requested.unwrap_or(0.0))
+}
+
+fn retry_after(response: &dyn Response) -> Option<f64> {
+    retry_after_seconds(&response.header("Retry-After")?, chrono::Utc::now())
+}
+
 pub struct Client {
     limiter: Arc<RateLimiter>,
     resolver: Arc<Resolver>,
@@ -404,6 +461,7 @@ impl Client {
         referer: Option<&str>,
     ) -> Result<Box<dyn Response>, Failure> {
         let mut current = url.to_string();
+        let mut waited_on_429 = false;
         for hop in 0..=MAX_REDIRECTS {
             let target = validated_target(&current, &*self.resolver)
                 .map_err(|e| Failure::Final(FetchError::Fetch(e)))?;
@@ -414,13 +472,26 @@ impl Client {
             if let Some(referer) = referer.filter(|r| !r.is_empty()) {
                 headers.push(("Referer".into(), referer.to_string()));
             }
-            self.limiter.wait(&target.hostname);
-            let response = (self.transport)(&target, &headers).map_err(|e| {
-                let text = match e {
-                    TransportError::Proxy(m) | TransportError::Request(m) => m,
-                };
-                Failure::Retryable(format!("request failed for {}: {text}", target.url))
-            })?;
+            let send = || {
+                self.limiter.wait(&target.hostname);
+                (self.transport)(&target, &headers).map_err(|e| {
+                    let text = match e {
+                        TransportError::Proxy(m) | TransportError::Request(m) => m,
+                    };
+                    Failure::Retryable(format!("request failed for {}: {text}", target.url), None)
+                })
+            };
+            let mut response = send()?;
+            // One wait, so a repeated 429 still counts towards the seller's blocked streak.
+            if response.status() == 429
+                && !waited_on_429
+                && let Some(wait) = retry_after(&*response)
+            {
+                waited_on_429 = true;
+                drop(response);
+                self.clock.sleep(wait);
+                response = send()?;
+            }
             let status = response.status();
             if matches!(status, 301 | 302 | 303 | 307 | 308) {
                 let location =
@@ -448,10 +519,15 @@ impl Client {
                 return Err(Failure::Final(FetchError::Blocked(status)));
             }
             if (500..600).contains(&status) {
-                return Err(Failure::Retryable(format!(
-                    "HTTP {status} for {}",
-                    target.url
-                )));
+                let wait = if status == 503 {
+                    retry_after(&*response)
+                } else {
+                    None
+                };
+                return Err(Failure::Retryable(
+                    format!("HTTP {status} for {}", target.url),
+                    wait,
+                ));
             }
             if status != 200 {
                 return Err(Failure::Final(FetchError::Fetch(format!(
@@ -476,10 +552,10 @@ impl Client {
             match self.follow_redirects(url, referer) {
                 Ok(response) => return Ok(response),
                 Err(Failure::Final(error)) => return Err(error),
-                Err(Failure::Retryable(message)) => {
+                Err(Failure::Retryable(message, wait)) => {
                     last_error = message;
                     if attempt + 1 < RETRIES {
-                        self.clock.sleep(2f64.powi(attempt as i32));
+                        self.clock.sleep(backoff(attempt, wait));
                     }
                 }
             }
@@ -491,9 +567,9 @@ impl Client {
     pub fn get(&self, url: &str, referer: Option<&str>) -> Result<Page, FetchError> {
         let mut last_error = String::new();
         for attempt in 0..RETRIES {
-            let failure = match self.follow_redirects(url, referer) {
+            let (failure, wait) = match self.follow_redirects(url, referer) {
                 Err(Failure::Final(error)) => return Err(error),
-                Err(Failure::Retryable(message)) => message,
+                Err(Failure::Retryable(message, wait)) => (message, wait),
                 Ok(mut response) => {
                     let mut body = Vec::new();
                     let read = loop {
@@ -518,13 +594,13 @@ impl Client {
                                 content: body,
                             });
                         }
-                        Err(e) => format!("body read failed for {url}: {e}"),
+                        Err(e) => (format!("body read failed for {url}: {e}"), None),
                     }
                 }
             };
             last_error = failure;
             if attempt + 1 < RETRIES {
-                self.clock.sleep(2f64.powi(attempt as i32));
+                self.clock.sleep(backoff(attempt, wait));
             }
         }
         Err(FetchError::Fetch(format!("gave up on {url}: {last_error}")))
