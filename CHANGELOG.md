@@ -54,6 +54,10 @@ unchanged.
   non-ASCII host is encoded with UTS 46 rather than Python's IDNA 2003 codec.
   A stalled response body times out after 120 seconds in total rather than 30
   seconds per read.
+- **Retry-After.** A 429 carrying a valid `Retry-After` is retried once after
+  that wait before it counts as blocked, and a 503's `Retry-After` replaces a
+  shorter backoff. Each wait is capped at 60 seconds. The Python version
+  ignored the header.
 - **JSON edge cases.** A JSON string holding a lone surrogate escape
   (`"\ud800"`) is refused as corrupt metadata, because a Rust string cannot hold
   it; Python accepted it on read but could not write it back. Nesting deeper

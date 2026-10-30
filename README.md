@@ -322,8 +322,9 @@ accuracy rate on real products.
 ## Politeness and scope
 
 - Global cap of 8 requests/second by default (tune with --rps), 1
-  request/second per seller host, honest User-Agent, backoff on errors, and a
-  hard stop per seller if Yupoo answers 429/403 repeatedly.
+  request/second per seller host, honest User-Agent, backoff on errors,
+  `Retry-After` honoured on 429 and 503 (waiting at most 60 seconds each time),
+  and a hard stop per seller if Yupoo answers 429/403 repeatedly.
 - Covers and metadata only - detail photos are never downloaded; the viewer
   links back to Yupoo for those.
 - HTML responses are limited to 8 MiB after decompression. Larger pages fail
