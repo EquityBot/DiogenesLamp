@@ -479,6 +479,28 @@ fn retry_after_values_parse_in_every_form() {
     }
 }
 
+#[test]
+fn rfc850_years_roll_within_50_years_of_now() {
+    let now = chrono::DateTime::parse_from_rfc3339("2026-10-30T00:00:00Z")
+        .unwrap()
+        .to_utc();
+    for (value, expected) in [
+        ("Friday, 30-Oct-26 00:00:30 GMT", 30.0),
+        ("Thursday, 29-Oct-26 00:00:30 GMT", 0.0),
+        ("Thursday, 30-Oct-69 00:00:00 GMT", MAX_RETRY_AFTER_SECS),
+        ("Thursday, 30-Oct-70 00:00:30 GMT", MAX_RETRY_AFTER_SECS),
+        ("Friday, 30-Oct-76 00:00:00 GMT", MAX_RETRY_AFTER_SECS),
+        ("Friday, 30-Oct-76 00:00:01 GMT", 0.0),
+        ("Sunday, 30-Oct-77 00:00:00 GMT", 0.0),
+    ] {
+        assert_eq!(
+            http::retry_after_seconds(value, now),
+            Some(expected),
+            "{value:?}"
+        );
+    }
+}
+
 fn png_bytes() -> Vec<u8> {
     common::png(2, 2, [255, 0, 0])
 }

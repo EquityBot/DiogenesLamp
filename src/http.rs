@@ -378,15 +378,39 @@ pub fn retry_after_seconds(value: &str, now: chrono::DateTime<chrono::Utc>) -> O
         let date = chrono::DateTime::parse_from_rfc2822(value)
             .map(|date| date.to_utc())
             .ok()
+            .or_else(|| parse_rfc850(value, now))
             .or_else(|| {
-                ["%A, %d-%b-%y %H:%M:%S GMT", "%a %b %e %H:%M:%S %Y"]
-                    .iter()
-                    .find_map(|format| chrono::NaiveDateTime::parse_from_str(value, format).ok())
+                chrono::NaiveDateTime::parse_from_str(value, "%a %b %e %H:%M:%S %Y")
+                    .ok()
                     .map(|date| date.and_utc())
             })?;
         (date - now).num_milliseconds() as f64 / 1000.0
     };
     Some(seconds.clamp(0.0, MAX_RETRY_AFTER_SECS))
+}
+
+/// An rfc850-date, whose two-digit year RFC 9110 reads as the latest such year no more than
+/// 50 years after `now`. The weekday is dropped because chrono would check it against its
+/// own fixed century.
+fn parse_rfc850(
+    value: &str,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Option<chrono::DateTime<chrono::Utc>> {
+    use chrono::Datelike;
+
+    let (_, rest) = value.split_once(", ")?;
+    let date = chrono::NaiveDateTime::parse_from_str(rest, "%d-%b-%y %H:%M:%S GMT").ok()?;
+    let limit = now
+        .naive_utc()
+        .checked_add_months(chrono::Months::new(50 * 12))?;
+    let year = limit.year() - (limit.year() - date.year()).rem_euclid(100);
+    let dated = date.with_year(year)?;
+    let dated = if dated > limit {
+        date.with_year(year - 100)?
+    } else {
+        dated
+    };
+    Some(dated.and_utc())
 }
 
 /// The exponential backoff, or longer if the server asked for longer.
