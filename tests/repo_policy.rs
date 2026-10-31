@@ -148,7 +148,8 @@ fn active_workflow_inventory_is_exact() {
             "ci.yml",
             "codeql.yml",
             "no-ai-attribution.yml",
-            "scorecard.yml"
+            "scorecard.yml",
+            "snyk.yml"
         ]
     );
 }
