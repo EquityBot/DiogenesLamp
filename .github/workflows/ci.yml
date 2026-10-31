@@ -37,4 +37,47 @@ jobs:
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets -- -D warnings
       - run: cargo test --locked
+        if: matrix.os != 'ubuntu-latest'
+      # Coverage feeds the Codecov badge only and has no floor. It needs
+      # llvm-tools and a prebuilt cargo-llvm-cov, with no fallback to compiling it.
+      - run: rustup component add llvm-tools
+        if: matrix.os == 'ubuntu-latest'
+      - uses: taiki-e/install-action@1e29709c0ec63babbe8f266397a465f29a825f91 # v2.87.31
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          tool: cargo-llvm-cov@0.9.1
+          fallback: none
+      - run: cargo llvm-cov --locked --lcov --output-path coverage-rust.lcov
+        if: matrix.os == 'ubuntu-latest'
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          name: coverage-rust
+          path: coverage-rust.lcov
+          retention-days: 1
       - run: cargo build --locked --release
+
+  # The upload runs apart from the tests so the OIDC token is never available
+  # while test code runs. A Codecov outage fails only this job.
+  codecov:
+    name: upload coverage to Codecov
+    needs: test
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write # Authenticate the Codecov upload with OIDC; no stored token.
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: coverage-rust
+      - uses: codecov/codecov-action@303a32d7a59b442fa8d48b6a1cc6825c09c847a5 # v7.1.1
+        with:
+          use_oidc: true
+          files: coverage-rust.lcov
+          disable_search: true
+          fail_ci_if_error: true

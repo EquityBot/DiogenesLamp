@@ -15,6 +15,7 @@ clone with `cargo install --locked --path .`; the toolchain is pinned in `rust-t
 
 ## Docs
 
+- [Contributing](https://github.com/EquityBot/DiogenesLamp/blob/main/CONTRIBUTING.md): issues, pull requests and the checks a change must pass.
 - [Security policy](https://github.com/EquityBot/DiogenesLamp/blob/main/SECURITY.md): reporting and what the tool does and does not access.
 - [Product record](https://github.com/EquityBot/DiogenesLamp/blob/main/PRODUCT.md): users, purpose, positioning and operating context.
 - [Design system](https://github.com/EquityBot/DiogenesLamp/blob/main/DESIGN.md): viewer tokens, rules and component behaviour.
