@@ -105,6 +105,11 @@ updates:
       interval: weekly
     cooldown:
       default-days: 7
+    groups:
+      # CodeQL refuses a workflow whose init, analyze and upload-sarif steps differ in version.
+      codeql-action:
+        patterns:
+          - "github/codeql-action*"
     ignore:
       # The release-policy reusable workflow is pinned by SHA-256 in
       # tests/repo_policy.rs, so a bot bump can only fail CI.
