@@ -207,7 +207,11 @@ enum Fail {
     Error(DecodeError),
 }
 
-const MAX_DEPTH: usize = 4000;
+/// Deepest nesting `loads` accepts. Measured on a 2 MiB thread, a level costs
+/// up to about 4 KiB of stack in a debug build and 700 B in release; the
+/// smallest stack `loads` runs on is Windows' 1 MiB main thread, where 128
+/// levels keep a 2x margin. 4000 overflowed a 2 MiB thread in release.
+const MAX_DEPTH: usize = 128;
 
 impl<'a> Parser<'a> {
     fn error(&self, msg: &str, pos: usize) -> Fail {
@@ -823,5 +827,39 @@ mod tests {
         assert!(py_eq(&Value::Bool(true), &Value::Int(1)));
         assert!(!py_eq(&Value::Str("1".into()), &Value::Int(1)));
         assert!(py_eq(&Value::Float(-0.0), &Value::Int(0)));
+    }
+
+    /// Parses `text` on a thread with the default 2 MiB stack the scraper uses.
+    fn loads_on_scraper_stack(text: String) -> Result<Value, DecodeError> {
+        std::thread::Builder::new()
+            .stack_size(2 * 1024 * 1024)
+            .spawn(move || loads(&text))
+            .unwrap()
+            .join()
+            .unwrap()
+    }
+
+    fn nested(depth: usize) -> [String; 2] {
+        [
+            format!("{}1{}", "[".repeat(depth), "]".repeat(depth)),
+            format!("{}1{}", "{\"a\":".repeat(depth), "}".repeat(depth)),
+        ]
+    }
+
+    #[test]
+    fn nesting_at_the_bound_parses_on_a_scraper_thread() {
+        for text in nested(MAX_DEPTH) {
+            assert!(loads_on_scraper_stack(text).is_ok());
+        }
+    }
+
+    #[test]
+    fn nesting_past_the_bound_is_an_error() {
+        for text in nested(MAX_DEPTH + 1) {
+            assert_eq!(
+                loads_on_scraper_stack(text).unwrap_err().0,
+                "maximum recursion depth exceeded while decoding a JSON document"
+            );
+        }
     }
 }

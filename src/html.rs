@@ -5,6 +5,7 @@
 
 use crate::pystr;
 use crate::pytables;
+use std::collections::HashMap;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum StrKind {
@@ -71,6 +72,8 @@ fn is_tag_ws(b: u8) -> bool {
 struct Builder {
     nodes: Vec<Node>,
     stack: Vec<usize>,
+    /// How many elements of each name are on `stack` above the root.
+    open_counts: HashMap<String, usize>,
     current_data: Vec<String>,
     preserve_stack: Vec<usize>,
     container_stack: Vec<usize>,
@@ -123,6 +126,12 @@ impl Builder {
         let id = self.nodes.len();
         let preserve = matches!(name.as_str(), "pre" | "textarea");
         let container = string_container(&name).is_some();
+        match self.open_counts.get_mut(&name) {
+            Some(count) => *count += 1,
+            None => {
+                self.open_counts.insert(name.clone(), 1);
+            }
+        }
         self.nodes.push(Node {
             kind: Kind::Element { name, attrs },
             children: Vec::new(),
@@ -144,6 +153,11 @@ impl Builder {
             return;
         }
         let Some(id) = self.stack.pop() else { return };
+        if let Kind::Element { name, .. } = &self.nodes[id].kind
+            && let Some(count) = self.open_counts.get_mut(name)
+        {
+            *count -= 1;
+        }
         if self.preserve_stack.last() == Some(&id) {
             self.preserve_stack.pop();
         }
@@ -153,11 +167,7 @@ impl Builder {
     }
 
     fn pop_to_tag(&mut self, name: &str) {
-        let open = self.stack[1..]
-            .iter()
-            .rev()
-            .any(|&id| self.name(id) == name);
-        if !open {
+        if self.open_counts.get(name).is_none_or(|&count| count == 0) {
             return;
         }
         while self.stack.len() > 1 {
@@ -948,6 +958,7 @@ pub fn parse(html: &str) -> Document {
             children: Vec::new(),
         }],
         stack: vec![0],
+        open_counts: HashMap::new(),
         current_data: Vec::new(),
         preserve_stack: Vec::new(),
         container_stack: Vec::new(),
