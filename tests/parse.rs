@@ -66,6 +66,38 @@ fn parse_album_page_missing_everything() {
     );
 }
 
+/// Scraped pages reach 8 MiB, so nesting depth is attacker-chosen: tree walks
+/// must not recurse once per level.
+const DEEP: usize = 100_000;
+
+#[test]
+fn deeply_nested_album_list_does_not_overflow_the_stack() {
+    let html = format!(
+        "{}<a class=\"album__main\" href=\"/albums/42\"><span class=\"album__title\">{}Deep{}</span></a>{}",
+        "<div>".repeat(DEEP),
+        "<b>".repeat(DEEP),
+        "</b>".repeat(DEEP),
+        "</div>".repeat(DEEP),
+    );
+    let stubs = parse_album_list(&html);
+    assert_eq!(stubs.len(), 1);
+    assert_eq!(
+        (stubs[0].id.as_str(), stubs[0].title.as_str()),
+        ("42", "Deep")
+    );
+}
+
+#[test]
+fn deeply_nested_album_page_does_not_overflow_the_stack() {
+    let html = format!(
+        "{}<h1 class=\"showalbumheader__gallerytitle\">{}Deep title{}</h1>",
+        "<div>".repeat(DEEP),
+        "<span>".repeat(DEEP),
+        "</span>".repeat(DEEP),
+    );
+    assert_eq!(parse_album_page(&html).title, "Deep title");
+}
+
 #[test]
 fn parse_album_page_malformed_ld_json() {
     let html = "<html><body><script type=\"application/ld+json\">not json {</script>\
