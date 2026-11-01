@@ -187,11 +187,12 @@ try {
     for (const domain of ['Page', 'Runtime', 'Performance']) await send(`${domain}.enable`, {}, session);
     await send('Fetch.enable', {patterns: [{urlPattern: '*', requestStage: 'Request'}]}, session);
     await send('Emulation.setDeviceMetricsOverride', {width, height, deviceScaleFactor: 1, mobile: false}, session);
-    await send('Page.addScriptToEvaluateOnNewDocument', {source: `window.measurement={longTasks:[],frames:[],firstCard:null};new PerformanceObserver(list=>measurement.longTasks.push(...list.getEntries().map(e=>e.duration))).observe({type:'longtask',buffered:true});let last;function frame(t){if(last)measurement.frames.push(t-last);last=t;if(measurement.frames.length<1000)requestAnimationFrame(frame);if(!measurement.firstCard&&document.querySelector('#grid > .card'))measurement.firstCard=performance.now();}requestAnimationFrame(frame);`}, session);
+    await send('Page.addScriptToEvaluateOnNewDocument', {source: `window.measurement={longTasks:[],frames:[],firstCard:null};new PerformanceObserver(list=>measurement.longTasks.push(...list.getEntries().map(e=>e.duration))).observe({type:'longtask',buffered:true});let last;function frame(t){if(last&&measurement.frames.length<1000)measurement.frames.push(t-last);last=t;if(!measurement.firstCard&&document.querySelector('#grid > .card'))measurement.firstCard=performance.now();if(measurement.frames.length<1000||!measurement.firstCard)requestAnimationFrame(frame);}requestAnimationFrame(frame);`}, session);
     await send('Page.navigate', {url: origin}, session);
     await waitFor(() => evaluate(session, 'typeof state!=="undefined" && state.loadedSellers===10 && document.querySelector("#grid")?.getAttribute("aria-busy")==="false" && !!document.querySelector("#grid > .card")'), '100k catalogue load', 45000);
     const measurement = await evaluate(session, `({viewport:[innerWidth,innerHeight],complete_ms:performance.now(),raw:[...state.shardAlbums.values()].reduce((n,a)=>n+a.length,0),selected:state.albums.length,filtered:state.filtered.length,loadedSellers:state.loadedSellers,failedShards:state.failedShards,rendered:document.querySelectorAll('#grid > .card').length,first_card_ms:measurement.firstCard,long_tasks_ms:measurement.longTasks})`);
     assert.equal(measurement.raw, 100000); assert.equal(measurement.loadedSellers, 10); assert.deepEqual(measurement.failedShards, []);
+    assert(Number.isFinite(measurement.first_card_ms), 'first card time was observed');
     await frames(session);
     measurement.initial_focus_state = await evaluate(session, `({stops:document.querySelectorAll('#grid > .card[tabindex="0"]').length,scrollY,cursor:state.view.cursor,first:[...document.querySelectorAll('#grid > .card')].slice(0,3).map(c=>({tab:c.getAttribute('tabindex'),pos:c.getAttribute('aria-posinset')}))})`);
     measurement.repetition = repetition;
@@ -202,6 +203,7 @@ try {
     await send('Page.reload', {ignoreCache: false}, session);
     await waitFor(() => evaluate(session, 'window.measurement && typeof state!=="undefined" && state.loadedSellers===10 && document.querySelector("#grid")?.getAttribute("aria-busy")==="false" && !!document.querySelector("#grid > .card")'), 'warm catalogue load', 45000);
     measurement.warm_reload = await evaluate(session, '({complete_ms:performance.now(),first_card_ms:measurement.firstCard,long_tasks_ms:measurement.longTasks})');
+    assert(Number.isFinite(measurement.warm_reload.first_card_ms), 'warm first card time was observed');
     await key(session, 'Tab');
     measurement.native_entry = [await evaluate(session, '({tag:document.activeElement.tagName,id:document.activeElement.id,href:document.activeElement.getAttribute("href"),scrollY})')];
     assert.equal(measurement.native_entry[0].href, '#grid');
@@ -244,6 +246,15 @@ try {
     const exported = await download(session);
     assert.equal(exported.backup.format, 'diogeneslamp'); assert.equal(exported.backup.version, 1); assert.equal(exported.backup.catalogue_status, 'complete'); assert(exported.backup.unresolved_ids.includes('999999999999999'));
     assert.equal(exported.backup.entries.length, 4);
+    const savedIds = new Set(exported.backup.entries.filter(entry => entry.id !== '999999999999999').map(entry => entry.id));
+    assert.equal(savedIds.size, 1, 'the 3 saved fields belong to one listing');
+    const [savedId] = savedIds;
+    assert.deepEqual(ordered(exported.backup.entries), ordered([
+      {kind: 'note', id: '999999999999999', value: 'Fabricated unavailable listing'},
+      {kind: 'collection', id: savedId, value: 'Fixture'},
+      {kind: 'tags', id: savedId, value: ['synthetic']},
+      {kind: 'note', id: savedId, value: 'Fabricated offline note'},
+    ]));
     if (previousExport) assert.deepEqual(ordered(exported.backup.entries), ordered(previousExport.backup.entries));
     assert.equal(await upload(session, exported.path), 'Imported 0 saved fields. Existing values were kept.');
     const metrics = await send('Performance.getMetrics', {}, session);
