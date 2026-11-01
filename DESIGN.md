@@ -121,7 +121,8 @@ gutter, or 300 by 300 with a 220 cover and an 8px gutter on narrow.
 
 The index and viewer select the newest duplicate listing before display
 filters, following the rules in [PRODUCT.md](PRODUCT.md) and
-[README.md](README.md). This also applies when loading older catalogues.
+[docs/reference.md](docs/reference.md#serve-and-browse). This also applies
+when loading older catalogues.
 The **Hide duplicates** checkbox and strip code remain in the viewer, but
 they cannot restore older copies or offer a duplicate-count button for them.
 
