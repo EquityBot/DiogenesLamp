@@ -4,6 +4,7 @@ mod common;
 use common::fixture;
 use lamp::parse::{parse_album_list, parse_album_page, parse_price, price_evidence};
 use lamp::pyjson::Value;
+use std::time::{Duration, Instant};
 
 #[test]
 fn parse_album_list_first_template() {
@@ -96,6 +97,31 @@ fn deeply_nested_album_page_does_not_overflow_the_stack() {
         "</span>".repeat(DEEP),
     );
     assert_eq!(parse_album_page(&html).title, "Deep title");
+}
+
+/// An unmatched closing tag must not rescan every open tag: on an 8 MiB page
+/// that is about 10^12 comparisons. The bound is generous; the quadratic
+/// version took over 400 times as long as the matched page here.
+#[test]
+fn unmatched_closing_tags_at_depth_take_linear_time() {
+    const N: usize = 40_000;
+    let title = "<h1 class=\"showalbumheader__gallerytitle\">Deep title</h1>";
+    let timed = |closers: &str| {
+        let html = format!("{}{}{title}", "<div>".repeat(N), closers.repeat(N));
+        let started = Instant::now();
+        let detail = parse_album_page(&html);
+        (started.elapsed(), detail.title)
+    };
+    let (matched, matched_title) = timed("</div>");
+    let (unmatched, unmatched_title) = timed("</span>");
+    assert_eq!(
+        (matched_title.as_str(), unmatched_title.as_str()),
+        ("Deep title", "Deep title")
+    );
+    assert!(
+        unmatched < matched * 10 + Duration::from_secs(1),
+        "unmatched {unmatched:?}, matched {matched:?}"
+    );
 }
 
 #[test]
