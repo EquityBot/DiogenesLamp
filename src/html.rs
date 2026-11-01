@@ -153,7 +153,10 @@ impl Builder {
     }
 
     fn pop_to_tag(&mut self, name: &str) {
-        let open = self.stack[1..].iter().any(|&id| self.name(id) == name);
+        let open = self.stack[1..]
+            .iter()
+            .rev()
+            .any(|&id| self.name(id) == name);
         if !open {
             return;
         }
@@ -1090,10 +1093,13 @@ impl Document {
         })
     }
 
+    /// Every node below `id` in document order. Iterative, because scraped
+    /// pages choose the nesting depth.
     fn descendants(&self, id: NodeId, out: &mut Vec<NodeId>) {
-        for &child in &self.nodes[id].children {
-            out.push(child);
-            self.descendants(child, out);
+        let mut pending: Vec<NodeId> = self.nodes[id].children.iter().rev().copied().collect();
+        while let Some(node) = pending.pop() {
+            out.push(node);
+            pending.extend(self.nodes[node].children.iter().rev());
         }
     }
 
