@@ -61,7 +61,7 @@ unchanged.
 - **JSON edge cases.** A JSON string holding a lone surrogate escape
   (`"\ud800"`) is refused as corrupt metadata, because a Rust string cannot hold
   it; Python accepted it on read but could not write it back. Nesting deeper
-  than 4000 levels is refused with an error instead of a RecursionError.
+  than 128 levels is refused with an error instead of a RecursionError.
 - **TOML values.** A datetime value in `sources.toml` name, URL or platform is
   kept as its TOML text.
 - **Terminal output** is never coloured (Python 3.15's argparse colours help
