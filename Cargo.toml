@@ -23,7 +23,7 @@ fixture-transport = []
 [dependencies]
 chrono = { version = "0.4.45", default-features = false, features = ["clock", "std"] }
 ctrlc = "3.5"
-fancy-regex = "0.19.2"
+fancy-regex = "0.20.0"
 flate2 = "1.1"
 getrandom = "0.4.3"
 idna = "1.1.0"
