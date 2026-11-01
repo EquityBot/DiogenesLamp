@@ -2,7 +2,9 @@
   "name": "diogenes-lamp-viewer-checks",
   "private": true,
   "scripts": {
-    "typecheck": "tsc --project tsconfig.json"
+    "typecheck": "tsc --project tsconfig.json",
+    "test:browser": "cargo build --release --bins --examples && node tests/browser/catalogue.mjs",
+    "bench:browser": "cargo build --release --bins --examples && node tests/browser/catalogue.mjs --benchmark"
   },
   "devDependencies": {
     "@types/node": "26.6.5",

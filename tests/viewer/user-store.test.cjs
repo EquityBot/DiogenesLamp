@@ -203,3 +203,66 @@ test("read failure stops import without overwriting an uncached existing field",
   assert.equal(read(key), '"Newer note from another tab"');
   assert.equal(store.get("favorite", "101"), true);
 });
+
+test("backup accepts 100000 distinct entries and rejects overflow before touching storage", () => {
+  const entries = Array.from({length: 100000}, (_, i) =>
+    ({kind: "favorite", id: String(i + 1), value: true}));
+  const backup = {format: "diogeneslamp", version: 1, entries};
+  assert.equal(parseUserBackup(backup), entries);
+  const untouched = {
+    has() { assert.fail("an oversized backup must not read storage"); },
+    set() { assert.fail("an oversized backup must not write storage"); }
+  };
+  assert.throws(() => importUserBackup(untouched, {...backup,
+    entries: [...entries, {kind: "favorite", id: "100001", value: true}]}), /too many/);
+});
+
+test("a malformed or duplicate final entry rejects a large backup before storage access", () => {
+  const entries = Array.from({length: 99999}, (_, i) =>
+    ({kind: "favorite", id: String(i + 1), value: true}));
+  const untouched = {
+    has() { assert.fail("validation must finish before reading storage"); },
+    set() { assert.fail("validation must finish before writing storage"); }
+  };
+  for (const [last, error] of [
+    [{kind: "note", id: "100000", value: 4}, /invalid saved entry/],
+    [{kind: "favorite", id: "1", value: true}, /repeats a saved entry/]
+  ]) {
+    assert.throws(() => importUserBackup(untouched,
+      {format: "diogeneslamp", version: 1, entries: [...entries, last]}), error);
+  }
+});
+
+test("a quota interruption reports its saved prefix and retries only the missing entries", () => {
+  const shared = host(), errors = [], store = createUserStore(shared, e => errors.push(e));
+  store.set("note", "101", "Newer note");
+  store.set("favorite", "102", false);
+  const write = shared.localStorage.setItem;
+  let writes = 0;
+  shared.localStorage.setItem = (key, value) => {
+    if (writes === 2) throw Error("quota");
+    write(key, value);
+    writes++;
+  };
+  const backup = {format: "diogeneslamp", version: 1, entries: [
+    {kind: "note", id: "101", value: "Older note"},
+    {kind: "favorite", id: "102", value: true},
+    ...[103, 104, 105, 106].map(id => ({kind: "note", id: String(id), value: "Saved note"}))
+  ]};
+  assert.throws(() => importUserBackup(store, backup), /2 entries were imported/);
+  assert.equal(writes, 2);
+  assert.ok(errors.some(error => error.includes("quota")));
+  shared.localStorage.setItem = write;
+  const resumed = createUserStore(shared);
+  assert.equal(resumed.get("note", "101"), "Newer note");
+  assert.equal(resumed.get("favorite", "102"), false);
+  assert.equal(resumed.get("note", "103"), "Saved note");
+  assert.equal(resumed.get("note", "104"), "Saved note");
+  assert.equal(resumed.has("note", "105"), false);
+  assert.equal(resumed.has("note", "106"), false);
+  assert.equal(importUserBackup(resumed, backup), 2);
+  assert.equal(importUserBackup(createUserStore(shared), backup), 0);
+  assert.equal(resumed.get("note", "101"), "Newer note");
+  assert.equal(resumed.get("favorite", "102"), false);
+  assert.equal(resumed.load().length, 6);
+});
