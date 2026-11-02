@@ -13,25 +13,17 @@
 [![OpenSSF Scorecard](https://raw.githubusercontent.com/ryanduguid/.github/badges/EquityBot/DiogenesLamp.svg)](https://scorecard.dev/viewer/?uri=github.com/EquityBot/DiogenesLamp) [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16129/badge)](https://www.bestpractices.dev/projects/16129)<br>
 [![rust: 1.99+](.github/assets/badges/rust.svg)](https://www.rust-lang.org/) [![licence: Apache-2.0](.github/assets/badges/licence.svg)](LICENSE)
 
+[Install](#install) · [Use](#use) · [Data](#data) · [Diagnostics](#diagnostics-and-recovery) · [Covers](#cached-covers-and-visual-suggestions) · [Politeness](#politeness-and-scope) · [Development](#development) · [Licence](#licence)
+
 </div>
 
 Browse any Yupoo catalogue locally as one fast, searchable, infinite-scroll page.
 
-Yupoo seller catalogues paginate every 20-ish albums and load slowly. DiogenesLamp
-scrapes the album covers, titles, and any taobao/tmall/weidian purchase links into
-a local index once, then serves a single page where the whole catalogue - across all
-your sellers - scrolls, searches, and filters locally. Clicking an item opens the
+Yupoo seller catalogues paginate every 20 or so albums and load slowly. DiogenesLamp
+scrapes the album covers, titles and any taobao, tmall or weidian purchase links into
+a local index once, then serves a single page where the whole catalogue, across all
+your sellers, scrolls, searches and filters locally. Clicking an item opens the
 original Yupoo album for the detail photos.
-
-On this page:
-
-- [Install](#install)
-- [Use](#use)
-- [Data](#data)
-- [Diagnostics and recovery](#diagnostics-and-recovery)
-- [Cached covers and visual suggestions](#cached-covers-and-visual-suggestions)
-- [Politeness and scope](#politeness-and-scope)
-- [Development](#development)
 
 ## Install
 
@@ -49,7 +41,7 @@ the current source; viewer edits take effect at the next build.
 ## Use
 
 1. Put your Yupoo links in a text or CSV file, one URL per line (messy exports
-   are fine - duplicates, page URLs, and non-Yupoo links are handled). Rows
+   are fine: duplicates, page URLs and non-Yupoo links are handled). Rows
    like `12,https://seller.x.yupoo.com` work too: a leading numeric index
    (comma- or tab-separated) is stripped, and the rest of the line is taken
    as the URL, so URLs that themselves contain commas survive intact.
@@ -59,8 +51,8 @@ the current source; viewer edits take effect at the next build.
    This creates or updates `sources.toml`. Non-Yupoo shop links (taobao,
    weidian, link aggregators) are kept as a link-out directory.
 
-2. Scrape (the first run is slow by design - it rate-limits itself to stay
-   polite; re-runs only fetch what changed):
+2. Scrape (the first run is slow by design: it rate-limits itself to stay
+   polite, and re-runs fetch only what changed):
 
        lamp scrape
 
@@ -147,17 +139,17 @@ accuracy rate on real products.
 
 ## Politeness and scope
 
-- Global cap of 8 requests/second by default (tune with --rps), 1
+- Global cap of 8 requests/second by default (tune with `--rps`), 1
   request/second per seller host, honest User-Agent, backoff on errors,
   `Retry-After` honoured on 429 and 503 (waiting at most 60 seconds each time),
   and a hard stop per seller if Yupoo answers 429/403 repeatedly.
-- Covers and metadata only - detail photos are never downloaded; the viewer
+- Covers and metadata only: detail photos are never downloaded, and the viewer
   links back to Yupoo for those.
 - HTML responses are limited to 8 MiB after decompression. Larger pages fail
   with a size-limit error.
 - Public pages only. No login, no paywall, no captcha handling.
 - The viewer makes no request beyond this machine. Agent links are built
-  locally from item ids, and the optional QC photo lookup is a plain link
+  locally from item IDs, and the optional QC photo lookup is a plain link
   that reaches rep.tools only when you follow it.
 
 ## Development
@@ -168,7 +160,7 @@ accuracy rate on real products.
     cargo test -- --ignored       # canary against a saved live sample
 
 The ignored test checks the parsers against a real page saved by hand to
-`data/debug/sample-list.html` - fetch a seller's `albums?page=1` there and the
+`data/debug/sample-list.html`: fetch a seller's `albums?page=1` there and the
 canary says whether the selectors still match live Yupoo markup (the test's
 comment has the command). Nothing writes that file for you: a scrape only
 dumps pages it *failed* to parse, which is the opposite of a canary. So on a
@@ -178,7 +170,7 @@ The tests need node: they run the viewer suite and check the scraper's
 duplicate, URL and age rules against the viewer's own code, and they fail
 rather than skip when node is missing.
 
-The viewer is dependency-free vanilla JS with no build step - edit
+The viewer is dependency-free vanilla JS with no build step: edit
 `viewer/*.js` and reload. Its visual system is recorded in `DESIGN.md`
 (tokens, named rules, component behaviour) and the product record it serves is
 in `PRODUCT.md`; read `DESIGN.md` before changing anything in `viewer/`,
@@ -203,7 +195,7 @@ To work on the viewer without scraping anything, generate synthetic data:
     cargo run --example make_demo_data -- demo-data
     lamp --data demo-data serve
 
-That writes 5 sellers x 2000 albums, with generated gradient covers for 2
+That writes 5 sellers × 2,000 albums, with generated gradient covers for 2
 albums in every 3, spread across each seller. The rest are left cover-less
 on purpose, so the viewer's titled colour-block fallback is on screen too.
 Fixtures include known and unknown prices, changed prices and gone listings.
@@ -236,7 +228,11 @@ marks the albums it misses gone. A
 truncated listing that misses fewer albums still marks them gone until they
 are listed again.
 
-Apache-2.0 licensed. If you redistribute this work or build on it, keep the attribution in [NOTICE](NOTICE).
+## Licence
+
+Apache-2.0; see [LICENSE](LICENSE). If you redistribute this work or build on it, keep the attribution in [NOTICE](NOTICE).
+
+The banner's lettering and emblem are drawn from Cascadia Mono and Besley glyphs (SIL OFL 1.1).
 
 ---
 
