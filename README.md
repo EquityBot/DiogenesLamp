@@ -25,6 +25,12 @@ a local index once, then serves a single page where the whole catalogue, across 
 your sellers, scrolls, searches and filters locally. Clicking an item opens the
 original Yupoo album for the detail photos.
 
+<p align="center">
+  <img src="docs/images/viewer.png" width="100%" alt="The DiogenesLamp viewer over synthetic demo data: a search box and seller, category, age and sort filters above a grid of album cards, each with a gradient cover, a price, a title and a seller name.">
+  <br>
+  <sub>The viewer over synthetic demo data from <code>make_demo_data</code>; no real seller's images.</sub>
+</p>
+
 ## Install
 
 Requires a Rust toolchain (the version is pinned in `rust-toolchain.toml`).
