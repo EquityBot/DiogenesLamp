@@ -83,7 +83,7 @@ New indexes list each seller's selected `album_ids` and map older IDs to the
 selected IDs in `album_aliases`. Raw shards retain captures for refresh, history
 and recovery. To rebuild an existing catalogue locally, run `lamp reindex` (or
 `lamp --data path/to/data reindex`); it fetches nothing and preserves the scrape
-timestamp. The viewer also selects the newest listings while loading an older
+timestamp. The viewer also selects the newest listings whilst loading an older
 index. A failed selected shard does not make its older duplicates reappear.
 Rebuilt indexes carry `selection_version: 1`. Canonical selection excludes
 records whose links fail HTTPS, hostname or credential admission, preserving
