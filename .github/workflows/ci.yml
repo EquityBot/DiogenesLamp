@@ -33,9 +33,17 @@ jobs:
           package-manager-cache: false
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
+      # Only main saves, so pull requests cannot replace the shared entries.
+      # 1 crate on 2 systems stays well inside the 10 GB cache limit.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # rust-toolchain.toml pins the compiler and its clippy and rustfmt components.
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets -- -D warnings
+      # fixture-transport is linted but not tested: it stops RateLimiter::wait
+      # from sleeping, which tests/http.rs asserts.
+      - run: cargo clippy --locked --all-targets --all-features -- -D warnings
       - run: cargo test --locked
         if: matrix.os != 'ubuntu-latest'
       # Coverage feeds the Codecov badge only and has no floor. It needs
