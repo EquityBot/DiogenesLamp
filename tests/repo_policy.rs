@@ -40,9 +40,17 @@ jobs:
           package-manager-cache: false
       - run: npm ci --ignore-scripts
       - run: npm run typecheck
+      # Only main saves, so pull requests cannot replace the shared entries.
+      # 1 crate on 2 systems stays well inside the 10 GB cache limit.
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       # rust-toolchain.toml pins the compiler and its clippy and rustfmt components.
       - run: cargo fmt --check
       - run: cargo clippy --locked --all-targets -- -D warnings
+      # fixture-transport is linted but not tested: it stops RateLimiter::wait
+      # from sleeping, which tests/http.rs asserts.
+      - run: cargo clippy --locked --all-targets --all-features -- -D warnings
       - run: cargo test --locked
         if: matrix.os != 'ubuntu-latest'
       # Coverage feeds the Codecov badge only and has no floor. It needs
@@ -170,7 +178,7 @@ profile = "minimal"
 "#;
 
 /// Pin the reviewed attribution workflow without duplicating its script.
-const ATTRIBUTION_SHA256: &str = "2dd1e990c00ecc3cb8f873095a92a55e588c72d9c9badac6db5e9793e2d95a7a";
+const ATTRIBUTION_SHA256: &str = "16f31e7f5c804156c705b7eed48cf440d0fc1ed11e280cbbe0dba34ef2407eb1";
 
 fn read(relative: &str) -> String {
     common::read(&common::root().join(relative))
