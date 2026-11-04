@@ -1,6 +1,3 @@
-// Copyright 2026 Ryan Duguid
-// SPDX-License-Identifier: Apache-2.0
-
 //! Proleptic Gregorian dates and the `date.fromisoformat` /
 //! `datetime.fromisoformat` grammar of CPython's C implementation.
 
