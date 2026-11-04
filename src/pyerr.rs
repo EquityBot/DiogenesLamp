@@ -1,6 +1,3 @@
-// Copyright 2026 Ryan Duguid
-// SPDX-License-Identifier: Apache-2.0
-
 //! Python's error texts and file conventions: `str(OSError)`, codec errors,
 //! `Path.read_text` newline handling, `pathlib` path strings and `resolve()`.
 

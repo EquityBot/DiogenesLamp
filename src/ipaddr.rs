@@ -1,6 +1,3 @@
-// Copyright 2026 Ryan Duguid
-// SPDX-License-Identifier: Apache-2.0
-
 //! The parts of Python's `ipaddress` the port uses: strict parsing, `str()`
 //! and the special-purpose registries behind `is_global`.
 
