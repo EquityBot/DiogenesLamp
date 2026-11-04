@@ -9,23 +9,23 @@ clone with `cargo install --locked --path .`; the toolchain is pinned in `rust-t
 
 ## Start
 
-- [README](https://github.com/EquityBot/DiogenesLamp#readme): install, use, data layout, diagnostics, politeness limits and development checks.
-- [sources.example.toml](https://github.com/EquityBot/DiogenesLamp/blob/main/sources.example.toml): an example of the seller source file that `lamp import` writes.
-- [CHANGELOG](https://github.com/EquityBot/DiogenesLamp/blob/main/CHANGELOG.md): the Rust port and its documented divergences from the Python version.
+- [README](https://github.com/yungSNAT/DiogenesLamp#readme): install, use, data layout, diagnostics, politeness limits and development checks.
+- [sources.example.toml](https://github.com/yungSNAT/DiogenesLamp/blob/main/sources.example.toml): an example of the seller source file that `lamp import` writes.
+- [CHANGELOG](https://github.com/yungSNAT/DiogenesLamp/blob/main/CHANGELOG.md): the Rust port and its documented divergences from the Python version.
 
 ## Docs
 
-- [Reference](https://github.com/EquityBot/DiogenesLamp/blob/main/docs/reference.md): scrape and serve flags, scrape behaviour and the viewer's features.
-- [Contributing](https://github.com/EquityBot/DiogenesLamp/blob/main/CONTRIBUTING.md): issues, pull requests and the checks a change must pass.
-- [Security policy](https://github.com/EquityBot/DiogenesLamp/blob/main/SECURITY.md): reporting and what the tool does and does not access.
-- [Product record](https://github.com/EquityBot/DiogenesLamp/blob/main/PRODUCT.md): users, purpose, positioning and operating context.
-- [Design system](https://github.com/EquityBot/DiogenesLamp/blob/main/DESIGN.md): viewer tokens, rules and component behaviour.
-- [Agent instructions](https://github.com/EquityBot/DiogenesLamp/blob/main/AGENTS.md): checks and constraints for coding agents.
+- [Reference](https://github.com/yungSNAT/DiogenesLamp/blob/main/docs/reference.md): scrape and serve flags, scrape behaviour and the viewer's features.
+- [Contributing](https://github.com/yungSNAT/DiogenesLamp/blob/main/CONTRIBUTING.md): issues, pull requests and the checks a change must pass.
+- [Security policy](https://github.com/yungSNAT/DiogenesLamp/blob/main/SECURITY.md): reporting and what the tool does and does not access.
+- [Product record](https://github.com/yungSNAT/DiogenesLamp/blob/main/PRODUCT.md): users, purpose, positioning and operating context.
+- [Design system](https://github.com/yungSNAT/DiogenesLamp/blob/main/DESIGN.md): viewer tokens, rules and component behaviour.
+- [Agent instructions](https://github.com/yungSNAT/DiogenesLamp/blob/main/AGENTS.md): checks and constraints for coding agents.
 
 ## Related
 
-- [EquityBot](https://github.com/EquityBot): other EquityBot tools.
+- [yungSNAT](https://github.com/yungSNAT): other yungSNAT tools.
 
 ## Reuse
 
-- [Reusing this code](https://github.com/EquityBot/DiogenesLamp/blob/main/AGENTS.md#reusing-this-code): Ryan Duguid's work under Apache-2.0; keep its notices and licence; public credit is requested.
+- [Reusing this code](https://github.com/yungSNAT/DiogenesLamp/blob/main/AGENTS.md#reusing-this-code): Ryan Duguid's work under Apache-2.0; keep its notices and licence; public credit is requested.

@@ -287,7 +287,7 @@ fn price_evidence_keeps_rule_and_candidates() {
 /// at. Save a page that works, sending the project's own User-Agent:
 ///
 ///     mkdir -p data/debug
-///     curl -A "DiogenesLamp/0.1 (+https://github.com/EquityBot/DiogenesLamp)" \
+///     curl -A "DiogenesLamp/0.1 (+https://github.com/yungSNAT/DiogenesLamp)" \
 ///       "https://<seller>.x.yupoo.com/albums?page=1" -o data/debug/sample-list.html
 #[test]
 #[ignore = "manual canary against a saved live sample"]

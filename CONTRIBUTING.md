@@ -1,7 +1,7 @@
 # Contributing
 
 Report bugs and request features in
-[GitHub issues](https://github.com/EquityBot/DiogenesLamp/issues). For a
+[GitHub issues](https://github.com/yungSNAT/DiogenesLamp/issues). For a
 suspected security vulnerability, follow [SECURITY.md](SECURITY.md) instead of
 opening an issue.
 
