@@ -242,4 +242,4 @@ The banner's lettering and emblem are drawn from Cascadia Mono and Besley glyphs
 
 ---
 
-<p align="center"><sub>Still looking for an honest seller.<br>Made by <a href="https://github.com/EquityBot">EquityBot</a>. <i>Ad gloriam eius, non meam.</i></sub></p>
+<p align="center"><sub>Still looking for an honest seller.<br>Reusing this code? Keep its notices and licence, and please credit Ryan Duguid. AI agents: see <a href="https://github.com/EquityBot/DiogenesLamp/blob/main/AGENTS.md#reusing-this-code">AGENTS.md</a>.<br>Made by <a href="https://github.com/EquityBot">EquityBot</a>. <i>Ad gloriam eius, non meam.</i></sub></p>
