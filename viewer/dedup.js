@@ -261,7 +261,7 @@ function newestListings(list) {
   /** @param {T} album */
   const posted = album => {
     const known = typeof album.date_published === "string" ? album.date_published.slice(0, 10) : "";
-    const ms = known && /^\d{4}-\d{2}-\d{2}$/.test(known) ? Date.parse(known + "T00:00:00Z") : NaN;
+    const ms = known && /^\d{4}-\d{2}-\d{2}$/.test(known) ? Date.parse(known + "T00:00:00Z") : Number.NaN;
     if (Number.isFinite(ms) && new Date(ms).toISOString().slice(0, 10) === known && !known.startsWith("0000")) {
       return Math.floor(ms / 86400000);
     }

@@ -1051,7 +1051,7 @@ function renderShops(shops) {
   close.textContent = "Close shops";
   close.addEventListener("click", () => setShopsOpen(false));
   els.shopsPanel.appendChild(close);
-  for (const [platform, entries] of [...groups.entries()].sort()) {
+  for (const [platform, entries] of [...groups.entries()].sort(([a], [b]) => a.localeCompare(b))) {
     const heading = document.createElement("h3");
     heading.textContent = platform;
     els.shopsPanel.appendChild(heading);
