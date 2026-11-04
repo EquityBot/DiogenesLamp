@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! JSON with Python's semantics: `json.loads` (the C scanner, including its
 //! error messages), `json.dumps(..., ensure_ascii=False)`, dict ordering,
 //! arbitrary-size integers and Python's cross-type equality.

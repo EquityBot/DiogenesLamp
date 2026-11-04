@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 "use strict";
 
 // Local browser work is separate from fetched catalogue metadata.

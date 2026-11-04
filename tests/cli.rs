@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Ported from tests/test_cli.py and tests/test_smoke.py.
 mod common;
 

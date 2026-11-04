@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Viewer assets bundled into the binary (the files setup.py copied into
 //! wheels: .html, .css, .js and .json under viewer/).
 

@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Ported from tests/test_http.py and tests/test_safe_fetch.py.
 mod common;
 

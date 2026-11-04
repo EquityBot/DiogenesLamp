@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! A port of what `BeautifulSoup(html, "html.parser")` does with a page:
 //! CPython 3.15's `html.parser` tokenizer (with `convert_charrefs=False`, as
 //! bs4 sets it), bs4's tree construction, `get_text`, and the few CSS

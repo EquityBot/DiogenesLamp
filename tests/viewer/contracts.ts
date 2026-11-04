@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 // Compile only. Runtime behaviour is covered by the adjacent .test.cjs files.
 import { defaultFilters, normalizeFilters } from "../../viewer/filters.js";
 import { createViewState, nextViewState, selectCatalogue } from "../../viewer/view-state.js";

@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Read-only diagnosis and explicit local metadata recovery.
 
 use std::io::{Read, Write};

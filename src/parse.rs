@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Parsers for Yupoo album list pages and album pages.
 
 use std::sync::LazyLock;

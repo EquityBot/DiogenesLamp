@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! The slice of Python 3.15's argparse that `lamp` uses: long options with
 //! abbreviations, store and store_true actions, typed values, required
 //! positionals and one level of subcommands. Errors, usage and help are

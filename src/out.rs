@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Console output as Python's `print` writes it: UTF-8, and `\n` becomes
 //! `\r\n` on Windows (Python's text-mode stdio translates newlines there).
 //!

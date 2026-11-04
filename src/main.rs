@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 fn main() {
     let args: Vec<String> = std::env::args().skip(1).collect();
     // A panic is Python's uncaught exception: its report is already printed, and

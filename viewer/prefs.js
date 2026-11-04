@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 "use strict";
 
 // Viewer preferences that are neither filters nor saved album work: the

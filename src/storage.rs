@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Catalogue storage: per-seller shards plus an index manifest, all atomic
 //! writes.
 

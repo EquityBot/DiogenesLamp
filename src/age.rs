@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Estimate an album's posting date from its id.
 //!
 //! Yupoo assigns album ids from a global sequence, so an id dates an album

@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Extract purchase links from album text.
 //!
 //! Marketplace links (taobao, tmall, weidian, 1688) are normalised to the

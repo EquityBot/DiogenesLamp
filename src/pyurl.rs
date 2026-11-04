@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! `urllib.parse` as Python 3.15 implements it: `urlsplit` (including its
 //! ValueError cases), netloc accessors, `urljoin`, `quote`, `unquote` and
 //! `parse_qsl`.

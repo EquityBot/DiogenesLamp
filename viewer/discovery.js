@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 "use strict";
 
 /** @typedef {{id: string, title?: string, title_lc?: string, seller?: string,

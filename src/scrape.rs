@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Scrape Yupoo sellers into catalogue shards.
 
 use std::collections::{BTreeSet, HashSet};

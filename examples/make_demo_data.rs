@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Generate synthetic catalogue data for viewer development.
 //!
 //! Usage: cargo run --example make_demo_data -- [data_dir] [sellers] [albums_per_seller] [cover_limit_per_seller]

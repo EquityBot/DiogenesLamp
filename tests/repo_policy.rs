@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Ported from tests/test_workflow_security.py: fail-closed contracts for
 //! the security-bearing policy files. A change here must be reviewed for its
 //! security effect and the expected text updated explicitly.

@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Arbitrary bytes, decoded lossily as UTF-8, to the HTML parser and the
 //! selector and text walks the catalogue parsers run on its tree.
 //!

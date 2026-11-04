@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Python `str` semantics the port depends on: character classes, strip,
 //! `repr`, `splitlines`, and the `int()`/`float()` text parsers.
 

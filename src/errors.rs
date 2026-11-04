@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Errors carry the text Python's exception would print, and the kind the
 //! Python code catches them by.
 

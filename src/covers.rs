@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Bounded local cover preparation; no network or model dependency.
 //!
 //! The fingerprint (`cover_hash`) ports Pillow's greyscale conversion and
