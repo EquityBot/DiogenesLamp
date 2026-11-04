@@ -9,8 +9,8 @@
 
 <div align="center">
 
-[![tests](https://github.com/EquityBot/DiogenesLamp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/EquityBot/DiogenesLamp/actions/workflows/ci.yml) [![Codecov](https://codecov.io/gh/EquityBot/DiogenesLamp/graph/badge.svg)](https://codecov.io/gh/EquityBot/DiogenesLamp) [![CodeQL](https://github.com/EquityBot/DiogenesLamp/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/EquityBot/DiogenesLamp/actions/workflows/codeql.yml) [![OSV-Scanner](https://github.com/EquityBot/DiogenesLamp/actions/workflows/osv-scanner.yml/badge.svg?branch=main)](https://github.com/EquityBot/DiogenesLamp/actions/workflows/osv-scanner.yml) [![SonarCloud](https://sonarcloud.io/api/project_badges/measure?project=EquityBot_DiogenesLamp&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=EquityBot_DiogenesLamp)<br>
-[![OpenSSF Scorecard](https://raw.githubusercontent.com/ryanduguid/.github/badges/EquityBot/DiogenesLamp.svg)](https://scorecard.dev/viewer/?uri=github.com/EquityBot/DiogenesLamp) [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16129/badge)](https://www.bestpractices.dev/projects/16129)<br>
+[![tests](https://github.com/yungSNAT/DiogenesLamp/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/yungSNAT/DiogenesLamp/actions/workflows/ci.yml) [![Codecov](https://codecov.io/gh/EquityBot/DiogenesLamp/graph/badge.svg)](https://codecov.io/gh/EquityBot/DiogenesLamp) [![CodeQL](https://github.com/yungSNAT/DiogenesLamp/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/yungSNAT/DiogenesLamp/actions/workflows/codeql.yml) [![OSV-Scanner](https://github.com/yungSNAT/DiogenesLamp/actions/workflows/osv-scanner.yml/badge.svg?branch=main)](https://github.com/yungSNAT/DiogenesLamp/actions/workflows/osv-scanner.yml) [![SonarCloud](https://sonarcloud.io/api/project_badges/measure?project=EquityBot_DiogenesLamp&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=EquityBot_DiogenesLamp)<br>
+[![OpenSSF Scorecard](https://raw.githubusercontent.com/ryanduguid/.github/badges/EquityBot/DiogenesLamp.svg)](https://scorecard.dev/viewer/?uri=github.com/yungSNAT/DiogenesLamp) [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16129/badge)](https://www.bestpractices.dev/projects/16129)<br>
 [![rust: 1.99+](.github/assets/badges/rust.svg)](https://www.rust-lang.org/) [![licence: Apache-2.0](.github/assets/badges/licence.svg)](LICENSE)
 
 [Install](#install) · [Use](#use) · [Data](#data) · [Diagnostics](#diagnostics-and-recovery) · [Covers](#cached-covers-and-visual-suggestions) · [Politeness](#politeness-and-scope) · [Development](#development) · [Licence](#licence)
@@ -36,7 +36,7 @@ original Yupoo album for the detail photos.
 Requires a Rust toolchain (the version is pinned in `rust-toolchain.toml`).
 `lamp` is a single binary with the viewer assets built in:
 
-    git clone https://github.com/EquityBot/DiogenesLamp
+    git clone https://github.com/yungSNAT/DiogenesLamp
     cd DiogenesLamp
     cargo install --locked --path .
 
@@ -242,4 +242,4 @@ The banner's lettering and emblem are drawn from Cascadia Mono and Besley glyphs
 
 ---
 
-<p align="center"><sub>Still looking for an honest seller.<br>Reusing this code? Keep its notices and licence, and please credit Ryan Duguid. AI agents: see <a href="https://github.com/EquityBot/DiogenesLamp/blob/main/AGENTS.md#reusing-this-code">AGENTS.md</a>.<br>Made by <a href="https://github.com/EquityBot">EquityBot</a>. <i>Ad gloriam eius, non meam.</i></sub></p>
+<p align="center"><sub>Still looking for an honest seller.<br>Reusing this code? Keep its notices and licence, and please credit Ryan Duguid. AI agents: see <a href="https://github.com/yungSNAT/DiogenesLamp/blob/main/AGENTS.md#reusing-this-code">AGENTS.md</a>.<br>Made by <a href="https://github.com/yungSNAT">EquityBot</a>. <i>Ad gloriam eius, non meam.</i></sub></p>
