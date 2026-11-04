@@ -3,10 +3,10 @@ message: "If you use this work, cite it with this metadata and the release tag o
 title: "DiogenesLamp"
 type: software
 authors:
-  - name: "EquityBot"
+  - name: "yungSNAT"
 abstract: "Offline Yupoo catalogue archiver with a local virtualised viewer."
-repository-code: "https://github.com/EquityBot/DiogenesLamp"
-license-url: "https://github.com/EquityBot/DiogenesLamp/blob/main/LICENSE"
+repository-code: "https://github.com/yungSNAT/DiogenesLamp"
+license-url: "https://github.com/yungSNAT/DiogenesLamp/blob/main/LICENSE"
 keywords:
   - accessibility
   - catalog

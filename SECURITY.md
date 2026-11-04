@@ -7,7 +7,7 @@ Security fixes are applied to the latest version on the default branch.
 ## Reporting a vulnerability
 
 Report it privately through GitHub's private vulnerability reporting:
-https://github.com/EquityBot/DiogenesLamp/security/advisories/new. Do not open
+https://github.com/yungSNAT/DiogenesLamp/security/advisories/new. Do not open
 an issue for a suspected security vulnerability. Include a clear description,
 reproduction steps, impact, and any suggested mitigation.
 
