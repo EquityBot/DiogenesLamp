@@ -10,8 +10,6 @@ const path = require("node:path");
 
 const SOURCE = fs.readFileSync(
   path.join(__dirname, "..", "..", "viewer", "app.js"), "utf8");
-const found = SOURCE.match(/\nfunction renderShops\([\s\S]*?\n\}\n/);
-assert.ok(found, "app.js no longer declares renderShops");
 
 function element(tag) {
   return { tagName: tag, children: [], addEventListener() {},
@@ -20,6 +18,8 @@ function element(tag) {
 }
 
 test("shop groups are headed in platform-name order", () => {
+  const found = SOURCE.match(/\nfunction renderShops\([\s\S]*?\n\}\n/);
+  assert.ok(found, "app.js no longer declares renderShops");
   const panel = element("div");
   const renderShops = new Function("document", "els", "setShopsOpen",
     found[0] + "\nreturn renderShops;")({ createElement: element }, { shopsPanel: panel }, () => {});
