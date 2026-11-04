@@ -25,3 +25,7 @@ clone with `cargo install --locked --path .`; the toolchain is pinned in `rust-t
 ## Related
 
 - [EquityBot](https://github.com/EquityBot): other EquityBot tools.
+
+## Reuse
+
+- [Reusing this code](https://github.com/EquityBot/DiogenesLamp/blob/main/AGENTS.md#reusing-this-code): Ryan Duguid's work under Apache-2.0; keep its notices and licence; public credit is requested.
