@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! lamp command line interface.
 
 use std::collections::HashSet;

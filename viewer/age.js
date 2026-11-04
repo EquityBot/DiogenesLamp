@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 "use strict";
 
 // Posting-age estimation. Yupoo assigns album ids from a global sequence,

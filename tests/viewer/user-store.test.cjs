@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const { createUserStore, importUserBackup, parseUserBackup, inheritDuplicateWork } = require("../../viewer/user-store.js");

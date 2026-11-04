@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Small validation boundary for local catalogue and recovery files.
 
 use std::path::{Path, PathBuf};

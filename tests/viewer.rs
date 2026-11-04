@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Ported from tests/test_viewer_dedup.py (the node suite runner) and
 //! tests/test_viewer_source.py (source-level viewer contracts and file hygiene).
 mod common;

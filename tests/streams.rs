@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! A standard stream that cannot be written fails as it did for the Python
 //! release, measured against it on a closed pipe: stdout still pending at exit
 //! is exit status 120, a maintenance command's handler reports a failed print,

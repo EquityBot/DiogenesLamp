@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Process locks for a catalogue's complete read/modify/write operation.
 
 use std::fs::{File, OpenOptions};

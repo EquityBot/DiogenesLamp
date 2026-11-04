@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 import type { CatalogueAlbum, ViewState } from './view-state.js';
 import type { Prefs } from './prefs.js';
 

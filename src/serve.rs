@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Serve the viewer and the data directory on localhost, as Python's
 //! `ThreadingHTTPServer` with `SimpleHTTPRequestHandler` (HTTP/1.0, one
 //! request per connection) and DiogenesLamp's handler overrides.

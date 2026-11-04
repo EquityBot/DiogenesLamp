@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 "use strict";
 
 /** @typedef {{start: number, end: number, cols: number, count: number, version: number, cursor: number}} RenderWindow */

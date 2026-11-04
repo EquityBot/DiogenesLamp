@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Polite, rebinding-safe HTTP client with bounded atomic image downloads.
 
 use std::cell::RefCell;

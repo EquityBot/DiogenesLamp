@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Select the newest listing using the viewer's duplicate identities.
 
 use std::collections::{BTreeSet, HashMap};

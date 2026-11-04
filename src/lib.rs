@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! DiogenesLamp: browse any Yupoo catalog locally as one fast, searchable page.
 
 pub mod age;

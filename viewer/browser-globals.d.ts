@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 // The script tags in index.html expose these helpers to the viewer controllers and state module.
 // Reuse the CommonJS export types so both loading paths share one contract.
 declare const normalizeFilters: typeof import("./filters.js").normalizeFilters;

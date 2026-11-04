@@ -1,3 +1,6 @@
+// Copyright 2026 Ryan Duguid
+// SPDX-License-Identifier: Apache-2.0
+
 //! Ingest raw link dumps into sources.toml.
 
 use std::path::Path;
