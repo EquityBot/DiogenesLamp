@@ -137,3 +137,9 @@ test("failed save preserves unsaved fields and cross-tab values outside the edit
   h.store.set = set; h.el("preview-form").fire("submit");
   assert.equal(h.store.get("note", "100"), "Draft"); assert.equal(h.store.get("collection", "100"), "Other tab");
 });
+
+test("filter options list in alphabetical order, not code-unit order", () => {
+  const h = harness(); const select = h.el("collection-filter");
+  h.context.selectOptions(select, ["Beta", "alpha", "gamma", "alpha"]);
+  assert.deepEqual(select.options.slice(1).map(o => o.value), ["alpha", "Beta", "gamma"]);
+});

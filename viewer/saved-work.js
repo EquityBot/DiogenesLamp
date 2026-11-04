@@ -30,7 +30,7 @@ function saveFilterURL() {
 function selectOptions(select, values, wanted = select.value) {
   const first = select.options[0].cloneNode(true);
   select.replaceChildren(first);
-  for (const value of [...new Set(values)].filter(Boolean).sort()) {
+  for (const value of [...new Set(values)].filter(Boolean).sort((a, b) => a.localeCompare(b))) {
     select.add(new Option(value, value));
   }
   // Keep a missing filter explicit: an imported collection may refer to an

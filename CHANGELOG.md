@@ -7,7 +7,7 @@
 subcommands, flags, exit codes, status lines and written files match the
 Python implementation at d8c03c3 on the fabricated samples and generated
 differential corpus, apart from the divergences below. The viewer is
-unchanged.
+unchanged apart from the fixes under Viewer.
 
 ### Documented divergences
 
@@ -70,6 +70,12 @@ unchanged.
 - **Unicode tables.** Character classes follow Python 3.15 (Unicode 17); NFKC
   normalisation and IDNA mapping come from Rust crates, which can differ for
   characters added in the newest Unicode versions.
+
+### Viewer
+
+- The collection, tag and saved-search filters, and the shops panel's
+  platform groups, list in alphabetical order. They had used code-unit order,
+  so 'Beta' came before 'alpha' and 'taobao global' before 'taobao'.
 
 ### Development
 
