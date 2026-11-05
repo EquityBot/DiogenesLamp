@@ -13,7 +13,7 @@
 [![OpenSSF Scorecard](https://raw.githubusercontent.com/ryanduguid/.github/badges/EquityBot/DiogenesLamp.svg)](https://scorecard.dev/viewer/?uri=github.com/yungSNAT/DiogenesLamp) [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/16129/badge)](https://www.bestpractices.dev/projects/16129)<br>
 [![rust: 1.99+](.github/assets/badges/rust.svg)](https://www.rust-lang.org/) [![licence: Apache-2.0](.github/assets/badges/licence.svg)](LICENSE)
 
-[Install](#install) · [Use](#use) · [Data](#data) · [Diagnostics](#diagnostics-and-recovery) · [Covers](#cached-covers-and-visual-suggestions) · [Politeness](#politeness-and-scope) · [Development](#development) · [Licence](#licence)
+[Install](#install) · [Use](#use) · [Data](#data) · [Diagnostics](#diagnostics-and-recovery) · [Covers](#cached-covers-and-visual-suggestions) · [Politeness](#politeness-and-scope) · [Development](#development) · [Credits](#credits) · [Licence](#licence)
 
 </div>
 
@@ -234,11 +234,13 @@ marks the albums it misses gone. A
 truncated listing that misses fewer albums still marks them gone until they
 are listed again.
 
+## Credits
+
+The banner's lettering and emblem are drawn from Cascadia Mono and Besley glyphs (SIL OFL 1.1).
+
 ## Licence
 
 Apache-2.0; see [LICENSE](LICENSE). If you redistribute this work or build on it, keep the attribution in [NOTICE](NOTICE).
-
-The banner's lettering and emblem are drawn from Cascadia Mono and Besley glyphs (SIL OFL 1.1).
 
 ---
 
